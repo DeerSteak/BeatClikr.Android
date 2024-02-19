@@ -14,16 +14,29 @@ class SongListViewModel: ViewModel() {
     private val _uiState = MutableStateFlow(SongListUiState())
     val uiState: StateFlow<SongListUiState> = _uiState.asStateFlow()
 
-    fun setSelectedSong(uuid: UUID) {
-        val newSelection = DataSource.songs.find{ it.id == uuid }
-        _uiState.update { currentState ->
-            currentState.copy(
-                selectedSong = newSelection
-            )
+    fun setSelectedSong(uuid: UUID?) {
+        if (uuid == null) {
+            _uiState.update { currentState ->
+                currentState.copy(
+                    selectedSong = null
+                )
+            }
+        } else {
+            val newSelection = DataSource.songs.find { it.id == uuid }
+            _uiState.update { currentState ->
+                currentState.copy(
+                    selectedSong = newSelection
+                )
+            }
         }
     }
 
-    fun addNewSong(song: Song) {
+    fun saveSong(song: Song) {
         DataSource.saveSong(song)
+        _uiState.update { currentState ->
+            currentState.copy(
+                songList = DataSource.songs
+            )
+        }
     }
 }

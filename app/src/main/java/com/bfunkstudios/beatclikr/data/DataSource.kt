@@ -1,5 +1,8 @@
 package com.bfunkstudios.beatclikr.data
 
+import android.util.Log
+import java.util.UUID
+
 object DataSource {
     var songs = listOf(
         Song(
@@ -9,7 +12,8 @@ object DataSource {
             4,
             Subdivisions.Eighth,
             null,
-            null),
+            null,
+            UUID.randomUUID()),
         Song(
             "Good Enough",
             "Van Halen",
@@ -17,7 +21,8 @@ object DataSource {
             4,
             Subdivisions.Quarter,
             null,
-            null
+            null,
+            UUID.randomUUID()
         ),
         Song(
             "Panama",
@@ -26,7 +31,8 @@ object DataSource {
             4,
             Subdivisions.Quarter,
             null,
-            null
+            null,
+            UUID.randomUUID()
         ),
         Song(
             "Right Now",
@@ -35,7 +41,8 @@ object DataSource {
             4,
             Subdivisions.Quarter,
             null,
-            null
+            null,
+            UUID.randomUUID()
         ),
         Song(
             "Top of the World",
@@ -44,12 +51,19 @@ object DataSource {
             4,
             Subdivisions.Quarter,
             null,
-            null
+            null,
+            UUID.randomUUID()
         )
     )
 
     fun saveSong(song: Song) {
+        for (s in songs) {
+            Log.d("DataSource", "Title: " + s.title + ", ID: " + s.id)
+        }
+
         val existingSong = songs.find{ it.id == song.id }
+        Log.d("DataSource", "Existing song ID: " + existingSong?.id)
+        Log.d("DataSource", "Incoming song ID: " + song.id)
         if (existingSong == null) {
             songs = songs + song
         } else {

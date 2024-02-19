@@ -19,6 +19,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.lifecycle.viewmodel.viewModelFactory
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -70,12 +71,12 @@ fun BeatClikrApp(
             modifier = Modifier.padding(innerPadding)
         ) {
             composable(BeatClikrScreen.SongList.name){
-                SongList(uiState.songList) {
+                SongList(uiState, songListViewModel) {
                     navController.navigate(BeatClikrScreen.SongDetails.name)
                 }
             }
             composable(BeatClikrScreen.SongDetails.name){
-                SongDetail(uiState) {
+                SongDetail(uiState, songListViewModel) {
                     navController.popBackStack()
                 }
             }
