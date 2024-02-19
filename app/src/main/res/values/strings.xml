@@ -1,3 +1,5 @@
 <resources>
     <string name="app_name">BeatClikr</string>
+    <string name="song_list">Song List</string>
+    <string name="back">Back</string>
 </resources>

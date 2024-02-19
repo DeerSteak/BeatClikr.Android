@@ -1,4 +1,4 @@
-package com.bfunkstudios.beatclikr.models
+package com.bfunkstudios.beatclikr.data
 
 enum class ClickerType {
     LIVE, INSTANT, REHEARSAL

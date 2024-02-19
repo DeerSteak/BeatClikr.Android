@@ -1,10 +1,10 @@
-package com.bfunkstudios.beatclikr.models
+package com.bfunkstudios.beatclikr.data
 
 import java.util.UUID
 
 data class Song(var title: String,
                 var artist: String,
-                var beatsPerMinute: Int,
+                var beatsPerMinute: Float,
                 var beatsPerMeasure: Int,
                 var subdivisions: Subdivisions,
                 var liveSequence: Int?,
