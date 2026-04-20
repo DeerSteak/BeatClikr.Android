@@ -2,10 +2,16 @@ package com.bfunkstudios.beatclikr.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-val Purple80 = Color(0xFFD0BCFF)
-val PurpleGrey80 = Color(0xFFCCC2DC)
-val Pink80 = Color(0xFFEFB8C8)
+// BeatClikr brand colors (matching iOS)
+val AccentColor = Color(0xFFFF5722)        // Orange accent (iOS AccentColor)
+val AppPrimaryLight = Color(0xFF408CC9)    // Blue primary for light mode
+val AppPrimaryDark = Color(0xFF0E6A96)     // Darker blue for dark mode
 
-val Purple40 = Color(0xFF6650a4)
-val PurpleGrey40 = Color(0xFF625b71)
-val Pink40 = Color(0xFF7D5260)
+// Neutral surface colors (no purple tint)
+val SurfaceLight = Color(0xFFFFFFFF)       // Pure white
+val SurfaceVariantLight = Color(0xFFF2F2F7) // iOS systemGroupedBackground equivalent
+val SurfaceContainerLight = Color(0xFFFFFFFF) // Card backgrounds
+
+val SurfaceDark = Color(0xFF1C1C1E)        // iOS dark surface
+val SurfaceVariantDark = Color(0xFF2C2C2E) // iOS dark grouped background
+val SurfaceContainerDark = Color(0xFF3A3A3C) // Card backgrounds dark

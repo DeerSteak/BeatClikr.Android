@@ -9,8 +9,10 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.wrapContentWidth
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.runtime.Composable
@@ -22,7 +24,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.bfunkstudios.beatclikr.R
 import com.bfunkstudios.beatclikr.data.DataSource
 import com.bfunkstudios.beatclikr.data.Song
 import com.bfunkstudios.beatclikr.data.SongListUiState
@@ -53,32 +57,33 @@ fun SongDetail(uiState: SongListUiState, songlistViewModel: SongListViewModel, n
     Column(modifier = Modifier
         .fillMaxSize()
         .padding(16.dp)) {
-        Text("Title")
+        Text(stringResource(R.string.song_title))
         TextField(value = title, onValueChange = {
             title = it
         }, modifier = Modifier.fillMaxWidth())
-        Text("Artist")
+        Text(stringResource(R.string.artist))
         TextField(value = artist, onValueChange = {
             artist = it
         }, modifier = Modifier.fillMaxWidth())
 
-        Row {
-            Text("Beats Per Minute: ")
-            Text(beatsPerMinute.toString())
-        }
-        Slider(value = beatsPerMinute, onValueChange = { beatsPerMinute = it },
+        Text(stringResource(R.string.beats_per_minute_label, beatsPerMinute.toInt()))
+        Slider(
+            value = beatsPerMinute,
+            onValueChange = { beatsPerMinute = it },
             valueRange = 60f..240f,
+            colors = SliderDefaults.colors(
+                thumbColor = MaterialTheme.colorScheme.secondary,
+                activeTrackColor = MaterialTheme.colorScheme.secondary,
+                inactiveTrackColor = MaterialTheme.colorScheme.secondary.copy(alpha = 0.24f)
             )
-        Row {
-            Text("Beats Per Measure: ")
-            Text(beatsPerMeasure.toString())
-        }
+        )
+        Text(stringResource(R.string.beats_per_measure_label, beatsPerMeasure))
         TextField(value = beatsPerMeasure.toString(), onValueChange = {
             beatsPerMeasure = it.toInt()
         }, modifier = Modifier.fillMaxWidth())
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
             OutlinedButton(onClick = navigateBack, modifier = Modifier.weight(1f)) {
-                Text("Cancel")
+                Text(stringResource(R.string.cancel))
             }
             Spacer(Modifier.weight(0.1f))
             OutlinedButton(onClick = {
@@ -95,7 +100,7 @@ fun SongDetail(uiState: SongListUiState, songlistViewModel: SongListViewModel, n
                 songlistViewModel.saveSong(newSong)
                 navigateBack()
             }, modifier = Modifier.weight(1f)) {
-                Text("Save")
+                Text(stringResource(R.string.save))
             }
         }
     }

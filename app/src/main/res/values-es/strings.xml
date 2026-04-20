@@ -1,0 +1,32 @@
+<resources>
+    <string name="app_name">BeatClikr</string>
+    <string name="song_list">Lista de canciones</string>
+    <string name="back">Atrás</string>
+    <string name="add_song">Agregar canción</string>
+    <string name="instant_metronome">Metrónomo instantáneo</string>
+
+    <!-- Metronome screen -->
+    <string name="bpm">BPM</string>
+    <string name="tap_tempo">TAP\nTEMPO</string>
+    <string name="groove">RITMO</string>
+    <string name="beat">Tiempo</string>
+    <string name="rhythm">Ritmo</string>
+    <string name="play">Reproducir</string>
+    <string name="pause">Pausa</string>
+    <string name="increase_bpm">Aumentar BPM</string>
+    <string name="decrease_bpm">Disminuir BPM</string>
+
+    <!-- Subdivisions -->
+    <string name="subdivision_quarter">Negra</string>
+    <string name="subdivision_eighth">Corchea</string>
+    <string name="subdivision_triplet">Tresillo</string>
+    <string name="subdivision_sixteenth">Semicorchea</string>
+
+    <!-- Song detail -->
+    <string name="song_title">Título</string>
+    <string name="artist">Artista</string>
+    <string name="beats_per_minute_label">Pulsos por minuto: %1$d</string>
+    <string name="beats_per_measure_label">Pulsos por compás: %1$d</string>
+    <string name="cancel">Cancelar</string>
+    <string name="save">Guardar</string>
+</resources>

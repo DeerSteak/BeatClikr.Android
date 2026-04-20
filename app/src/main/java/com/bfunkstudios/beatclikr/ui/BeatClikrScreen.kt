@@ -32,12 +32,13 @@ import com.bfunkstudios.beatclikr.ui.components.SongList
 fun BeatClikrAppBar(
     canNavigateBack: Boolean,
     navigateUp: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    title: String = stringResource(id = R.string.app_name)
 ) {
     TopAppBar(
-        title = { Text(stringResource(id = R.string.app_name))},
-        colors = TopAppBarDefaults.mediumTopAppBarColors(
-            containerColor = MaterialTheme.colorScheme.primaryContainer
+        title = { Text(title) },
+        colors = TopAppBarDefaults.topAppBarColors(
+            containerColor = MaterialTheme.colorScheme.surface
         ),
         modifier = modifier,
         navigationIcon = {
@@ -60,14 +61,18 @@ fun BeatClikrApp(
 ) {
     Scaffold(
         topBar = {
-            BeatClikrAppBar(canNavigateBack = false, navigateUp = { /*TODO*/ })
+            BeatClikrAppBar(
+                canNavigateBack = false,
+                navigateUp = { /*TODO*/ },
+                title = stringResource(R.string.instant_metronome)
+            )
         }
     ) { innerPadding ->
         val uiState by songListViewModel.uiState.collectAsState()
 
         NavHost(
             navController = navController,
-            startDestination = BeatClikrScreen.SongList.name,
+            startDestination = BeatClikrScreen.InstantMetronome.name,
             modifier = Modifier.padding(innerPadding)
         ) {
             composable(BeatClikrScreen.SongList.name){
@@ -80,11 +85,14 @@ fun BeatClikrApp(
                     navController.popBackStack()
                 }
             }
+            composable(BeatClikrScreen.InstantMetronome.name){
+                InstantMetronomeView()
+            }
         }
     }
 
 }
 
 enum class BeatClikrScreen() {
-    SongList, SongDetails
+    SongList, SongDetails, InstantMetronome
 }
