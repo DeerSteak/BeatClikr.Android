@@ -8,6 +8,9 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.bfunkstudios.beatclikr.constants.MetronomeConstants
+import com.bfunkstudios.beatclikr.data.ClickerType
+import com.bfunkstudios.beatclikr.data.AppPreferences
+import com.bfunkstudios.beatclikr.data.Song
 import com.bfunkstudios.beatclikr.data.SoundFile
 import com.bfunkstudios.beatclikr.data.Subdivisions
 import com.bfunkstudios.beatclikr.services.AudioPlayerService
@@ -15,32 +18,36 @@ import com.bfunkstudios.beatclikr.services.MetronomeAudioEngineDelegate
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-/**
- * ViewModel for metronome playback control.
- * Matches iOS MetronomePlaybackViewModel architecture.
- */
 class MetronomeViewModel(application: Application) : AndroidViewModel(application),
     MetronomeAudioEngineDelegate {
 
     private val audio: AudioPlayerService = AudioPlayerService.getInstance(application)
+    private val prefs = AppPreferences(application)
 
-    // Published state
     var iconScale by mutableFloatStateOf(MetronomeConstants.ICON_SCALE_MIN)
         private set
 
     var isPlaying by mutableStateOf(false)
         private set
 
-    var beatsPerMinute by mutableFloatStateOf(120f)
+    var clickerType by mutableStateOf(ClickerType.INSTANT)
         private set
 
-    var selectedSubdivisions by mutableStateOf(Subdivisions.Quarter)
+    var currentSong by mutableStateOf(
+        Song.instantSong().copy(
+            beatsPerMinute = prefs.instantBpm,
+            subdivisions = prefs.instantSubdivisions
+        )
+    )
         private set
 
-    var selectedBeatSound by mutableStateOf(SoundFile.CLICK_HI)
+    val beatsPerMinute: Float get() = currentSong.beatsPerMinute
+    val selectedSubdivisions: Subdivisions get() = currentSong.subdivisions
+
+    var selectedBeatSound by mutableStateOf(prefs.instantBeatSound)
         private set
 
-    var selectedRhythmSound by mutableStateOf(SoundFile.CLICK_LO)
+    var selectedRhythmSound by mutableStateOf(prefs.instantRhythmSound)
         private set
 
     private val tapTimestamps = mutableListOf<Long>()
@@ -49,41 +56,42 @@ class MetronomeViewModel(application: Application) : AndroidViewModel(applicatio
         audio.delegate = this
     }
 
-    fun updateBPM(bpm: Float) {
-        var clampedBpm = bpm.coerceIn(MetronomeConstants.MIN_BPM, MetronomeConstants.MAX_BPM)
-        beatsPerMinute = clampedBpm
-
+    fun loadSong(song: Song, type: ClickerType = ClickerType.INSTANT) {
+        currentSong = song
+        clickerType = type
         if (isPlaying) {
-            audio.updateTempo(beatsPerMinute, getSubdivisionValue())
+            audio.updateTempo(currentSong.beatsPerMinute, getSubdivisionValue())
         }
     }
 
-    fun updateSubdivisions(subdivisions: Subdivisions) {
-        selectedSubdivisions = subdivisions
+    fun updateBPM(bpm: Float) {
+        currentSong = currentSong.copy(
+            beatsPerMinute = bpm.coerceIn(MetronomeConstants.MIN_BPM, MetronomeConstants.MAX_BPM)
+        )
+        if (clickerType == ClickerType.INSTANT) prefs.instantBpm = currentSong.beatsPerMinute
+        if (isPlaying) audio.updateTempo(currentSong.beatsPerMinute, getSubdivisionValue())
+    }
 
-        if (isPlaying) {
-            audio.updateTempo(beatsPerMinute, getSubdivisionValue())
-        }
+    fun updateSubdivisions(subdivisions: Subdivisions) {
+        currentSong = currentSong.copy(subdivisions = subdivisions)
+        if (clickerType == ClickerType.INSTANT) prefs.instantSubdivisions = currentSong.subdivisions
+        if (isPlaying) audio.updateTempo(currentSong.beatsPerMinute, getSubdivisionValue())
     }
 
     fun updateBeatSound(sound: SoundFile) {
         selectedBeatSound = sound
-        // Reload audio with new sounds
+        if (clickerType == ClickerType.INSTANT) prefs.instantBeatSound = sound
         val beatResId = sound.resourceId
         val rhythmResId = selectedRhythmSound.resourceId
-        if (beatResId != null && rhythmResId != null) {
-            setupMetronome(beatResId, rhythmResId)
-        }
+        if (beatResId != null && rhythmResId != null) setupMetronome(beatResId, rhythmResId)
     }
 
     fun updateRhythmSound(sound: SoundFile) {
         selectedRhythmSound = sound
-        // Reload audio with new sounds
+        if (clickerType == ClickerType.INSTANT) prefs.instantRhythmSound = sound
         val beatResId = selectedBeatSound.resourceId
         val rhythmResId = sound.resourceId
-        if (beatResId != null && rhythmResId != null) {
-            setupMetronome(beatResId, rhythmResId)
-        }
+        if (beatResId != null && rhythmResId != null) setupMetronome(beatResId, rhythmResId)
     }
 
     fun setupMetronome(beatResourceId: Int, rhythmResourceId: Int) {
@@ -91,15 +99,18 @@ class MetronomeViewModel(application: Application) : AndroidViewModel(applicatio
     }
 
     fun togglePlayPause() {
-        if (isPlaying) {
-            stop()
-        } else {
-            start()
-        }
+        if (isPlaying) stop() else start()
     }
 
     fun start() {
-        audio.startMetronome(beatsPerMinute, getSubdivisionValue())
+        if (clickerType == ClickerType.INSTANT) {
+            // Refresh the instant song, preserving the user's current BPM and subdivisions
+            currentSong = Song.instantSong().copy(
+                beatsPerMinute = currentSong.beatsPerMinute,
+                subdivisions = currentSong.subdivisions
+            )
+        }
+        audio.startMetronome(currentSong.beatsPerMinute, getSubdivisionValue())
         isPlaying = true
     }
 
@@ -112,51 +123,28 @@ class MetronomeViewModel(application: Application) : AndroidViewModel(applicatio
     fun recordTap() {
         val now = System.currentTimeMillis()
 
-        // Reset if last tap was more than 2 seconds ago
-        if (tapTimestamps.isNotEmpty()) {
-            val lastTap = tapTimestamps.last()
-            if (now - lastTap > 2000) {
-                tapTimestamps.clear()
-            }
+        if (tapTimestamps.isNotEmpty() && now - tapTimestamps.last() > 2000) {
+            tapTimestamps.clear()
         }
 
         tapTimestamps.add(now)
-
-        // Keep only last 8 taps
-        if (tapTimestamps.size > 8) {
-            tapTimestamps.removeAt(0)
-        }
-
-        // Need at least 2 taps to calculate BPM
+        if (tapTimestamps.size > 8) tapTimestamps.removeAt(0)
         if (tapTimestamps.size < 2) return
 
-        // Calculate average interval between taps
-        val intervals = mutableListOf<Long>()
-        for (i in 0 until tapTimestamps.size - 1) {
-            intervals.add(tapTimestamps[i + 1] - tapTimestamps[i])
-        }
+        val avgIntervalMs = (0 until tapTimestamps.size - 1)
+            .map { tapTimestamps[it + 1] - tapTimestamps[it] }
+            .average()
 
-        val avgIntervalMs = intervals.average()
-        val bpm = 60_000.0 / avgIntervalMs
-
-        // Update BPM with bounds checking
-        val roundedBpm = bpm.toFloat()
-        updateBPM(roundedBpm.coerceIn(MetronomeConstants.MIN_BPM, MetronomeConstants.MAX_BPM))
+        updateBPM((60_000.0 / avgIntervalMs).toFloat())
     }
 
     override fun metronomeBeatFired(isBeat: Boolean) {
         if (isBeat) {
-            // Reset scale to max instantly on beat
             iconScale = MetronomeConstants.ICON_SCALE_MAX
-            android.util.Log.d("MetronomeViewModel", "Beat fired! Scale set to MAX: $iconScale")
-
-            // Use coroutine to delay setting back to min so animation can happen
             viewModelScope.launch {
-                delay(16) // One frame delay to ensure MAX state is observed
+                delay(16)
                 iconScale = MetronomeConstants.ICON_SCALE_MIN
-                android.util.Log.d("MetronomeViewModel", "Scale set to MIN: $iconScale, BPM: $beatsPerMinute")
             }
-
             handleBeat()
         } else {
             handleRhythm()
@@ -165,26 +153,22 @@ class MetronomeViewModel(application: Application) : AndroidViewModel(applicatio
 
     private fun handleBeat() {
         // Beat visual/haptic feedback goes here
-        // Audio is handled by the audio engine
     }
 
     private fun handleRhythm() {
         // Rhythm visual/haptic feedback goes here
-        // Audio is handled by the audio engine
     }
 
-    private fun getSubdivisionValue(): Int {
-        return when (selectedSubdivisions) {
-            Subdivisions.Quarter -> 1
-            Subdivisions.Eighth -> 2
-            Subdivisions.Triplet -> 3
-            Subdivisions.Sixteenth -> 4
-        }
+    private fun getSubdivisionValue(): Int = when (currentSong.subdivisions) {
+        Subdivisions.Quarter -> 1
+        Subdivisions.Eighth -> 2
+        Subdivisions.Triplet -> 3
+        Subdivisions.Sixteenth -> 4
     }
 
     override fun onCleared() {
         super.onCleared()
         stop()
-        audio.release()
+        audio.delegate = null
     }
 }
