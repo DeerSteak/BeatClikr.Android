@@ -1,6 +1,7 @@
 package com.bfunkstudios.beatclikr.data
 
 import android.content.Context
+import androidx.core.content.edit
 
 class AppPreferences(context: Context) : IAppPreferences {
 
@@ -10,25 +11,25 @@ class AppPreferences(context: Context) : IAppPreferences {
 
     override var instantBpm: Float
         get() = prefs.getFloat(Keys.INSTANT_BPM, 120f)
-        set(value) = prefs.edit().putFloat(Keys.INSTANT_BPM, value).apply()
+        set(value) = prefs.edit { putFloat(Keys.INSTANT_BPM, value) }
 
     override var instantSubdivisions: Subdivisions
         get() = Subdivisions.valueOf(
             prefs.getString(Keys.INSTANT_SUBDIVISIONS, Subdivisions.Quarter.name)!!
         )
-        set(value) = prefs.edit().putString(Keys.INSTANT_SUBDIVISIONS, value.name).apply()
+        set(value) = prefs.edit { putString(Keys.INSTANT_SUBDIVISIONS, value.name) }
 
     override var instantBeatSound: SoundFile
         get() = SoundFile.valueOf(
             prefs.getString(Keys.INSTANT_BEAT_SOUND, SoundFile.CLICK_HI.name)!!
         )
-        set(value) = prefs.edit().putString(Keys.INSTANT_BEAT_SOUND, value.name).apply()
+        set(value) = prefs.edit { putString(Keys.INSTANT_BEAT_SOUND, value.name) }
 
     override var instantRhythmSound: SoundFile
         get() = SoundFile.valueOf(
             prefs.getString(Keys.INSTANT_RHYTHM_SOUND, SoundFile.CLICK_LO.name)!!
         )
-        set(value) = prefs.edit().putString(Keys.INSTANT_RHYTHM_SOUND, value.name).apply()
+        set(value) = prefs.edit { putString(Keys.INSTANT_RHYTHM_SOUND, value.name) }
 
     // --- Playlist mode ---
 
@@ -36,45 +37,45 @@ class AppPreferences(context: Context) : IAppPreferences {
         get() = SoundFile.valueOf(
             prefs.getString(Keys.PLAYLIST_BEAT_SOUND, SoundFile.CLICK_HI.name)!!
         )
-        set(value) = prefs.edit().putString(Keys.PLAYLIST_BEAT_SOUND, value.name).apply()
+        set(value) = prefs.edit { putString(Keys.PLAYLIST_BEAT_SOUND, value.name) }
 
     override var playlistRhythmSound: SoundFile
         get() = SoundFile.valueOf(
             prefs.getString(Keys.PLAYLIST_RHYTHM_SOUND, SoundFile.CLICK_LO.name)!!
         )
-        set(value) = prefs.edit().putString(Keys.PLAYLIST_RHYTHM_SOUND, value.name).apply()
+        set(value) = prefs.edit { putString(Keys.PLAYLIST_RHYTHM_SOUND, value.name) }
 
     // --- Behavior ---
 
     override var useVibration: Boolean
         get() = prefs.getBoolean(Keys.USE_VIBRATION, false)
-        set(value) = prefs.edit().putBoolean(Keys.USE_VIBRATION, value).apply()
+        set(value) = prefs.edit { putBoolean(Keys.USE_VIBRATION, value) }
 
     override var useFlashlight: Boolean
         get() = prefs.getBoolean(Keys.USE_FLASHLIGHT, false)
-        set(value) = prefs.edit().putBoolean(Keys.USE_FLASHLIGHT, value).apply()
+        set(value) = prefs.edit { putBoolean(Keys.USE_FLASHLIGHT, value) }
 
     override var muteMetronome: Boolean
         get() = prefs.getBoolean(Keys.MUTE_METRONOME, false)
-        set(value) = prefs.edit().putBoolean(Keys.MUTE_METRONOME, value).apply()
+        set(value) = prefs.edit { putBoolean(Keys.MUTE_METRONOME, value) }
 
     override var keepScreenAwake: Boolean
         get() = prefs.getBoolean(Keys.KEEP_SCREEN_AWAKE, false)
-        set(value) = prefs.edit().putBoolean(Keys.KEEP_SCREEN_AWAKE, value).apply()
+        set(value) = prefs.edit { putBoolean(Keys.KEEP_SCREEN_AWAKE, value) }
 
     // --- Practice reminders ---
 
     override var practiceReminderEnabled: Boolean
         get() = prefs.getBoolean(Keys.REMINDER_ENABLED, false)
-        set(value) = prefs.edit().putBoolean(Keys.REMINDER_ENABLED, value).apply()
+        set(value) = prefs.edit { putBoolean(Keys.REMINDER_ENABLED, value) }
 
     override var practiceReminderHour: Int
         get() = prefs.getInt(Keys.REMINDER_HOUR, 9)
-        set(value) = prefs.edit().putInt(Keys.REMINDER_HOUR, value).apply()
+        set(value) = prefs.edit { putInt(Keys.REMINDER_HOUR, value) }
 
     override var practiceReminderMinute: Int
         get() = prefs.getInt(Keys.REMINDER_MINUTE, 0)
-        set(value) = prefs.edit().putInt(Keys.REMINDER_MINUTE, value).apply()
+        set(value) = prefs.edit { putInt(Keys.REMINDER_MINUTE, value) }
 
     private object Keys {
         const val INSTANT_BPM = "instant_bpm"

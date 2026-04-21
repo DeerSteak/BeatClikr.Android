@@ -314,7 +314,7 @@ fun InstantMetronomeView(
                         }
                     }
 
-                    Divider(modifier = Modifier.padding(start = 12.dp))
+                    HorizontalDivider(modifier = Modifier.padding(start = 12.dp))
 
                     // Rhythm Row
                     Row(
