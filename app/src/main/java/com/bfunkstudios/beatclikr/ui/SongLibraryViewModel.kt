@@ -4,13 +4,16 @@ import androidx.lifecycle.ViewModel
 import com.bfunkstudios.beatclikr.data.DataSource
 import com.bfunkstudios.beatclikr.data.Song
 import com.bfunkstudios.beatclikr.data.SongListUiState
+import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import java.util.UUID
+import javax.inject.Inject
 
-class SongListViewModel: ViewModel() {
+@HiltViewModel
+class SongLibraryViewModel @Inject constructor() : ViewModel() {
     private val _uiState = MutableStateFlow(SongListUiState())
     val uiState: StateFlow<SongListUiState> = _uiState.asStateFlow()
 

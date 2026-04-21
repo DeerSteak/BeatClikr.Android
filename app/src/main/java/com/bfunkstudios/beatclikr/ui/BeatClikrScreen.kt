@@ -24,8 +24,6 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.bfunkstudios.beatclikr.R
-import com.bfunkstudios.beatclikr.ui.components.SongDetail
-import com.bfunkstudios.beatclikr.ui.components.SongList
 
 @Composable
 fun BeatClikrAppBar(
@@ -55,7 +53,7 @@ fun BeatClikrAppBar(
 
 @Composable
 fun BeatClikrApp(
-    songListViewModel: SongListViewModel = hiltViewModel(),
+    songLibraryViewModel: SongLibraryViewModel = hiltViewModel(),
     navController: NavHostController = rememberNavController()
 ) {
     Scaffold(
@@ -67,7 +65,7 @@ fun BeatClikrApp(
             )
         }
     ) { innerPadding ->
-        val uiState by songListViewModel.uiState.collectAsState()
+        val uiState by songLibraryViewModel.uiState.collectAsState()
 
         NavHost(
             navController = navController,
