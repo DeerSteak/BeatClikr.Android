@@ -28,40 +28,38 @@ import com.bfunkstudios.beatclikr.R
 import com.bfunkstudios.beatclikr.data.Song
 import com.bfunkstudios.beatclikr.data.SongLibraryUiState
 import com.bfunkstudios.beatclikr.data.Subdivisions
-import com.bfunkstudios.beatclikr.ui.SongListViewModel
+import com.bfunkstudios.beatclikr.ui.SongLibraryViewModel
 import java.util.UUID
 
 @Composable
-fun SongDetail(uiState: SongLibraryUiState, songlistViewModel: SongListViewModel, navigateBack: () -> Unit) {
+fun SongDetail(uiState: SongLibraryUiState, viewModel: SongLibraryViewModel, navigateBack: () -> Unit) {
     val song = uiState.selectedSong
     Log.d("SongDetail", "Song id: " + song?.id)
     val thisSong = Song(
-        song?.title ?: "",
-        song?.artist ?: "",
-        song?.beatsPerMinute ?: 60f,
-        song?.beatsPerMeasure ?: 4,
-        song?.subdivisions ?: Subdivisions.Eighth,
-        song?.liveSequence,
-        song?.rehearsalSequence,
-        song?.id ?: UUID.randomUUID()
+        id = song?.id ?: UUID.randomUUID(),
+        title = song?.title ?: "",
+        artist = song?.artist ?: "",
+        beatsPerMinute = song?.beatsPerMinute ?: 60f,
+        beatsPerMeasure = song?.beatsPerMeasure ?: 4,
+        subdivisions = song?.subdivisions ?: Subdivisions.Eighth,
+        liveSequence = song?.liveSequence,
+        rehearsalSequence = song?.rehearsalSequence
     )
 
     var title by remember { mutableStateOf(thisSong.title) }
     var artist by remember { mutableStateOf(thisSong.artist) }
-    var beatsPerMinute by remember { mutableFloatStateOf(thisSong.beatsPerMinute)}
+    var beatsPerMinute by remember { mutableFloatStateOf(thisSong.beatsPerMinute) }
     var beatsPerMeasure by remember { mutableIntStateOf(thisSong.beatsPerMeasure) }
 
-    Column(modifier = Modifier
-        .fillMaxSize()
-        .padding(16.dp)) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp)
+    ) {
         Text(stringResource(R.string.song_title))
-        TextField(value = title, onValueChange = {
-            title = it
-        }, modifier = Modifier.fillMaxWidth())
+        TextField(value = title, onValueChange = { title = it }, modifier = Modifier.fillMaxWidth())
         Text(stringResource(R.string.artist))
-        TextField(value = artist, onValueChange = {
-            artist = it
-        }, modifier = Modifier.fillMaxWidth())
+        TextField(value = artist, onValueChange = { artist = it }, modifier = Modifier.fillMaxWidth())
 
         Text(stringResource(R.string.beats_per_minute_label, beatsPerMinute.toInt()))
         Slider(
@@ -75,32 +73,30 @@ fun SongDetail(uiState: SongLibraryUiState, songlistViewModel: SongListViewModel
             )
         )
         Text(stringResource(R.string.beats_per_measure_label, beatsPerMeasure))
-        TextField(value = beatsPerMeasure.toString(), onValueChange = {
-            beatsPerMeasure = it.toInt()
-        }, modifier = Modifier.fillMaxWidth())
+        TextField(
+            value = beatsPerMeasure.toString(),
+            onValueChange = { beatsPerMeasure = it.toIntOrNull() ?: beatsPerMeasure },
+            modifier = Modifier.fillMaxWidth()
+        )
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
             OutlinedButton(onClick = navigateBack, modifier = Modifier.weight(1f)) {
                 Text(stringResource(R.string.cancel))
             }
             Spacer(Modifier.weight(0.1f))
-            OutlinedButton(onClick = {
-                val newSong = Song(
-                    title,
-                    artist,
-                    beatsPerMinute,
-                    beatsPerMeasure,
-                    thisSong.subdivisions,
-                    thisSong.liveSequence,
-                    thisSong.rehearsalSequence,
-                    thisSong.id
-                )
-                songlistViewModel.saveSong(newSong)
-                navigateBack()
-            }, modifier = Modifier.weight(1f)) {
+            OutlinedButton(
+                onClick = {
+                    viewModel.saveSong(thisSong.copy(
+                        title = title,
+                        artist = artist,
+                        beatsPerMinute = beatsPerMinute,
+                        beatsPerMeasure = beatsPerMeasure
+                    ))
+                    navigateBack()
+                },
+                modifier = Modifier.weight(1f)
+            ) {
                 Text(stringResource(R.string.save))
             }
         }
     }
-
-
 }
