@@ -8,10 +8,6 @@ import android.os.Looper
 import android.os.SystemClock
 import com.bfunkstudios.beatclikr.constants.MetronomeConstants
 
-/**
- * Low-latency audio engine for metronome playback using SoundPool.
- * Provides sample-accurate timing with <5ms jitter, matching iOS AudioKit implementation.
- */
 interface MetronomeAudioEngineDelegate {
     fun metronomeBeatFired(isBeat: Boolean)
 }
@@ -22,6 +18,9 @@ class MetronomeAudioEngine(private val context: Context) {
 
     private var beatSoundId: Int = 0
     private var rhythmSoundId: Int = 0
+    private var beatLoaded = false
+    private var rhythmLoaded = false
+
     private var isPlaying: Boolean = false
     private var currentBPM: Float = 60f
     private var currentSubdivisions: Int = 1
@@ -29,6 +28,11 @@ class MetronomeAudioEngine(private val context: Context) {
     private var nextBeatTimeNanos: Long = 0L
 
     private var delegate: MetronomeAudioEngineDelegate? = null
+
+    private var pendingBpm: Float = 60f
+    private var pendingSubdivisions: Int = 1
+    private var pendingDelegate: MetronomeAudioEngineDelegate? = null
+    private var hasPendingStart = false
 
     private val checkInterval = MetronomeConstants.TIMER_CHECK_INTERVAL_MS
     private val firstBeatDelayMs = MetronomeConstants.FIRST_BEAT_DELAY_MS
@@ -47,6 +51,25 @@ class MetronomeAudioEngine(private val context: Context) {
     }
 
     fun loadSounds(beatResourceId: Int, rhythmResourceId: Int) {
+        beatLoaded = false
+        rhythmLoaded = false
+        hasPendingStart = false
+
+        soundPool.setOnLoadCompleteListener { _, sampleId, status ->
+            // Post to main thread — all other engine state is main-thread only
+            handler.post {
+                if (status == 0) {
+                    if (sampleId == beatSoundId) beatLoaded = true
+                    if (sampleId == rhythmSoundId) rhythmLoaded = true
+
+                    if (beatLoaded && rhythmLoaded && hasPendingStart) {
+                        hasPendingStart = false
+                        pendingDelegate?.let { doStart(pendingBpm, pendingSubdivisions, it) }
+                    }
+                }
+            }
+        }
+
         beatSoundId = soundPool.load(context, beatResourceId, 1)
         rhythmSoundId = soundPool.load(context, rhythmResourceId, 1)
     }
@@ -54,20 +77,20 @@ class MetronomeAudioEngine(private val context: Context) {
     fun startMetronome(bpm: Float, subdivisions: Int, delegate: MetronomeAudioEngineDelegate) {
         handler.removeCallbacks(timerRunnable)
 
-        this.delegate = delegate
-        this.currentBPM = bpm
-        this.currentSubdivisions = subdivisions
-        this.subdivisionCounter = 0
+        if (!beatLoaded || !rhythmLoaded) {
+            pendingBpm = bpm
+            pendingSubdivisions = subdivisions
+            pendingDelegate = delegate
+            hasPendingStart = true
+            return
+        }
 
-        val currentTimeNanos = SystemClock.elapsedRealtimeNanos()
-        this.nextBeatTimeNanos = currentTimeNanos + (firstBeatDelayMs * 1_000_000L)
-
-        this.isPlaying = true
-        startTimer()
+        doStart(bpm, subdivisions, delegate)
     }
 
     fun stopMetronome() {
         isPlaying = false
+        hasPendingStart = false
         handler.removeCallbacks(timerRunnable)
         subdivisionCounter = 0
     }
@@ -81,6 +104,19 @@ class MetronomeAudioEngine(private val context: Context) {
         stopMetronome()
         soundPool.release()
         delegate = null
+    }
+
+    private fun doStart(bpm: Float, subdivisions: Int, delegate: MetronomeAudioEngineDelegate) {
+        this.delegate = delegate
+        this.currentBPM = bpm
+        this.currentSubdivisions = subdivisions
+        this.subdivisionCounter = 0
+
+        val currentTimeNanos = SystemClock.elapsedRealtimeNanos()
+        this.nextBeatTimeNanos = currentTimeNanos + (firstBeatDelayMs * 1_000_000L)
+
+        this.isPlaying = true
+        startTimer()
     }
 
     private fun getSubdivisionDurationNanos(): Long {
