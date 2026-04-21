@@ -1,0 +1,17 @@
+package com.bfunkstudios.beatclikr.data
+
+interface IAppPreferences {
+    var instantBpm: Float
+    var instantSubdivisions: Subdivisions
+    var instantBeatSound: SoundFile
+    var instantRhythmSound: SoundFile
+    var playlistBeatSound: SoundFile
+    var playlistRhythmSound: SoundFile
+    var useVibration: Boolean
+    var useFlashlight: Boolean
+    var muteMetronome: Boolean
+    var keepScreenAwake: Boolean
+    var practiceReminderEnabled: Boolean
+    var practiceReminderHour: Int
+    var practiceReminderMinute: Int
+}
