@@ -26,7 +26,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.bfunkstudios.beatclikr.R
 import com.bfunkstudios.beatclikr.data.Song
-import com.bfunkstudios.beatclikr.data.SongLibraryUiState
+import com.bfunkstudios.beatclikr.ui.SongLibraryUiState
 import com.bfunkstudios.beatclikr.data.Subdivisions
 import com.bfunkstudios.beatclikr.ui.SongLibraryViewModel
 import java.util.UUID
