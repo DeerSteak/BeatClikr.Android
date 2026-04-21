@@ -64,7 +64,7 @@ class MetronomeAudioEngine(private val context: Context) {
 
                     if (beatLoaded && rhythmLoaded && hasPendingStart) {
                         hasPendingStart = false
-                        doStart(pendingBpm, pendingSubdivisions, pendingDelegate!!)
+                        pendingDelegate?.let { doStart(pendingBpm, pendingSubdivisions, it) }
                     }
                 }
             }
