@@ -6,7 +6,7 @@ import com.bfunkstudios.beatclikr.R
 enum class SoundFile(
     val displayName: String,
     val fileName: String,
-    @RawRes val resourceId: Int?
+    @param:RawRes val resourceId: Int?
 ) {
     CLICK_HI("Click Hi", "clickhi_E5", R.raw.clickhi_e5),
     CLICK_LO("Click Lo", "clicklo_F5", R.raw.clicklo_f5),

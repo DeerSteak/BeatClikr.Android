@@ -6,28 +6,31 @@ import android.content.Context
  * Centralized audio service for metronome playback.
  * Manages the audio engine and provides a clean API for playback control.
  */
-class AudioPlayerService private constructor(context: Context) : MetronomeAudioEngineDelegate {
+class AudioPlayerService private constructor(context: Context) : IAudioPlayerService, MetronomeAudioEngineDelegate {
     private val audioEngine = MetronomeAudioEngine(context.applicationContext)
 
-    var delegate: MetronomeAudioEngineDelegate? = null
+    override var delegate: MetronomeAudioEngineDelegate? = null
+    override var isMuted: Boolean
+        get() = audioEngine.isMuted
+        set(value) { audioEngine.isMuted = value }
 
-    fun setupAudioPlayer(beatResourceId: Int, rhythmResourceId: Int) {
+    override fun setupAudioPlayer(beatResourceId: Int, rhythmResourceId: Int) {
         audioEngine.loadSounds(beatResourceId, rhythmResourceId)
     }
 
-    fun startMetronome(bpm: Float, subdivisions: Int) {
+    override fun startMetronome(bpm: Float, subdivisions: Int) {
         audioEngine.startMetronome(bpm, subdivisions, this)
     }
 
-    fun stopMetronome() {
+    override fun stopMetronome() {
         audioEngine.stopMetronome()
     }
 
-    fun updateTempo(bpm: Float, subdivisions: Int) {
+    override fun updateTempo(bpm: Float, subdivisions: Int) {
         audioEngine.updateTempo(bpm, subdivisions)
     }
 
-    fun release() {
+    override fun release() {
         audioEngine.release()
         delegate = null
     }

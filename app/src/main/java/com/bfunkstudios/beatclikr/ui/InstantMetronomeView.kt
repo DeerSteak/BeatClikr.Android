@@ -23,7 +23,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.bfunkstudios.beatclikr.R
 import com.bfunkstudios.beatclikr.constants.MetronomeConstants
 import com.bfunkstudios.beatclikr.data.SoundFile
@@ -33,7 +33,7 @@ import com.bfunkstudios.beatclikr.ui.components.MetronomePlayerView
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun InstantMetronomeView(
-    viewModel: MetronomeViewModel = viewModel(),
+    viewModel: MetronomeViewModel = hiltViewModel(),
     modifier: Modifier = Modifier
 ) {
     var showBeatMenu by remember { mutableStateOf(false) }
@@ -314,7 +314,7 @@ fun InstantMetronomeView(
                         }
                     }
 
-                    Divider(modifier = Modifier.padding(start = 12.dp))
+                    HorizontalDivider(modifier = Modifier.padding(start = 12.dp))
 
                     // Rhythm Row
                     Row(

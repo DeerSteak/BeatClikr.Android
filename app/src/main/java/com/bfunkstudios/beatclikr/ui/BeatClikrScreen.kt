@@ -4,7 +4,7 @@ package com.bfunkstudios.beatclikr.ui
 
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -18,15 +18,12 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
-import androidx.lifecycle.viewmodel.compose.viewModel
-import androidx.lifecycle.viewmodel.viewModelFactory
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.bfunkstudios.beatclikr.R
-import com.bfunkstudios.beatclikr.ui.components.SongDetail
-import com.bfunkstudios.beatclikr.ui.components.SongList
 
 @Composable
 fun BeatClikrAppBar(
@@ -45,7 +42,7 @@ fun BeatClikrAppBar(
             if (canNavigateBack) {
                 IconButton(onClick = navigateUp) {
                     Icon(
-                        imageVector = Icons.Filled.ArrowBack,
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                         contentDescription = stringResource(id = R.string.back)
                     )
                 }
@@ -56,7 +53,7 @@ fun BeatClikrAppBar(
 
 @Composable
 fun BeatClikrApp(
-    songListViewModel: SongListViewModel = viewModel(),
+    songLibraryViewModel: SongLibraryViewModel = hiltViewModel(),
     navController: NavHostController = rememberNavController()
 ) {
     Scaffold(
@@ -68,23 +65,13 @@ fun BeatClikrApp(
             )
         }
     ) { innerPadding ->
-        val uiState by songListViewModel.uiState.collectAsState()
+        val uiState by songLibraryViewModel.uiState.collectAsState()
 
         NavHost(
             navController = navController,
             startDestination = BeatClikrScreen.InstantMetronome.name,
             modifier = Modifier.padding(innerPadding)
         ) {
-            composable(BeatClikrScreen.SongList.name){
-                SongList(uiState, songListViewModel) {
-                    navController.navigate(BeatClikrScreen.SongDetails.name)
-                }
-            }
-            composable(BeatClikrScreen.SongDetails.name){
-                SongDetail(uiState, songListViewModel) {
-                    navController.popBackStack()
-                }
-            }
             composable(BeatClikrScreen.InstantMetronome.name){
                 InstantMetronomeView()
             }
