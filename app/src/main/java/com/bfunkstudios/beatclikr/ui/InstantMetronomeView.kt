@@ -398,7 +398,7 @@ fun InstantMetronomeView(
                                     .weight(1f)
                                     .fillMaxHeight()
                                     .background(
-                                        MaterialTheme.colorScheme.onPrimary,
+                                        MaterialTheme.colorScheme.onSecondary,
                                         RoundedCornerShape(2.dp)
                                     )
                             )
@@ -407,7 +407,7 @@ fun InstantMetronomeView(
                                     .weight(1f)
                                     .fillMaxHeight()
                                     .background(
-                                        MaterialTheme.colorScheme.onPrimary,
+                                        MaterialTheme.colorScheme.onSecondary,
                                         RoundedCornerShape(2.dp)
                                     )
                             )
