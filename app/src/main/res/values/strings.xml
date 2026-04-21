@@ -4,6 +4,10 @@
     <string name="back">Back</string>
     <string name="add_song">Add Song</string>
     <string name="instant_metronome">Instant Metronome</string>
+    <string name="tab_instant">Instant</string>
+    <string name="tab_library">Library</string>
+    <string name="song_library">Song Library</string>
+    <string name="song_detail">Song Detail</string>
 
     <!-- Metronome screen -->
     <string name="bpm">BPM</string>

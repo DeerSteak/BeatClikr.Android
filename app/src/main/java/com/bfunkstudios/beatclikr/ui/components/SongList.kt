@@ -16,11 +16,11 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.bfunkstudios.beatclikr.R
 import com.bfunkstudios.beatclikr.data.Song
-import com.bfunkstudios.beatclikr.data.SongLibraryUiState
-import com.bfunkstudios.beatclikr.ui.SongListViewModel
+import com.bfunkstudios.beatclikr.ui.SongLibraryUiState
+import com.bfunkstudios.beatclikr.ui.SongLibraryViewModel
 
 @Composable
-fun SongList(uiState: SongLibraryUiState, viewModel: SongListViewModel, navigateToDetail:() -> Unit = {}) {
+fun SongList(uiState: SongLibraryUiState, viewModel: SongLibraryViewModel, navigateToDetail:() -> Unit = {}) {
     val songs = uiState.songList
     Column(modifier = Modifier.fillMaxSize()) {
         OutlinedButton(onClick = {
@@ -40,7 +40,7 @@ fun SongList(uiState: SongLibraryUiState, viewModel: SongListViewModel, navigate
 }
 
 @Composable
-fun SongListItem(song: Song, songListViewModel: SongListViewModel, navigateToDetail: () -> Unit) {
+fun SongListItem(song: Song, songListViewModel: SongLibraryViewModel, navigateToDetail: () -> Unit) {
     Row(modifier = Modifier
         .fillMaxWidth()
         .clickable {

@@ -23,8 +23,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.bfunkstudios.beatclikr.R
+import com.bfunkstudios.beatclikr.constants.AppLocale
 import com.bfunkstudios.beatclikr.constants.MetronomeConstants
 import com.bfunkstudios.beatclikr.data.SoundFile
 import com.bfunkstudios.beatclikr.data.Subdivisions
@@ -33,8 +34,8 @@ import com.bfunkstudios.beatclikr.ui.components.MetronomePlayerView
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun InstantMetronomeView(
-    viewModel: MetronomeViewModel = hiltViewModel(),
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    viewModel: MetronomeViewModel = hiltViewModel()
 ) {
     var showBeatMenu by remember { mutableStateOf(false) }
     var showRhythmMenu by remember { mutableStateOf(false) }
@@ -103,7 +104,7 @@ fun InstantMetronomeView(
                                 label = "bpm_animation"
                             )
                             Text(
-                                text = String.format("%.0f", animatedBpm),
+                                text = String.format(AppLocale, "%.0f", animatedBpm),
                                 fontSize = 60.sp,
                                 fontWeight = FontWeight.Thin,
                                 textAlign = TextAlign.Center
@@ -398,7 +399,7 @@ fun InstantMetronomeView(
                                     .weight(1f)
                                     .fillMaxHeight()
                                     .background(
-                                        MaterialTheme.colorScheme.onPrimary,
+                                        MaterialTheme.colorScheme.onSecondary,
                                         RoundedCornerShape(2.dp)
                                     )
                             )
@@ -407,7 +408,7 @@ fun InstantMetronomeView(
                                     .weight(1f)
                                     .fillMaxHeight()
                                     .background(
-                                        MaterialTheme.colorScheme.onPrimary,
+                                        MaterialTheme.colorScheme.onSecondary,
                                         RoundedCornerShape(2.dp)
                                     )
                             )

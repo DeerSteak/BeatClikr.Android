@@ -228,7 +228,7 @@ class MetronomeViewModelTest {
 
     @Test
     fun `loadSong updates currentSong`() {
-        val song = Song("Test", "Artist", 140f, 4, Subdivisions.Eighth, null, null)
+        val song = Song(title = "Test", artist = "Artist", beatsPerMinute = 140f, beatsPerMeasure = 4, subdivisions = Subdivisions.Eighth, liveSequence = null, rehearsalSequence = null)
         viewModel.loadSong(song, ClickerType.INSTANT)
         assertEquals(140f, viewModel.beatsPerMinute)
         assertEquals(Subdivisions.Eighth, viewModel.selectedSubdivisions)
@@ -237,7 +237,7 @@ class MetronomeViewModelTest {
     @Test
     fun `loadSong while playing calls updateTempo`() {
         viewModel.start()
-        val song = Song("Test", "Artist", 140f, 4, Subdivisions.Eighth, null, null)
+        val song = Song(title = "Test", artist = "Artist", beatsPerMinute = 140f, beatsPerMeasure = 4, subdivisions = Subdivisions.Eighth, liveSequence = null, rehearsalSequence = null)
         viewModel.loadSong(song, ClickerType.INSTANT)
         verify { audio.updateTempo(140f, 2) }
     }
