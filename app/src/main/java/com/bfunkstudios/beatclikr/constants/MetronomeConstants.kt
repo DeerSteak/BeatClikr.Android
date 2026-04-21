@@ -12,7 +12,7 @@ object MetronomeConstants {
     const val PLAYER_VIEW_TOOLBAR_SIZE: Float = 30f
 
     // Animation - much more dramatic! (0.3 to 1.0 = 3.3x size change: 24dp -> 80dp)
-    const val ICON_SCALE_MIN: Float = 0.3f
+    const val ICON_SCALE_MIN: Float = 0.5f
     const val ICON_SCALE_MAX: Float = 1.0f
 
     // Timing (in milliseconds)

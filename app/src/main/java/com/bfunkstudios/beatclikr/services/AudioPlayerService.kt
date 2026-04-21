@@ -10,6 +10,9 @@ class AudioPlayerService private constructor(context: Context) : IAudioPlayerSer
     private val audioEngine = MetronomeAudioEngine(context.applicationContext)
 
     override var delegate: MetronomeAudioEngineDelegate? = null
+    override var isMuted: Boolean
+        get() = audioEngine.isMuted
+        set(value) { audioEngine.isMuted = value }
 
     override fun setupAudioPlayer(beatResourceId: Int, rhythmResourceId: Int) {
         audioEngine.loadSounds(beatResourceId, rhythmResourceId)

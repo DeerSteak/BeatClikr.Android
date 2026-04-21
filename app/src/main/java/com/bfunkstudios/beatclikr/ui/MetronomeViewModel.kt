@@ -110,6 +110,7 @@ class MetronomeViewModel @Inject constructor(
                 subdivisions = currentSong.subdivisions
             )
         }
+        audio.isMuted = prefs.muteMetronome
         audio.startMetronome(currentSong.beatsPerMinute, getSubdivisionValue())
         isPlaying = true
     }

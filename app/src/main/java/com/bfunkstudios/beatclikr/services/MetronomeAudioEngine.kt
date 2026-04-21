@@ -29,6 +29,8 @@ class MetronomeAudioEngine(private val context: Context) {
 
     private var delegate: MetronomeAudioEngineDelegate? = null
 
+    var isMuted: Boolean = false
+
     private var pendingBpm: Float = 60f
     private var pendingSubdivisions: Int = 1
     private var pendingDelegate: MetronomeAudioEngineDelegate? = null
@@ -163,10 +165,12 @@ class MetronomeAudioEngine(private val context: Context) {
     private fun playCurrentBeat() {
         val isBeat = subdivisionCounter == 0
 
-        if (isBeat) {
-            soundPool.play(beatSoundId, 1f, 1f, 1, 0, 1f)
-        } else {
-            soundPool.play(rhythmSoundId, 1f, 1f, 1, 0, 1f)
+        if (!isMuted) {
+            if (isBeat) {
+                soundPool.play(beatSoundId, 1f, 1f, 1, 0, 1f)
+            } else {
+                soundPool.play(rhythmSoundId, 1f, 1f, 1, 0, 1f)
+            }
         }
 
         delegate?.metronomeBeatFired(isBeat)
