@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Slider
@@ -22,20 +21,18 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.bfunkstudios.beatclikr.R
-import com.bfunkstudios.beatclikr.data.DataSource
 import com.bfunkstudios.beatclikr.data.Song
-import com.bfunkstudios.beatclikr.data.SongListUiState
+import com.bfunkstudios.beatclikr.data.SongLibraryUiState
 import com.bfunkstudios.beatclikr.data.Subdivisions
 import com.bfunkstudios.beatclikr.ui.SongListViewModel
 import java.util.UUID
 
 @Composable
-fun SongDetail(uiState: SongListUiState, songlistViewModel: SongListViewModel, navigateBack: () -> Unit) {
+fun SongDetail(uiState: SongLibraryUiState, songlistViewModel: SongListViewModel, navigateBack: () -> Unit) {
     val song = uiState.selectedSong
     Log.d("SongDetail", "Song id: " + song?.id)
     val thisSong = Song(

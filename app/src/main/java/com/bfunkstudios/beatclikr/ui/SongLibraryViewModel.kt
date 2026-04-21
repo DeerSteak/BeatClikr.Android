@@ -3,7 +3,7 @@ package com.bfunkstudios.beatclikr.ui
 import androidx.lifecycle.ViewModel
 import com.bfunkstudios.beatclikr.data.DataSource
 import com.bfunkstudios.beatclikr.data.Song
-import com.bfunkstudios.beatclikr.data.SongListUiState
+import com.bfunkstudios.beatclikr.data.SongLibraryUiState
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -14,8 +14,8 @@ import javax.inject.Inject
 
 @HiltViewModel
 class SongLibraryViewModel @Inject constructor() : ViewModel() {
-    private val _uiState = MutableStateFlow(SongListUiState())
-    val uiState: StateFlow<SongListUiState> = _uiState.asStateFlow()
+    private val _uiState = MutableStateFlow(SongLibraryUiState())
+    val uiState: StateFlow<SongLibraryUiState> = _uiState.asStateFlow()
 
     fun setSelectedSong(uuid: UUID?) {
         if (uuid == null) {

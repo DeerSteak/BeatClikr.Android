@@ -1,5 +1,5 @@
 # BeatClikr Android
-BeatClikr's Android implementation with Jetpack Compose, MVVM architecture, and SoundPool audio. Mirrors the iOS app's architecture and feature set.
+BeatClikr's Android implementation with Jetpack Compose, Hilt, MVVM architecture, and SoundPool audio. Mirrors the iOS app's architecture and feature set.
 
 Note: The 15 `.wav` drum/percussion samples are bundled in `res/raw/` and tracked in git. No additional setup is needed to build and run the app.
 
@@ -12,11 +12,11 @@ BeatClikr follows an MVVM architecture with a clean separation of concerns:
 - **Subdivisions** - Enum defining subdivision types (quarter notes, eighth notes, triplets, sixteenths)
 - **ClickerType** - Enum distinguishing instant vs. live vs. rehearsal metronome modes
 - **SoundFile** - Enum mapping the 15 bundled `.wav` samples to their raw resource IDs; provides filtered lists `beatSounds` and `rhythmSounds`
-- **SongListUiState** - Immutable UI state snapshot for the song list screen
+- **SongLibraryUiState** - Immutable UI state snapshot for the song library screen
 
 ### ViewModels
-- **MetronomeViewModel** - Orchestrates metronome playback, coordinates with `AudioPlayerService`, handles UI state (beat pulse animation, isPlaying, BPM, tap tempo)
-- **SongListViewModel** - Handles song library CRUD operations and exposes `StateFlow<SongListUiState>` to the UI
+- **MetronomeViewModel** - Orchestrates metronome playback, coordinates with `IAudioPlayerService`, handles UI state (beat pulse animation, isPlaying, BPM, tap tempo)
+- **SongLibraryViewModel** - Handles song library CRUD operations and exposes `StateFlow<SongListUiState>` to the UI
 
 ### Screens
 - **BeatClikrApp** - Root composable; hosts the `NavHost` and `TopAppBar` inside a `Scaffold`
@@ -28,9 +28,17 @@ BeatClikr follows an MVVM architecture with a clean separation of concerns:
 - **MetronomePlayerView** - Animated circle that pulses with each beat; scale driven by `iconScale` from `MetronomeViewModel`
 
 ### Services Layer
-- **MetronomeAudioEngine** - Low-latency metronome engine using `SoundPool` and `SystemClock.elapsedRealtimeNanos()` for precise timing
-- **AudioPlayerService** - Singleton facade over `MetronomeAudioEngine`; the only audio entry point for ViewModels. Implements `MetronomeAudioEngineDelegate` and re-exposes a `delegate` property for ViewModel callbacks
+- **MetronomeAudioEngine** - Low-latency metronome engine using `SoundPool` and `SystemClock.elapsedRealtimeNanos()` for precise timing; supports mute (suppresses audio but still fires delegate callbacks for animation and haptics)
+- **IAudioPlayerService** - Interface for the audio service, enabling dependency injection and unit testing without a real audio session
+- **AudioPlayerService** - Singleton implementation of `IAudioPlayerService`; facade over `MetronomeAudioEngine`. Implements `MetronomeAudioEngineDelegate` and re-exposes a `delegate` property for ViewModel callbacks
 - **MetronomeTimer** - Alternative timer implementation retained for reference; not used in the active playback path
+
+### Data Layer
+- **IAppPreferences** - Interface for user preferences, enabling dependency injection and unit testing without SharedPreferences
+- **AppPreferences** - Implementation of `IAppPreferences` backed by `SharedPreferences` via the AndroidX KTX `edit { }` API
+
+### Dependency Injection
+- **AppModule** - Hilt `@Module` providing `IAudioPlayerService` and `IAppPreferences` as `@Singleton` bindings
 
 ### Constants
 - **MetronomeConstants** - Timing parameters, BPM ranges, animation scale values, and tolerance thresholds
@@ -56,7 +64,7 @@ Lookahead Tolerance: 2ms  (fires beat slightly early to account for processing)
 
 This approach provides:
 - **<5ms jitter** - beats stay locked to the tempo
-- **No drift** - uses monotonic `elapsedRealtimeNanos()` rather than cumulative intervals
+- **No drift** - uses monotonic `elapsedRealtimeNanos()` rather than cumulative intervals (note: Android's monotonic clock is superior to iOS's `CFAbsoluteTimeGetCurrent()` — it does not jump if the system wall clock changes)
 - **Real-time tempo changes** - BPM and subdivisions can be updated while playing
 
 ### Delegate Pattern
@@ -64,6 +72,7 @@ This approach provides:
 `MetronomeViewModel` implements `MetronomeAudioEngineDelegate` to receive beat callbacks:
 - Triggers visual beat-pulse animation (`iconScale` snaps to MAX, decays to MIN over one beat duration)
 - `AudioPlayerService` sits between the engine and the ViewModel, relaying callbacks via its own `delegate` property
+- Callbacks always fire even when muted, so animation and haptics remain active
 
 ## About Audio Playback
 
@@ -74,11 +83,12 @@ BeatClikr Android relies on **Android `SoundPool`** for sound playback. It provi
 - Beat vs. rhythm (subdivision) sounds are selected based on a subdivision counter
 - Two sound IDs are active at any time: `beatSoundId` and `rhythmSoundId`
 - Supports instant sound switching by calling `setupAudioPlayer()` with new resource IDs
+- When muted, `SoundPool.play()` is skipped but the delegate callback still fires — identical behaviour to the iOS implementation
 
 The `AudioPlayerService` manages:
 - Loading audio files from `res/raw/`
-- Delegating start/stop/update calls to the engine
-- Providing a single shared instance to all ViewModels via `getInstance(context)`
+- Delegating start/stop/update/mute calls to the engine
+- Providing a single shared instance to all ViewModels via Hilt's `@Singleton` binding
 
 ## Tap Tempo
 
@@ -96,16 +106,64 @@ Songs include:
 
 The `DataSource` ships with 5 pre-loaded sample songs.
 
-## ViewModel Access
+## Dependency Injection
 
-`MetronomeViewModel` is an `AndroidViewModel` and requires an `Application` context to access the `AudioPlayerService` singleton. It is obtained via Compose's `viewModel()` helper and scoped to the `InstantMetronomeView` composable.
+BeatClikr uses **Hilt** for dependency injection. ViewModels are annotated with `@HiltViewModel` and receive their dependencies via `@Inject constructor`. Composables obtain ViewModels via `hiltViewModel()` rather than the plain `viewModel()` helper.
 
-`SongListViewModel` is a plain `ViewModel` and is hoisted to the `BeatClikrApp` root composable so its state persists across navigation between `SongList` and `SongDetail`.
+```kotlin
+@HiltViewModel
+class MetronomeViewModel @Inject constructor(
+    private val audio: IAudioPlayerService,
+    private val prefs: IAppPreferences
+) : ViewModel()
+```
+
+`AppModule` provides the singleton bindings:
+```kotlin
+@Provides @Singleton
+fun provideAudioPlayerService(@ApplicationContext context: Context): IAudioPlayerService =
+    AudioPlayerService.getInstance(context)
+
+@Provides @Singleton
+fun provideAppPreferences(@ApplicationContext context: Context): IAppPreferences =
+    AppPreferences(context)
+```
 
 This ensures:
 - A single shared `AudioPlayerService` instance across the app
 - No background metronome instances after the ViewModel is cleared
 - Song list state is not lost when navigating into and out of song details
+- Full testability — unit tests construct ViewModels directly with mock/fake dependencies
+
+## Testing
+
+### Unit Tests (`src/test/`)
+
+`MetronomeViewModelTest` covers the full ViewModel surface using **MockK** and `kotlinx-coroutines-test`. No Android runtime is required — tests run on the JVM.
+
+Coverage includes:
+- Preference loading on init (BPM, subdivisions, sound selection)
+- BPM clamping and prefs persistence
+- Subdivision changes and `updateTempo` forwarding while playing
+- Play/pause toggle, `startMetronome`/`stopMetronome` delegation
+- Mute propagation — verifies `isMuted` is set on `IAudioPlayerService` before `startMetronome` is called
+- Sound selection and prefs persistence
+- `loadSong` state updates and `updateTempo` forwarding
+- Beat/subdivision `iconScale` transitions
+- Tap tempo accumulation and clamping
+
+### UI Tests (`src/androidTest/`)
+
+`InstantMetronomeViewTest` uses **Compose UI testing** with `createAndroidComposeRule<MainActivity>()` and Hilt's `@HiltAndroidTest`. The real `AppModule` is replaced via `@UninstallModules` with a `TestModule` that binds `FakeAudioPlayerService` and `FakeAppPreferences` — no real audio session or SharedPreferences involved.
+
+Coverage includes:
+- BPM display and label visible on launch
+- Play/pause button toggle (text and audio service call counts)
+- All four subdivision buttons visible
+- Tap Tempo button visible
+
+Run unit tests: `./gradlew test`
+Run UI tests (requires device or emulator): `./gradlew connectedAndroidTest`
 
 ## Feature Parity Roadmap
 
@@ -139,6 +197,7 @@ Items remaining to match the iOS app, roughly in dependency order:
 - Add `SettingsViewModel` and `SettingsView` covering: default beat/rhythm sounds, haptics on/off, flashlight on/off, keep-awake on/off
 - Persist settings with **Jetpack DataStore** (Android equivalent of iOS `UserDefaultsService`)
 - Apply saved sound preferences as defaults when `MetronomeViewModel` initializes, instead of always defaulting to Click Hi / Click Lo
+- ~~Mute support~~ — `MetronomeAudioEngine` now respects `isMuted`; suppress audio while keeping delegate callbacks active for animation and haptics ✓
 
 ### Feedback Options
 - **Haptics** — Add a `VibrationService` using `VibrationEffect` / `HapticFeedbackManager` to pulse on each beat (mirrors iOS `VibrationService` using `UIImpactFeedbackGenerator`)

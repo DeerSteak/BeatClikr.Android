@@ -1,6 +1,6 @@
 package com.bfunkstudios.beatclikr.data
 
-data class SongListUiState (
+data class SongLibraryUiState (
     val selectedSong: Song? = null,
     val songList: List<Song> = DataSource.songs
 )
