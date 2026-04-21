@@ -18,8 +18,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
-import androidx.lifecycle.viewmodel.compose.viewModel
-import androidx.lifecycle.viewmodel.viewModelFactory
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -56,7 +55,7 @@ fun BeatClikrAppBar(
 
 @Composable
 fun BeatClikrApp(
-    songListViewModel: SongListViewModel = viewModel(),
+    songListViewModel: SongListViewModel = hiltViewModel(),
     navController: NavHostController = rememberNavController()
 ) {
     Scaffold(
@@ -75,16 +74,6 @@ fun BeatClikrApp(
             startDestination = BeatClikrScreen.InstantMetronome.name,
             modifier = Modifier.padding(innerPadding)
         ) {
-            composable(BeatClikrScreen.SongList.name){
-                SongList(uiState, songListViewModel) {
-                    navController.navigate(BeatClikrScreen.SongDetails.name)
-                }
-            }
-            composable(BeatClikrScreen.SongDetails.name){
-                SongDetail(uiState, songListViewModel) {
-                    navController.popBackStack()
-                }
-            }
             composable(BeatClikrScreen.InstantMetronome.name){
                 InstantMetronomeView()
             }

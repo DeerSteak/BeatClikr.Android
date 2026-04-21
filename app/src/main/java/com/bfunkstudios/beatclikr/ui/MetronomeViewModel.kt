@@ -1,28 +1,29 @@
 package com.bfunkstudios.beatclikr.ui
 
-import android.app.Application
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
-import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.bfunkstudios.beatclikr.constants.MetronomeConstants
 import com.bfunkstudios.beatclikr.data.ClickerType
-import com.bfunkstudios.beatclikr.data.AppPreferences
+import com.bfunkstudios.beatclikr.data.IAppPreferences
 import com.bfunkstudios.beatclikr.data.Song
 import com.bfunkstudios.beatclikr.data.SoundFile
 import com.bfunkstudios.beatclikr.data.Subdivisions
-import com.bfunkstudios.beatclikr.services.AudioPlayerService
+import com.bfunkstudios.beatclikr.services.IAudioPlayerService
 import com.bfunkstudios.beatclikr.services.MetronomeAudioEngineDelegate
+import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import javax.inject.Inject
 
-class MetronomeViewModel(application: Application) : AndroidViewModel(application),
-    MetronomeAudioEngineDelegate {
-
-    private val audio: AudioPlayerService = AudioPlayerService.getInstance(application)
-    private val prefs = AppPreferences(application)
+@HiltViewModel
+class MetronomeViewModel @Inject constructor(
+    private val audio: IAudioPlayerService,
+    private val prefs: IAppPreferences
+) : ViewModel(), MetronomeAudioEngineDelegate {
 
     var iconScale by mutableFloatStateOf(MetronomeConstants.ICON_SCALE_MIN)
         private set
@@ -104,7 +105,6 @@ class MetronomeViewModel(application: Application) : AndroidViewModel(applicatio
 
     fun start() {
         if (clickerType == ClickerType.INSTANT) {
-            // Refresh the instant song, preserving the user's current BPM and subdivisions
             currentSong = Song.instantSong().copy(
                 beatsPerMinute = currentSong.beatsPerMinute,
                 subdivisions = currentSong.subdivisions
@@ -151,13 +151,9 @@ class MetronomeViewModel(application: Application) : AndroidViewModel(applicatio
         }
     }
 
-    private fun handleBeat() {
-        // Beat visual/haptic feedback goes here
-    }
+    private fun handleBeat() {}
 
-    private fun handleRhythm() {
-        // Rhythm visual/haptic feedback goes here
-    }
+    private fun handleRhythm() {}
 
     private fun getSubdivisionValue(): Int = when (currentSong.subdivisions) {
         Subdivisions.Quarter -> 1
