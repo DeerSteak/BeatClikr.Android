@@ -1,232 +1,149 @@
 # BeatClikr Android
+BeatClikr's Android implementation with Jetpack Compose, MVVM architecture, and SoundPool audio. Mirrors the iOS app's architecture and feature set.
 
-A high-precision metronome app for Android built with Jetpack Compose and MVVM architecture.
+Note: The 15 `.wav` drum/percussion samples are bundled in `res/raw/` and tracked in git. No additional setup is needed to build and run the app.
 
 ## Architecture Overview
 
-BeatClikr follows a clean MVVM architecture with a dedicated services layer for audio. The app is a single-module Android project organized into four main layers:
-
-```
-UI Layer (Compose)
-    ↓
-ViewModel Layer
-    ↓
-Services Layer (Audio Engine)
-    ↓
-Data Layer (In-memory)
-```
-
----
-
-## Project Structure
-
-```
-app/src/main/java/com/bfunkstudios/beatclikr/
-├── MainActivity.kt
-├── constants/
-│   └── MetronomeConstants.kt
-├── data/
-│   ├── ClickerType.kt
-│   ├── DataSource.kt
-│   ├── Song.kt
-│   ├── SongListUiState.kt
-│   ├── SoundFile.kt
-│   └── Subdivisions.kt
-├── services/
-│   ├── AudioPlayerService.kt
-│   ├── MetronomeAudioEngine.kt
-│   └── MetronomeTimer.kt
-└── ui/
-    ├── BeatClikrScreen.kt
-    ├── InstantMetronomeView.kt
-    ├── MetronomeViewModel.kt
-    ├── SongListViewModel.kt
-    ├── components/
-    │   ├── MetronomePlayerView.kt
-    │   ├── SongDetail.kt
-    │   └── SongList.kt
-    └── theme/
-        ├── Color.kt
-        ├── Theme.kt
-        └── Type.kt
-```
-
----
-
-## Data Layer
+BeatClikr follows an MVVM architecture with a clean separation of concerns:
 
 ### Models
+- **Song** - Core domain model (title, artist, BPM, beats per measure, groove, live/rehearsal sequence index)
+- **Subdivisions** - Enum defining subdivision types (quarter notes, eighth notes, triplets, sixteenths)
+- **ClickerType** - Enum distinguishing instant vs. live vs. rehearsal metronome modes
+- **SoundFile** - Enum mapping the 15 bundled `.wav` samples to their raw resource IDs; provides filtered lists `beatSounds` and `rhythmSounds`
+- **SongListUiState** - Immutable UI state snapshot for the song list screen
 
-**`Song`** — The core domain model.
-```kotlin
-data class Song(
-    var title: String,
-    var artist: String,
-    var beatsPerMinute: Float,
-    var beatsPerMeasure: Int,
-    var subdivisions: Subdivisions,
-    var liveSequence: Int?,
-    var rehearsalSequence: Int?,
-    val id: UUID
-)
-```
-
-**`Subdivisions`** — Enum defining rhythm subdivision modes: `Quarter`, `Eighth`, `Triplet`, `Sixteenth`.
-
-**`ClickerType`** — Enum for the three metronome modes: `LIVE`, `INSTANT`, `REHEARSAL`.
-
-**`SoundFile`** — Enum mapping the 15 bundled `.wav` drum/percussion samples (kick, snare, hats, cymbals, etc.) to their raw resource IDs. Provides filtered lists: `beatSounds` (13 sounds) and `rhythmSounds` (10 sounds).
-
-**`SongListUiState`** — Immutable UI state snapshot used by `SongListViewModel`.
-
-### DataSource
-
-`DataSource` is an in-memory singleton that stores a mutable list of `Song` objects. It ships with 5 pre-loaded songs. `saveSong(song)` inserts a new song or updates an existing one matched by UUID. There is no on-disk persistence.
-
----
-
-## Services Layer
-
-### `MetronomeAudioEngine`
-
-The heart of the app. Responsible for low-latency audio playback and precise timing.
-
-- Uses **Android `SoundPool`** for sub-5ms jitter audio.
-- Timing is driven by `SystemClock.elapsedRealtimeNanos()` — monotonic and drift-free.
-- A `Handler` loop fires every 1ms (configurable via `MetronomeConstants`) and checks whether the next beat is within a 2ms lookahead window before firing.
-- Tracks a subdivision counter: `0` fires the **beat** sound, `>0` fires the **rhythm** sound.
-- Beat duration is computed in nanoseconds from the BPM.
-- Notifies callers via a `MetronomeAudioEngineDelegate` callback interface.
-
-Key timing constants (from `MetronomeConstants`):
-| Constant | Value | Purpose |
-|---|---|---|
-| `TIMER_CHECK_INTERVAL_MS` | 1ms | How often the timer loop wakes |
-| `LOOKAHEAD_TOLERANCE_MS` | 2ms | Fire early if beat is this close |
-| `FIRST_BEAT_DELAY_MS` | 67ms | Startup delay before first beat |
-
-### `AudioPlayerService`
-
-A singleton facade that wraps `MetronomeAudioEngine`. The ViewModels interact only with this service, not the engine directly. Implements `MetronomeAudioEngineDelegate` to relay beat callbacks upward.
-
-Public API:
-- `setupAudioPlayer(beatResourceId, rhythmResourceId)` — Load sound files.
-- `startMetronome(bpm, subdivisions)` — Begin playback.
-- `stopMetronome()` — Stop playback.
-- `updateTempo(bpm, subdivisions)` — Update tempo while running.
-- `release()` — Free audio resources.
-
-### `MetronomeTimer`
-
-An alternative timer implementation also using `elapsedRealtimeNanos()`. It calculates a dynamic check interval (`subdivisionDuration / 50`, minimum 1ms). Not used in the current main playback flow but retained as an alternate implementation.
-
----
-
-## ViewModel Layer
-
-### `MetronomeViewModel` (AndroidViewModel)
-
-Manages all state for the Instant Metronome screen. State is held with the Compose `mutableStateOf` / `mutableFloatStateOf` APIs.
-
-**State:**
-| Property | Range/Type | Description |
-|---|---|---|
-| `isPlaying` | Boolean | Playback running |
-| `beatsPerMinute` | 30–240 Float | Current tempo |
-| `selectedSubdivisions` | Subdivisions enum | Current subdivision mode |
-| `selectedBeatSound` | SoundFile | Beat click sound |
-| `selectedRhythmSound` | SoundFile | Subdivision click sound |
-| `iconScale` | 0.3–1.0 Float | Beat pulse animation scale |
-
-**Tap Tempo** — `recordTap()` accumulates timestamps, averages the last 8 tap intervals, and resets if more than 2 seconds pass between taps.
-
-**Beat Animation** — When a beat fires via the delegate callback, `iconScale` snaps instantly to `ICON_SCALE_MAX` (1.0), waits 16ms, then animates back to `ICON_SCALE_MIN` (0.3) over one beat duration (60,000 / BPM ms). This gives a sharp attack and smooth decay that tracks the current tempo.
-
-**Lifecycle** — Stops audio in `onCleared()` to prevent playback leaking beyond the screen.
-
-### `SongListViewModel` (ViewModel)
-
-Manages song list state using `StateFlow<SongListUiState>`. Simpler than MetronomeViewModel — no audio concerns.
-
-- `setSelectedSong(uuid)` — Sets the selected song for editing.
-- `saveSong(song)` — Calls `DataSource.saveSong()` then refreshes the UI state.
-
----
-
-## UI Layer
-
-Navigation is handled by **Jetpack Navigation Compose**. Routes are defined as an enum in `BeatClikrScreen.kt`:
-
-```
-InstantMetronome  (default/home)
-SongList
-SongDetails
-```
-
-A `Scaffold` with a Material3 `TopAppBar` wraps the `NavHost`.
+### ViewModels
+- **MetronomeViewModel** - Orchestrates metronome playback, coordinates with `AudioPlayerService`, handles UI state (beat pulse animation, isPlaying, BPM, tap tempo)
+- **SongListViewModel** - Handles song library CRUD operations and exposes `StateFlow<SongListUiState>` to the UI
 
 ### Screens
-
-**`InstantMetronomeView`** — The main screen. Contains:
-- An animated **MetronomePlayerView** circle (BPM pulse indicator).
-- Large BPM display with Tap Tempo button.
-- BPM slider with ± buttons (bounded 30–240).
-- Subdivision selector (Quarter / Eighth / Triplet / Sixteenth).
-- Beat and Rhythm sound dropdown menus.
-- Play/Pause toggle.
-
-Uses `DisposableEffect` to call `setupMetronome()` on entry and `stopMetronome()` on exit.
-
-**`SongList`** — A `LazyColumn` of songs with an "Add Song" button. Tapping a song navigates to `SongDetails`.
-
-**`SongDetail`** — A form for editing a song's title, artist, BPM (slider), and beats per measure, with Cancel/Save actions.
+- **BeatClikrApp** - Root composable; hosts the `NavHost` and `TopAppBar` inside a `Scaffold`
+- **InstantMetronomeView** - Standalone metronome with live BPM/groove controls and tap tempo
+- **SongList** - Browsable song list; tap a song to navigate to its details, + to add a new one
+- **SongDetail** - Add or edit a song's metadata (title, artist, BPM, beats per measure)
 
 ### Components
+- **MetronomePlayerView** - Animated circle that pulses with each beat; scale driven by `iconScale` from `MetronomeViewModel`
 
-**`MetronomePlayerView`** — A composable circle that animates its scale based on `iconScale` from the ViewModel. Uses `animateFloatAsState` with `LinearEasing` for the decay animation.
+### Services Layer
+- **MetronomeAudioEngine** - Low-latency metronome engine using `SoundPool` and `SystemClock.elapsedRealtimeNanos()` for precise timing
+- **AudioPlayerService** - Singleton facade over `MetronomeAudioEngine`; the only audio entry point for ViewModels. Implements `MetronomeAudioEngineDelegate` and re-exposes a `delegate` property for ViewModel callbacks
+- **MetronomeTimer** - Alternative timer implementation retained for reference; not used in the active playback path
 
-### Theme
+### Constants
+- **MetronomeConstants** - Timing parameters, BPM ranges, animation scale values, and tolerance thresholds
 
-The app uses a custom **Material3** color scheme with dynamic color disabled.
+## About Keeping Time
 
-- **Accent:** Orange `#FF5722`
-- **Light primary:** Blue `#408CC9`
-- **Dark primary:** Darker blue `#0E6A96`
-- **Surfaces:** Pure white (light) / `#1C1C1E` dark gray (dark) — iOS-style dark surface.
-- Status bar styling adapts to light/dark mode.
+Sample-accurate timing is critical for a metronome. The current implementation uses **Android `SoundPool`** with **`SystemClock.elapsedRealtimeNanos()`** for high-precision beat scheduling.
 
----
+### How it works:
 
-## Build Configuration
+The `MetronomeAudioEngine` uses a polling approach with extremely tight tolerances:
 
-| Setting | Value |
-|---|---|
-| Min SDK | 25 (Android 7.1) |
-| Target/Compile SDK | 35 |
-| Kotlin | 2.2.10 |
-| Android Gradle Plugin | 9.1.0 |
-| Compose BOM | 2023.08.00 |
-| Navigation Compose | 2.7.7 |
-| Lifecycle ViewModel Compose | 2.6.1 |
+```
+Check Interval:      1ms  (Handler loop on main looper)
+First Beat Delay:   67ms  (ensures timer is running before first beat)
+Lookahead Tolerance: 2ms  (fires beat slightly early to account for processing)
+```
 
-No network or device permissions are required.
+**Example with 100 BPM, 8th note subdivisions:**
+- Subdivision duration: 60,000 / (100 BPM × 2 subdivisions) = 300 milliseconds
+- Handler fires every 1ms to check if it's within 2ms of the next scheduled beat
+- When threshold is met, plays the appropriate sound (beat or rhythm) and notifies the delegate
 
----
+This approach provides:
+- **<5ms jitter** - beats stay locked to the tempo
+- **No drift** - uses monotonic `elapsedRealtimeNanos()` rather than cumulative intervals
+- **Real-time tempo changes** - BPM and subdivisions can be updated while playing
 
-## Audio Assets
+### Delegate Pattern
 
-15 `.wav` drum samples are bundled in `res/raw/`:
+`MetronomeViewModel` implements `MetronomeAudioEngineDelegate` to receive beat callbacks:
+- Triggers visual beat-pulse animation (`iconScale` snaps to MAX, decays to MIN over one beat duration)
+- `AudioPlayerService` sits between the engine and the ViewModel, relaying callbacks via its own `delegate` property
 
-| Sound | File |
-|---|---|
-| Click Hi | `clickhi_e5.wav` |
-| Click Lo | `clicklo_f5.wav` |
-| Cowbell | `cowbell_gsharp3.wav` |
-| Crash L/R | `crashl_csharp3.wav`, `crashr_a3.wav` |
-| Hi-Hat Closed/Open | `hatclosed_fsharp2.wav`, `hatopen_asharp2.wav` |
-| Kick | `kick_c2.wav` |
-| Ride Bell/Edge | `ridebell_f3.wav`, `rideedge_dsharp3.wav` |
-| Snare | `snare_d2.wav` |
-| Tambourine | `tamb_fsharp3.wav` |
-| Tom Hi/Mid/Low | `tomhi_d3.wav`, `tommid_b2.wav`, `tomlow_a2.wav` |
-| Silence | `silence_d7.wav` |
+## About Audio Playback
+
+BeatClikr Android relies on **Android `SoundPool`** for sound playback. It provides low-latency sample playback suited for percussion and short sound effects.
+
+### Sound Architecture:
+- WAV files are loaded into `SoundPool` at startup via `loadSounds()`
+- Beat vs. rhythm (subdivision) sounds are selected based on a subdivision counter
+- Two sound IDs are active at any time: `beatSoundId` and `rhythmSoundId`
+- Supports instant sound switching by calling `setupAudioPlayer()` with new resource IDs
+
+The `AudioPlayerService` manages:
+- Loading audio files from `res/raw/`
+- Delegating start/stop/update calls to the engine
+- Providing a single shared instance to all ViewModels via `getInstance(context)`
+
+## Tap Tempo
+
+The Instant Metronome includes a **Tap Tempo** button displayed as a circle to the right of the BPM display. Tapping it calculates BPM from the average interval of the last 8 taps. The result is clamped to the app's min/max BPM range (30–240). If more than 2 seconds pass between taps, the tap history is cleared so a new tempo can be set.
+
+## About the Song Library
+
+The song library uses an **in-memory `DataSource` singleton** — there is no on-disk or cloud persistence. Song data resets on app restart. Songs are matched for update by UUID.
+
+Songs include:
+- Title and artist metadata
+- BPM and beats per measure
+- Groove/subdivision settings
+- Optional live and rehearsal sequence indices
+
+The `DataSource` ships with 5 pre-loaded sample songs.
+
+## ViewModel Access
+
+`MetronomeViewModel` is an `AndroidViewModel` and requires an `Application` context to access the `AudioPlayerService` singleton. It is obtained via Compose's `viewModel()` helper and scoped to the `InstantMetronomeView` composable.
+
+`SongListViewModel` is a plain `ViewModel` and is hoisted to the `BeatClikrApp` root composable so its state persists across navigation between `SongList` and `SongDetail`.
+
+This ensures:
+- A single shared `AudioPlayerService` instance across the app
+- No background metronome instances after the ViewModel is cleared
+- Song list state is not lost when navigating into and out of song details
+
+## Feature Parity Roadmap
+
+Items remaining to match the iOS app, roughly in dependency order:
+
+### Persistence (Room)
+- Replace the in-memory `DataSource` singleton with a **Room** database so songs survive app restart
+- Add `android:autoBackup` backup rules to include the Room database, mirroring iOS's automatic CloudKit/iCloud sync
+- `PlaylistEntry` will also need a Room entity once playlist mode is added (see below)
+
+### Song Library Polish
+- **SongListItem** currently shows only title and artist — add BPM and groove (subdivision) to match `SongListItemView` on iOS
+- Add **swipe-to-delete** on `SongList` rows (iOS uses swipe actions; Android equivalent is `SwipeToDismiss` in Compose)
+- **Tapping a song** should start it playing in the metronome, not just open the edit form — currently there is no "play from library" path
+- Fix the BPM range in `SongDetail`'s slider: it's hardcoded to 60–240 instead of `MetronomeConstants.MIN_BPM` (30)
+- Add the **groove/subdivision selector** to `SongDetail` — it is editable on iOS but missing from the Android form
+
+### Bottom Navigation
+- Add a **bottom navigation bar** (or `NavigationDrawer`) so users can switch between Instant Metronome, Song Library, Playlist, and Settings — currently there is no way to reach `SongList` from the running app
+- The `TopAppBar` back button navigation is a TODO in `BeatClikrApp`
+
+### Playlist Mode
+- Add a `PlaylistEntry` model (ordered link between a `Song` and its sequence index)
+- Add `PlaylistModeViewModel` — manages next/previous/play sequencing, edit, reorder, and delete
+- Add `PlaylistModeView` — ordered `LazyColumn` with drag-to-reorder (`ReorderableLazyColumn`) and swipe-to-delete, inline edit mode
+- Add `PlaylistTransportView` — floating Previous / Stop / Next bar shown while a song is active; pulses with the beat via `MetronomeAudioEngineDelegate`
+- Add `SongPickerView` — bottom sheet for picking a library song to add to the playlist
+- Wire up `liveSequence` and `rehearsalSequence` fields on `Song`, which are already modeled but unused
+
+### Settings
+- Add `SettingsViewModel` and `SettingsView` covering: default beat/rhythm sounds, haptics on/off, flashlight on/off, keep-awake on/off
+- Persist settings with **Jetpack DataStore** (Android equivalent of iOS `UserDefaultsService`)
+- Apply saved sound preferences as defaults when `MetronomeViewModel` initializes, instead of always defaulting to Click Hi / Click Lo
+
+### Feedback Options
+- **Haptics** — Add a `VibrationService` using `VibrationEffect` / `HapticFeedbackManager` to pulse on each beat (mirrors iOS `VibrationService` using `UIImpactFeedbackGenerator`)
+- **Flashlight** — Add a `FlashlightService` using `CameraManager.setTorchMode()` to flash the torch on each beat
+- **Keep-awake** — Acquire a `WindowManager` `FLAG_KEEP_SCREEN_ON` (or `WakeLock`) while the metronome is playing so the screen doesn't turn off during practice
+
+### Minor UI / UX
+- Add a compact `MetronomePlayerView` to the `TopAppBar` that animates while playing, matching the iOS toolbar indicator
