@@ -4,14 +4,12 @@ object MetronomeConstants {
     // BPM (Beats Per Minute) constraints
     const val MIN_BPM: Float = 30f
     const val MAX_BPM: Float = 240f
-    const val DEFAULT_MIN_SLIDER_BPM: Float = 60f
-    const val DEFAULT_MAX_SLIDER_BPM: Float = 180f
 
     // Visual sizing
     const val PLAYER_VIEW_DEFAULT_SIZE: Float = 80f
     const val PLAYER_VIEW_TOOLBAR_SIZE: Float = 30f
 
-    // Animation - much more dramatic! (0.3 to 1.0 = 3.3x size change: 24dp -> 80dp)
+    // Animation
     const val ICON_SCALE_MIN: Float = 0.5f
     const val ICON_SCALE_MAX: Float = 1.0f
 
