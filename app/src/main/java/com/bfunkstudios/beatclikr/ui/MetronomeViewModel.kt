@@ -169,6 +169,6 @@ class MetronomeViewModel(application: Application) : AndroidViewModel(applicatio
     override fun onCleared() {
         super.onCleared()
         stop()
-        audio.release()
+        audio.delegate = null
     }
 }
