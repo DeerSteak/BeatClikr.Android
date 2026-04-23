@@ -28,8 +28,7 @@ import com.bfunkstudios.beatclikr.R
 import com.bfunkstudios.beatclikr.constants.AppLocale
 import com.bfunkstudios.beatclikr.constants.MetronomeConstants
 import com.bfunkstudios.beatclikr.data.SoundFile
-import com.bfunkstudios.beatclikr.data.Subdivisions
-import com.bfunkstudios.beatclikr.ui.components.GrooveButton
+import com.bfunkstudios.beatclikr.ui.components.GrooveSelector
 import com.bfunkstudios.beatclikr.ui.components.MetronomePlayerView
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -221,35 +220,10 @@ fun InstantMetronomeView(
                         modifier = Modifier.padding(horizontal = 4.dp)
                     )
 
-                    // 2x2 Grid
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            Subdivisions.entries.take(2).forEach { subdivision ->
-                                GrooveButton(
-                                    subdivision = subdivision,
-                                    isSelected = viewModel.selectedSubdivisions == subdivision,
-                                    onClick = { viewModel.updateSubdivisions(subdivision) },
-                                    modifier = Modifier.weight(1f)
-                                )
-                            }
-                        }
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            Subdivisions.entries.drop(2).forEach { subdivision ->
-                                GrooveButton(
-                                    subdivision = subdivision,
-                                    isSelected = viewModel.selectedSubdivisions == subdivision,
-                                    onClick = { viewModel.updateSubdivisions(subdivision) },
-                                    modifier = Modifier.weight(1f)
-                                )
-                            }
-                        }
-                    }
+                    GrooveSelector(
+                        selected = viewModel.selectedSubdivisions,
+                        onSelect = { viewModel.updateSubdivisions(it) }
+                    )
                 }
             }
 

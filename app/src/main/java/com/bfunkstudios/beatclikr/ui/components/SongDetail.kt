@@ -41,7 +41,6 @@ import androidx.compose.ui.unit.sp
 import com.bfunkstudios.beatclikr.R
 import com.bfunkstudios.beatclikr.constants.AppLocale
 import com.bfunkstudios.beatclikr.constants.MetronomeConstants
-import com.bfunkstudios.beatclikr.data.Subdivisions
 import com.bfunkstudios.beatclikr.ui.SongLibraryViewModel
 
 @Composable
@@ -167,30 +166,11 @@ fun SongDetail(
             shape = RoundedCornerShape(16.dp),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
         ) {
-            Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Subdivisions.entries.take(2).forEach { option ->
-                            GrooveButton(
-                                subdivision = option,
-                                isSelected = viewModel.draftSubdivisions == option,
-                                onClick = { viewModel.updateDraftSubdivisions(option) },
-                                modifier = Modifier.weight(1f)
-                            )
-                        }
-                    }
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Subdivisions.entries.drop(2).forEach { option ->
-                            GrooveButton(
-                                subdivision = option,
-                                isSelected = viewModel.draftSubdivisions == option,
-                                onClick = { viewModel.updateDraftSubdivisions(option) },
-                                modifier = Modifier.weight(1f)
-                            )
-                        }
-                    }
-                }
-            }
+            GrooveSelector(
+                selected = viewModel.draftSubdivisions,
+                onSelect = { viewModel.updateDraftSubdivisions(it) },
+                modifier = Modifier.padding(12.dp)
+            )
         }
     }
 }
