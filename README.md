@@ -8,7 +8,7 @@ Note: The 15 `.wav` drum/percussion samples are bundled in `res/raw/` and tracke
 BeatClikr follows an MVVM architecture with a clean separation of concerns:
 
 ### Models
-- **Song** - Core domain model (title, artist, BPM, beats per measure, groove, live/rehearsal sequence index)
+- **Song** - Core domain model (title, artist, BPM, beats per measure, groove)
 - **Subdivisions** - Enum defining subdivision types (quarter notes, eighth notes, triplets, sixteenths)
 - **ClickerType** - Enum distinguishing instant vs. live vs. rehearsal metronome modes
 - **SoundFile** - Enum mapping the 15 bundled `.wav` samples to their raw resource IDs; provides filtered lists `beatSounds` and `rhythmSounds`
@@ -139,6 +139,8 @@ This ensures:
 
 ## Testing
 
+While the code is artisinal hand-crafted genuine Kotlin, I've allowed Claude to generate tests and do all the work to generate substitute objects where appropriate.
+
 ### Unit Tests (`src/test/`)
 
 `MetronomeViewModelTest` covers the full ViewModel surface using **MockK** and `kotlinx-coroutines-test`. No Android runtime is required — tests run on the JVM.
@@ -180,7 +182,6 @@ Items remaining to match the iOS app, roughly in dependency order:
 - Add `PlaylistModeView` — ordered `LazyColumn` with drag-to-reorder (`ReorderableLazyColumn`) and swipe-to-delete, inline edit mode
 - Add `PlaylistTransportView` — floating Previous / Stop / Next bar shown while a song is active; pulses with the beat via `MetronomeAudioEngineDelegate`
 - Add `SongPickerView` — bottom sheet for picking a library song to add to the playlist
-- Wire up `liveSequence` and `rehearsalSequence` fields on `Song`, which are already modeled but unused
 
 ### Settings
 - Add `SettingsViewModel` and `SettingsView` covering: default beat/rhythm sounds, haptics on/off, flashlight on/off, keep-awake on/off
@@ -191,4 +192,4 @@ Items remaining to match the iOS app, roughly in dependency order:
 ### Feedback Options
 - **Haptics** — Add a `VibrationService` using `VibrationEffect` / `HapticFeedbackManager` to pulse on each beat (mirrors iOS `VibrationService` using `UIImpactFeedbackGenerator`)
 - **Flashlight** — Add a `FlashlightService` using `CameraManager.setTorchMode()` to flash the torch on each beat
-- **Keep-awake** — Acquire a `WindowManager` `FLAG_KEEP_SCREEN_ON` (or `WakeLock`) while the metronome is playing so the screen doesn't turn off during practice
+- **Keep-awake** — Acquire a `WindowManager` `FLAG_KEEP_SCREEN_ON` (or `WakeLock`) while the app is running so the screen doesn't turn off during practice
