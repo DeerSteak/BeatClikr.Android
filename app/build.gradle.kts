@@ -11,7 +11,7 @@ android {
 
     defaultConfig {
         applicationId = "com.bfunkstudios.beatclikr"
-        minSdk = 29
+        minSdk = 25
         targetSdk = 35
         versionCode = 1
         versionName = "1.0"

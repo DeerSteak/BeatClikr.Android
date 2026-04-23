@@ -45,7 +45,6 @@ class MetronomeAudioEngine(private val context: Context) {
         val audioAttributes = AudioAttributes.Builder()
             .setUsage(AudioAttributes.USAGE_GAME)
             .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-            .setFlags(AudioAttributes.FLAG_LOW_LATENCY)
             .build()
 
         soundPool = SoundPool.Builder()
