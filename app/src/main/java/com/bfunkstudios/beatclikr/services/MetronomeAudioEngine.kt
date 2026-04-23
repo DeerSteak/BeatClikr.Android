@@ -4,7 +4,7 @@ import android.content.Context
 import android.media.AudioAttributes
 import android.media.SoundPool
 import android.os.Handler
-import android.os.Looper
+import android.os.HandlerThread
 import android.os.SystemClock
 import com.bfunkstudios.beatclikr.constants.MetronomeConstants
 
@@ -14,7 +14,8 @@ interface MetronomeAudioEngineDelegate {
 
 class MetronomeAudioEngine(private val context: Context) {
     private val soundPool: SoundPool
-    private val handler = Handler(Looper.getMainLooper())
+    private val handlerThread = HandlerThread("MetronomeThread").also { it.start() }
+    private val handler = Handler(handlerThread.looper)
 
     private var beatSoundId: Int = 0
     private var rhythmSoundId: Int = 0
@@ -29,7 +30,7 @@ class MetronomeAudioEngine(private val context: Context) {
 
     private var delegate: MetronomeAudioEngineDelegate? = null
 
-    var isMuted: Boolean = false
+    @Volatile var isMuted: Boolean = false
 
     private var pendingBpm: Float = 60f
     private var pendingSubdivisions: Int = 1
@@ -42,23 +43,16 @@ class MetronomeAudioEngine(private val context: Context) {
 
     init {
         val audioAttributes = AudioAttributes.Builder()
-            .setUsage(AudioAttributes.USAGE_MEDIA)
-            .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
+            .setUsage(AudioAttributes.USAGE_GAME)
+            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
             .build()
 
         soundPool = SoundPool.Builder()
             .setMaxStreams(2)
             .setAudioAttributes(audioAttributes)
             .build()
-    }
-
-    fun loadSounds(beatResourceId: Int, rhythmResourceId: Int) {
-        beatLoaded = false
-        rhythmLoaded = false
-        hasPendingStart = false
 
         soundPool.setOnLoadCompleteListener { _, sampleId, status ->
-            // Post to main thread — all other engine state is main-thread only
             handler.post {
                 if (status == 0) {
                     if (sampleId == beatSoundId) beatLoaded = true
@@ -71,41 +65,57 @@ class MetronomeAudioEngine(private val context: Context) {
                 }
             }
         }
+    }
 
-        beatSoundId = soundPool.load(context, beatResourceId, 1)
-        rhythmSoundId = soundPool.load(context, rhythmResourceId, 1)
+    fun loadSounds(beatResourceId: Int, rhythmResourceId: Int) {
+        handler.post {
+            beatLoaded = false
+            rhythmLoaded = false
+            hasPendingStart = false
+            beatSoundId = soundPool.load(context, beatResourceId, 1)
+            rhythmSoundId = soundPool.load(context, rhythmResourceId, 1)
+        }
     }
 
     fun startMetronome(bpm: Float, subdivisions: Int, delegate: MetronomeAudioEngineDelegate) {
-        handler.removeCallbacks(timerRunnable)
-
-        if (!beatLoaded || !rhythmLoaded) {
-            pendingBpm = bpm
-            pendingSubdivisions = subdivisions
-            pendingDelegate = delegate
-            hasPendingStart = true
-            return
+        handler.post {
+            handler.removeCallbacks(timerRunnable)
+            if (!beatLoaded || !rhythmLoaded) {
+                pendingBpm = bpm
+                pendingSubdivisions = subdivisions
+                pendingDelegate = delegate
+                hasPendingStart = true
+                return@post
+            }
+            doStart(bpm, subdivisions, delegate)
         }
-
-        doStart(bpm, subdivisions, delegate)
     }
 
     fun stopMetronome() {
-        isPlaying = false
-        hasPendingStart = false
-        handler.removeCallbacks(timerRunnable)
-        subdivisionCounter = 0
+        handler.post {
+            isPlaying = false
+            hasPendingStart = false
+            handler.removeCallbacks(timerRunnable)
+            subdivisionCounter = 0
+        }
     }
 
     fun updateTempo(bpm: Float, subdivisions: Int) {
-        this.currentBPM = bpm
-        this.currentSubdivisions = subdivisions
+        handler.post {
+            currentBPM = bpm
+            currentSubdivisions = subdivisions
+        }
     }
 
     fun release() {
-        stopMetronome()
-        soundPool.release()
-        delegate = null
+        handler.post {
+            isPlaying = false
+            hasPendingStart = false
+            handler.removeCallbacks(timerRunnable)
+            soundPool.release()
+            delegate = null
+        }
+        handlerThread.quitSafely()
     }
 
     private fun doStart(bpm: Float, subdivisions: Int, delegate: MetronomeAudioEngineDelegate) {

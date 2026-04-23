@@ -15,6 +15,7 @@ import com.bfunkstudios.beatclikr.data.Subdivisions
 import com.bfunkstudios.beatclikr.services.IAudioPlayerService
 import com.bfunkstudios.beatclikr.services.MetronomeAudioEngineDelegate
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -145,15 +146,15 @@ class MetronomeViewModel @Inject constructor(
     }
 
     override fun metronomeBeatFired(isBeat: Boolean) {
-        if (isBeat) {
-            iconScale = MetronomeConstants.ICON_SCALE_MAX
-            viewModelScope.launch {
+        viewModelScope.launch(Dispatchers.Main) {
+            if (isBeat) {
+                iconScale = MetronomeConstants.ICON_SCALE_MAX
                 delay(16)
                 iconScale = MetronomeConstants.ICON_SCALE_MIN
+                handleBeat()
+            } else {
+                handleRhythm()
             }
-            handleBeat()
-        } else {
-            handleRhythm()
         }
     }
 
