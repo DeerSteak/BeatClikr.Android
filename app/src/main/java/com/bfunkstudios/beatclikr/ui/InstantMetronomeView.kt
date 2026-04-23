@@ -30,6 +30,7 @@ import com.bfunkstudios.beatclikr.constants.MetronomeConstants
 import com.bfunkstudios.beatclikr.data.SoundFile
 import com.bfunkstudios.beatclikr.ui.components.GrooveSelector
 import com.bfunkstudios.beatclikr.ui.components.MetronomePlayerView
+import com.bfunkstudios.beatclikr.ui.components.SectionCard
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -62,13 +63,7 @@ fun InstantMetronomeView(
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
             // BPM Card
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surface
-                )
-            ) {
+            SectionCard {
                 Column(
                     modifier = Modifier.padding(12.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -201,13 +196,7 @@ fun InstantMetronomeView(
             }
 
             // Groove Card
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surface
-                )
-            ) {
+            SectionCard {
                 Column(
                     modifier = Modifier.padding(12.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -228,13 +217,7 @@ fun InstantMetronomeView(
             }
 
             // Beat & Rhythm Card
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surface
-                )
-            ) {
+            SectionCard {
                 Column {
                     // Beat Row
                     Row(
