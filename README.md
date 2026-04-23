@@ -22,10 +22,14 @@ BeatClikr follows an MVVM architecture with a clean separation of concerns:
 - **BeatClikrApp** - Root composable; hosts the `NavHost` and `TopAppBar` inside a `Scaffold`
 - **InstantMetronomeView** - Standalone metronome with live BPM/groove controls and tap tempo
 - **SongList** - Browsable song list; tap a song to navigate to its details, + to add a new one
-- **SongDetail** - Add or edit a song's metadata (title, artist, BPM, beats per measure)
+- **SongDetail** - Add or edit a song's metadata (title, artist, BPM, beats per measure, groove); presented as a `ModalBottomSheet` over the song library rather than a separate navigation destination
 
 ### Components
 - **MetronomePlayerView** - Animated circle that pulses with each beat; scale driven by `iconScale` from `MetronomeViewModel`
+- **SectionCard** - Shared card surface (`RoundedCornerShape(16.dp)`, surface color) used across all form screens
+- **BpmSliderControl** - `OutlinedIconButton(−)` / `Slider` / `OutlinedIconButton(+)` row with secondary-color styling and built-in `coerceIn` clamping
+- **GrooveSelector** - 2×2 grid of `GrooveButton`s for picking a subdivision type
+- **SoundPickerRow** - Label + dropdown row for selecting a beat or rhythm sound; owns its own expanded state
 
 ### Services Layer
 - **MetronomeAudioEngine** - Low-latency metronome engine using `SoundPool` and `SystemClock.elapsedRealtimeNanos()` for precise timing; supports mute (suppresses audio but still fires delegate callbacks for animation and haptics)
@@ -52,7 +56,7 @@ Sample-accurate timing is critical for a metronome. The current implementation u
 The `MetronomeAudioEngine` uses a polling approach with extremely tight tolerances:
 
 ```
-Check Interval:      1ms  (Handler loop on main looper)
+Check Interval:      1ms  (Handler loop on dedicated HandlerThread "MetronomeThread")
 First Beat Delay:   67ms  (ensures timer is running before first beat)
 Lookahead Tolerance: 2ms  (fires beat slightly early to account for processing)
 ```
@@ -76,7 +80,7 @@ This approach provides:
 
 ## About Audio Playback
 
-BeatClikr Android relies on **Android `SoundPool`** for sound playback. It provides low-latency sample playback suited for percussion and short sound effects.
+BeatClikr Android relies on **Android `SoundPool`** for sound playback, configured with `USAGE_GAME` and `CONTENT_TYPE_SONIFICATION` to route through Android's low-latency audio path.
 
 ### Sound Architecture:
 - WAV files are loaded into `SoundPool` at startup via `loadSounds()`
@@ -96,15 +100,13 @@ The Instant Metronome includes a **Tap Tempo** button displayed as a circle to t
 
 ## About the Song Library
 
-The song library uses an **in-memory `DataSource` singleton** — there is no on-disk or cloud persistence. Song data resets on app restart. Songs are matched for update by UUID.
+Songs are persisted in a **Room database** and survive app restart. Songs are matched for update by UUID.
 
 Songs include:
 - Title and artist metadata
 - BPM and beats per measure
 - Groove/subdivision settings
 - Optional live and rehearsal sequence indices
-
-The `DataSource` ships with 5 pre-loaded sample songs.
 
 ## Dependency Injection
 
@@ -169,21 +171,8 @@ Run UI tests (requires device or emulator): `./gradlew connectedAndroidTest`
 
 Items remaining to match the iOS app, roughly in dependency order:
 
-### Persistence (Room)
-- Replace the in-memory `DataSource` singleton with a **Room** database so songs survive app restart
-- Add `android:autoBackup` backup rules to include the Room database, mirroring iOS's automatic CloudKit/iCloud sync
-- `PlaylistEntry` will also need a Room entity once playlist mode is added (see below)
-
 ### Song Library Polish
-- **SongListItem** currently shows only title and artist — add BPM and groove (subdivision) to match `SongListItemView` on iOS
-- Add **swipe-to-delete** on `SongList` rows (iOS uses swipe actions; Android equivalent is `SwipeToDismiss` in Compose)
-- **Tapping a song** should start it playing in the metronome, not just open the edit form — currently there is no "play from library" path
-- Fix the BPM range in `SongDetail`'s slider: it's hardcoded to 60–240 instead of `MetronomeConstants.MIN_BPM` (30)
-- Add the **groove/subdivision selector** to `SongDetail` — it is editable on iOS but missing from the Android form
-
-### Bottom Navigation
-- Add a **bottom navigation bar** (or `NavigationDrawer`) so users can switch between Instant Metronome, Song Library, Playlist, and Settings — currently there is no way to reach `SongList` from the running app
-- The `TopAppBar` back button navigation is a TODO in `BeatClikrApp`
+- Add `android:autoBackup` backup rules to include the Room database, mirroring iOS's automatic CloudKit/iCloud sync
 
 ### Playlist Mode
 - Add a `PlaylistEntry` model (ordered link between a `Song` and its sequence index)
@@ -205,4 +194,4 @@ Items remaining to match the iOS app, roughly in dependency order:
 - **Keep-awake** — Acquire a `WindowManager` `FLAG_KEEP_SCREEN_ON` (or `WakeLock`) while the metronome is playing so the screen doesn't turn off during practice
 
 ### Minor UI / UX
-- Add a compact `MetronomePlayerView` to the `TopAppBar` that animates while playing, matching the iOS toolbar indicator
+- **SongListItem** currently shows only title and artist in non-edit mode — add BPM and groove to match the iOS list item
