@@ -29,6 +29,7 @@ import com.bfunkstudios.beatclikr.constants.AppLocale
 import com.bfunkstudios.beatclikr.constants.MetronomeConstants
 import com.bfunkstudios.beatclikr.data.SoundFile
 import com.bfunkstudios.beatclikr.data.Subdivisions
+import com.bfunkstudios.beatclikr.ui.components.GrooveButton
 import com.bfunkstudios.beatclikr.ui.components.MetronomePlayerView
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -432,39 +433,3 @@ fun InstantMetronomeView(
         }
     }
 
-@Composable
-private fun GrooveButton(
-    subdivision: Subdivisions,
-    isSelected: Boolean,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Button(
-        onClick = onClick,
-        modifier = modifier.height(48.dp),
-        colors = ButtonDefaults.buttonColors(
-            containerColor = if (isSelected) {
-                MaterialTheme.colorScheme.secondary // Orange accent for selected
-            } else {
-                MaterialTheme.colorScheme.surfaceVariant
-            },
-            contentColor = if (isSelected) {
-                MaterialTheme.colorScheme.onSecondary
-            } else {
-                MaterialTheme.colorScheme.onSurface
-            }
-        ),
-        shape = RoundedCornerShape(24.dp)
-    ) {
-        Text(
-            text = when (subdivision) {
-                Subdivisions.Quarter -> stringResource(R.string.subdivision_quarter)
-                Subdivisions.Eighth -> stringResource(R.string.subdivision_eighth)
-                Subdivisions.Triplet -> stringResource(R.string.subdivision_triplet)
-                Subdivisions.Sixteenth -> stringResource(R.string.subdivision_sixteenth)
-            },
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold
-        )
-    }
-}

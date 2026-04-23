@@ -57,6 +57,11 @@ class MetronomeViewModel @Inject constructor(
         audio.delegate = this
     }
 
+    fun playSong(song: Song) {
+        loadSong(song, ClickerType.PLAYLIST)
+        start()
+    }
+
     fun loadSong(song: Song, type: ClickerType = ClickerType.INSTANT) {
         currentSong = song
         clickerType = type

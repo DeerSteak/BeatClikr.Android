@@ -1,102 +1,258 @@
 package com.bfunkstudios.beatclikr.ui.components
 
-import android.util.Log
+import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedIconButton
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
+import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.bfunkstudios.beatclikr.R
-import com.bfunkstudios.beatclikr.data.Song
-import com.bfunkstudios.beatclikr.ui.SongLibraryUiState
+import com.bfunkstudios.beatclikr.constants.AppLocale
+import com.bfunkstudios.beatclikr.constants.MetronomeConstants
 import com.bfunkstudios.beatclikr.data.Subdivisions
 import com.bfunkstudios.beatclikr.ui.SongLibraryViewModel
-import java.util.UUID
 
 @Composable
-fun SongDetail(uiState: SongLibraryUiState, viewModel: SongLibraryViewModel, navigateBack: () -> Unit) {
-    val song = uiState.selectedSong
-    Log.d("SongDetail", "Song id: " + song?.id)
-    val thisSong = Song(
-        id = song?.id ?: UUID.randomUUID(),
-        title = song?.title ?: "",
-        artist = song?.artist ?: "",
-        beatsPerMinute = song?.beatsPerMinute ?: 60f,
-        beatsPerMeasure = song?.beatsPerMeasure ?: 4,
-        subdivisions = song?.subdivisions ?: Subdivisions.Eighth,
-        liveSequence = song?.liveSequence,
-        rehearsalSequence = song?.rehearsalSequence
-    )
-
-    var title by remember { mutableStateOf(thisSong.title) }
-    var artist by remember { mutableStateOf(thisSong.artist) }
-    var beatsPerMinute by remember { mutableFloatStateOf(thisSong.beatsPerMinute) }
-    var beatsPerMeasure by remember { mutableIntStateOf(thisSong.beatsPerMeasure) }
+fun SongDetail(
+    viewModel: SongLibraryViewModel,
+    modifier: Modifier = Modifier
+) {
+    val focusManager = LocalFocusManager.current
 
     Column(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxSize()
-            .padding(16.dp)
+            .background(MaterialTheme.colorScheme.surfaceVariant)
+            .pointerInput(Unit) { detectTapGestures(onTap = { focusManager.clearFocus() }) }
+            .verticalScroll(rememberScrollState())
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        Text(stringResource(R.string.song_title))
-        TextField(value = title, onValueChange = { title = it }, modifier = Modifier.fillMaxWidth())
-        Text(stringResource(R.string.artist))
-        TextField(value = artist, onValueChange = { artist = it }, modifier = Modifier.fillMaxWidth())
-
-        Text(stringResource(R.string.beats_per_minute_label, beatsPerMinute.toInt()))
-        Slider(
-            value = beatsPerMinute,
-            onValueChange = { beatsPerMinute = it },
-            valueRange = 60f..240f,
-            colors = SliderDefaults.colors(
-                thumbColor = MaterialTheme.colorScheme.secondary,
-                activeTrackColor = MaterialTheme.colorScheme.secondary,
-                inactiveTrackColor = MaterialTheme.colorScheme.secondary.copy(alpha = 0.24f)
-            )
-        )
-        Text(stringResource(R.string.beats_per_measure_label, beatsPerMeasure))
-        TextField(
-            value = beatsPerMeasure.toString(),
-            onValueChange = { beatsPerMeasure = it.toIntOrNull() ?: beatsPerMeasure },
-            modifier = Modifier.fillMaxWidth()
-        )
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-            OutlinedButton(onClick = navigateBack, modifier = Modifier.weight(1f)) {
-                Text(stringResource(R.string.cancel))
+        SectionLabel(stringResource(R.string.section_song_info))
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+        ) {
+            FormRow(label = stringResource(R.string.song_title)) {
+                InlineTextField(
+                    value = viewModel.draftTitle,
+                    onValueChange = { viewModel.updateDraftTitle(it) },
+                    placeholder = stringResource(R.string.required),
+                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words)
+                )
             }
-            Spacer(Modifier.weight(0.1f))
-            OutlinedButton(
-                onClick = {
-                    viewModel.saveSong(thisSong.copy(
-                        title = title,
-                        artist = artist,
-                        beatsPerMinute = beatsPerMinute,
-                        beatsPerMeasure = beatsPerMeasure
-                    ))
-                    navigateBack()
-                },
-                modifier = Modifier.weight(1f)
-            ) {
-                Text(stringResource(R.string.save))
+            HorizontalDivider(modifier = Modifier.padding(start = 16.dp))
+            FormRow(label = stringResource(R.string.artist)) {
+                InlineTextField(
+                    value = viewModel.draftArtist,
+                    onValueChange = { viewModel.updateDraftArtist(it) },
+                    placeholder = stringResource(R.string.required),
+                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words)
+                )
+            }
+        }
+
+        SectionLabel(stringResource(R.string.section_tempo))
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+        ) {
+            Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(text = stringResource(R.string.bpm), style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        text = String.format(AppLocale, "%.0f", viewModel.draftBpm),
+                        fontSize = 28.sp,
+                        fontWeight = FontWeight.Thin
+                    )
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    OutlinedIconButton(
+                        onClick = { viewModel.updateDraftBpm(viewModel.draftBpm - 1f) },
+                        modifier = Modifier.size(48.dp)
+                    ) {
+                        Text("−", fontSize = 24.sp, fontWeight = FontWeight.Bold)
+                    }
+                    Slider(
+                        value = viewModel.draftBpm,
+                        onValueChange = { viewModel.updateDraftBpm(it) },
+                        valueRange = MetronomeConstants.MIN_BPM..MetronomeConstants.MAX_BPM,
+                        modifier = Modifier.weight(1f),
+                        colors = SliderDefaults.colors(
+                            thumbColor = MaterialTheme.colorScheme.secondary,
+                            activeTrackColor = MaterialTheme.colorScheme.secondary,
+                            inactiveTrackColor = MaterialTheme.colorScheme.secondary.copy(alpha = 0.24f)
+                        )
+                    )
+                    OutlinedIconButton(
+                        onClick = { viewModel.updateDraftBpm(viewModel.draftBpm + 1f) },
+                        modifier = Modifier.size(48.dp)
+                    ) {
+                        Icon(imageVector = Icons.Default.Add, contentDescription = null)
+                    }
+                }
+            }
+            HorizontalDivider(modifier = Modifier.padding(start = 12.dp))
+            FormRow(label = stringResource(R.string.beats_per_bar)) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    OutlinedIconButton(
+                        onClick = { viewModel.updateDraftBeatsPerMeasure(viewModel.draftBeatsPerMeasure - 1) },
+                        modifier = Modifier.size(48.dp)
+                    ) {
+                        Text("−", fontSize = 24.sp, fontWeight = FontWeight.Bold)
+                    }
+                    Text(
+                        text = viewModel.draftBeatsPerMeasure.toString(),
+                        style = MaterialTheme.typography.titleMedium,
+                        modifier = Modifier.padding(horizontal = 4.dp)
+                    )
+                    OutlinedIconButton(
+                        onClick = { viewModel.updateDraftBeatsPerMeasure(viewModel.draftBeatsPerMeasure + 1) },
+                        modifier = Modifier.size(48.dp)
+                    ) {
+                        Icon(imageVector = Icons.Default.Add, contentDescription = null)
+                    }
+                }
+            }
+        }
+
+        SectionLabel(stringResource(R.string.groove))
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+        ) {
+            Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Subdivisions.entries.take(2).forEach { option ->
+                            GrooveButton(
+                                subdivision = option,
+                                isSelected = viewModel.draftSubdivisions == option,
+                                onClick = { viewModel.updateDraftSubdivisions(option) },
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                    }
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Subdivisions.entries.drop(2).forEach { option ->
+                            GrooveButton(
+                                subdivision = option,
+                                isSelected = viewModel.draftSubdivisions == option,
+                                onClick = { viewModel.updateDraftSubdivisions(option) },
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                    }
+                }
             }
         }
     }
+}
+
+@Composable
+private fun SectionLabel(text: String) {
+    Text(
+        text = text.uppercase(),
+        style = MaterialTheme.typography.labelSmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        letterSpacing = 1.sp,
+        modifier = Modifier.padding(start = 4.dp, top = 4.dp)
+    )
+}
+
+@Composable
+private fun FormRow(
+    label: String,
+    content: @Composable () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(text = label, style = MaterialTheme.typography.titleMedium)
+        content()
+    }
+}
+
+@Composable
+private fun InlineTextField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    placeholder: String = "",
+    keyboardOptions: KeyboardOptions = KeyboardOptions.Default
+) {
+    TextField(
+        value = value,
+        onValueChange = onValueChange,
+        placeholder = {
+            Text(
+                text = placeholder,
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                textAlign = TextAlign.End,
+                modifier = Modifier.fillMaxWidth()
+            )
+        },
+        textStyle = MaterialTheme.typography.bodyLarge.copy(
+            textAlign = TextAlign.End,
+            color = MaterialTheme.colorScheme.onSurface
+        ),
+        keyboardOptions = keyboardOptions,
+        singleLine = true,
+        colors = TextFieldDefaults.colors(
+            focusedContainerColor = Color.Transparent,
+            unfocusedContainerColor = Color.Transparent,
+            focusedIndicatorColor = Color.Transparent,
+            unfocusedIndicatorColor = Color.Transparent
+        )
+    )
 }
