@@ -2,7 +2,10 @@
 
 package com.bfunkstudios.beatclikr.ui
 
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -14,6 +17,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
@@ -22,6 +26,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -29,6 +34,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
@@ -50,7 +56,6 @@ import com.bfunkstudios.beatclikr.ui.components.SongLibraryView
 
 private const val ROUTE_INSTANT = "instant"
 private const val ROUTE_LIBRARY = "library"
-private const val ROUTE_SONG_DETAIL = "song_detail"
 
 private sealed class AppTab(
     val route: String,
@@ -115,6 +120,12 @@ fun BeatClikrApp(
     val hasSongs = uiState.songList.isNotEmpty()
 
     var editMode by remember { mutableStateOf(false) }
+    var showSongDetail by remember { mutableStateOf(false) }
+    val songDetailSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+    LaunchedEffect(showSongDetail) {
+        if (showSongDetail) songLibraryViewModel.initDraft(uiState.selectedSong)
+    }
 
     val appBarTitle = when (currentRoute) {
         ROUTE_INSTANT -> stringResource(R.string.instant_metronome)
@@ -144,7 +155,7 @@ fun BeatClikrApp(
                     if (currentRoute == ROUTE_LIBRARY) {
                         IconButton(onClick = {
                             songLibraryViewModel.setSelectedSong(null)
-                            navController.navigate(ROUTE_SONG_DETAIL)
+                            showSongDetail = true
                         }) {
                             Icon(
                                 imageVector = Icons.Default.Add,
@@ -165,17 +176,6 @@ fun BeatClikrApp(
                     if (currentRoute == ROUTE_LIBRARY && hasSongs) {
                         TextButton(onClick = { editMode = !editMode }) {
                             Text(if (editMode) stringResource(R.string.done) else stringResource(R.string.edit))
-                        }
-                    }
-                    if (currentRoute == ROUTE_SONG_DETAIL) {
-                        TextButton(
-                            onClick = {
-                                songLibraryViewModel.saveDraft()
-                                navController.popBackStack()
-                            },
-                            enabled = songLibraryViewModel.isDraftValid
-                        ) {
-                            Text(stringResource(R.string.save))
                         }
                     }
                 }
@@ -230,15 +230,42 @@ fun BeatClikrApp(
                     viewModel = songLibraryViewModel,
                     editMode = editMode,
                     onPlaySong = { metronomeViewModel.playSong(it) },
-                    navigateToDetail = { navController.navigate(ROUTE_SONG_DETAIL) }
+                    navigateToDetail = { showSongDetail = true }
                 )
             }
-            composable(ROUTE_SONG_DETAIL) {
-                LaunchedEffect(Unit) {
-                    songLibraryViewModel.initDraft(uiState.selectedSong)
+        }
+    }
+
+    if (showSongDetail) {
+        ModalBottomSheet(
+            onDismissRequest = { showSongDetail = false },
+            sheetState = songDetailSheetState
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 8.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                TextButton(onClick = { showSongDetail = false }) {
+                    Text(stringResource(R.string.cancel))
                 }
-                SongDetail(viewModel = songLibraryViewModel)
+                Text(
+                    text = stringResource(R.string.song_detail),
+                    style = MaterialTheme.typography.titleMedium
+                )
+                TextButton(
+                    onClick = {
+                        songLibraryViewModel.saveDraft()
+                        showSongDetail = false
+                    },
+                    enabled = songLibraryViewModel.isDraftValid
+                ) {
+                    Text(stringResource(R.string.save))
+                }
             }
+            SongDetail(viewModel = songLibraryViewModel)
         }
     }
 }
