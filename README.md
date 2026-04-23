@@ -192,6 +192,3 @@ Items remaining to match the iOS app, roughly in dependency order:
 - **Haptics** — Add a `VibrationService` using `VibrationEffect` / `HapticFeedbackManager` to pulse on each beat (mirrors iOS `VibrationService` using `UIImpactFeedbackGenerator`)
 - **Flashlight** — Add a `FlashlightService` using `CameraManager.setTorchMode()` to flash the torch on each beat
 - **Keep-awake** — Acquire a `WindowManager` `FLAG_KEEP_SCREEN_ON` (or `WakeLock`) while the metronome is playing so the screen doesn't turn off during practice
-
-### Minor UI / UX
-- **SongListItem** currently shows only title and artist in non-edit mode — add BPM and groove to match the iOS list item
