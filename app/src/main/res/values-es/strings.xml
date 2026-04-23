@@ -4,6 +4,10 @@
     <string name="back">Atrás</string>
     <string name="add_song">Agregar canción</string>
     <string name="instant_metronome">Metrónomo instantáneo</string>
+    <string name="tab_instant">Instantáneo</string>
+    <string name="tab_library">Biblioteca</string>
+    <string name="song_library">Biblioteca de canciones</string>
+    <string name="song_detail">Detalle de canción</string>
 
     <!-- Metronome screen -->
     <string name="bpm">BPM</string>
@@ -23,10 +27,18 @@
     <string name="subdivision_sixteenth">Semicorchea</string>
 
     <!-- Song detail -->
+    <string name="section_song_info">Información de la canción</string>
+    <string name="section_tempo">Tempo</string>
+    <string name="section_feel">Estilo</string>
     <string name="song_title">Título</string>
     <string name="artist">Artista</string>
+    <string name="beats_per_bar">Tiempos por compás</string>
+    <string name="required">Requerido</string>
     <string name="beats_per_minute_label">Pulsos por minuto: %1$d</string>
     <string name="beats_per_measure_label">Pulsos por compás: %1$d</string>
+    <string name="empty_song_library">Presiona Agregar canción para comenzar</string>
+    <string name="edit">Editar</string>
+    <string name="done">Listo</string>
     <string name="cancel">Cancelar</string>
     <string name="save">Guardar</string>
 </resources>

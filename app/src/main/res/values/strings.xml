@@ -27,10 +27,18 @@
     <string name="subdivision_sixteenth">Sixteenth</string>
 
     <!-- Song detail -->
+    <string name="section_song_info">Song Info</string>
+    <string name="section_tempo">Tempo</string>
+    <string name="section_feel">Feel</string>
     <string name="song_title">Title</string>
     <string name="artist">Artist</string>
+    <string name="beats_per_bar">Beats per Bar</string>
+    <string name="required">Required</string>
     <string name="beats_per_minute_label">Beats Per Minute: %1$d</string>
     <string name="beats_per_measure_label">Beats Per Measure: %1$d</string>
+    <string name="empty_song_library">Press Add Song to get started</string>
+    <string name="edit">Edit</string>
+    <string name="done">Done</string>
     <string name="cancel">Cancel</string>
     <string name="save">Save</string>
 </resources>
