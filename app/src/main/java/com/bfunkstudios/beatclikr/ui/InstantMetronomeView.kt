@@ -9,15 +9,12 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -28,9 +25,11 @@ import com.bfunkstudios.beatclikr.R
 import com.bfunkstudios.beatclikr.constants.AppLocale
 import com.bfunkstudios.beatclikr.constants.MetronomeConstants
 import com.bfunkstudios.beatclikr.data.SoundFile
+import com.bfunkstudios.beatclikr.ui.components.BpmSliderControl
 import com.bfunkstudios.beatclikr.ui.components.GrooveSelector
 import com.bfunkstudios.beatclikr.ui.components.MetronomePlayerView
 import com.bfunkstudios.beatclikr.ui.components.SectionCard
+import com.bfunkstudios.beatclikr.ui.components.SoundPickerRow
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -38,9 +37,6 @@ fun InstantMetronomeView(
     modifier: Modifier = Modifier,
     viewModel: MetronomeViewModel = hiltViewModel()
 ) {
-    var showBeatMenu by remember { mutableStateOf(false) }
-    var showRhythmMenu by remember { mutableStateOf(false) }
-
     DisposableEffect(Unit) {
         // Setup metronome when view appears with default sounds
         val beatResId = viewModel.selectedBeatSound.resourceId
@@ -134,64 +130,11 @@ fun InstantMetronomeView(
                         }
                     }
 
-                    // BPM Controls Row
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        // Minus Button
-                        OutlinedIconButton(
-                            onClick = {
-                                viewModel.updateBPM(
-                                    (viewModel.beatsPerMinute - 1f)
-                                        .coerceIn(MetronomeConstants.MIN_BPM, MetronomeConstants.MAX_BPM)
-                                )
-                            },
-                            modifier = Modifier.size(48.dp),
-                            colors = IconButtonDefaults.outlinedIconButtonColors(
-                                contentColor = MaterialTheme.colorScheme.secondary
-                            )
-                        ) {
-                            Text(
-                                text = "−",
-                                fontSize = 24.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-
-                        // Slider
-                        Slider(
-                            value = viewModel.beatsPerMinute,
-                            onValueChange = { viewModel.updateBPM(it) },
-                            valueRange = MetronomeConstants.MIN_BPM..MetronomeConstants.MAX_BPM,
-                            modifier = Modifier.weight(1f),
-                            colors = SliderDefaults.colors(
-                                thumbColor = MaterialTheme.colorScheme.secondary,
-                                activeTrackColor = MaterialTheme.colorScheme.secondary,
-                                inactiveTrackColor = MaterialTheme.colorScheme.secondary.copy(alpha = 0.24f)
-                            )
-                        )
-
-                        // Plus Button
-                        OutlinedIconButton(
-                            onClick = {
-                                viewModel.updateBPM(
-                                    (viewModel.beatsPerMinute + 1f)
-                                        .coerceIn(MetronomeConstants.MIN_BPM, MetronomeConstants.MAX_BPM)
-                                )
-                            },
-                            modifier = Modifier.size(48.dp),
-                            colors = IconButtonDefaults.outlinedIconButtonColors(
-                                contentColor = MaterialTheme.colorScheme.secondary
-                            )
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Add,
-                                contentDescription = stringResource(R.string.increase_bpm)
-                            )
-                        }
-                    }
+                    BpmSliderControl(
+                        value = viewModel.beatsPerMinute,
+                        onValueChange = { viewModel.updateBPM(it) },
+                        valueRange = MetronomeConstants.MIN_BPM..MetronomeConstants.MAX_BPM
+                    )
                 }
             }
 
@@ -219,115 +162,19 @@ fun InstantMetronomeView(
             // Beat & Rhythm Card
             SectionCard {
                 Column {
-                    // Beat Row
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 12.dp, vertical = 10.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = stringResource(R.string.beat),
-                            style = MaterialTheme.typography.titleMedium
-                        )
-
-                        Box {
-                            TextButton(onClick = { showBeatMenu = true }) {
-                                Row(
-                                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Text(
-                                        text = viewModel.selectedBeatSound.displayName,
-                                        style = MaterialTheme.typography.bodyLarge,
-                                        color = MaterialTheme.colorScheme.secondary
-                                    )
-                                    Icon(
-                                        imageVector = Icons.Default.ArrowDropDown,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.secondary
-                                    )
-                                }
-                            }
-
-                            DropdownMenu(
-                                expanded = showBeatMenu,
-                                onDismissRequest = { showBeatMenu = false }
-                            ) {
-                                SoundFile.beatSounds.forEach { sound ->
-                                    DropdownMenuItem(
-                                        text = {
-                                            Text(
-                                                sound.displayName,
-                                                style = MaterialTheme.typography.bodyLarge
-                                            )
-                                        },
-                                        onClick = {
-                                            viewModel.updateBeatSound(sound)
-                                            showBeatMenu = false
-                                        }
-                                    )
-                                }
-                            }
-                        }
-                    }
-
+                    SoundPickerRow(
+                        label = stringResource(R.string.beat),
+                        selected = viewModel.selectedBeatSound,
+                        options = SoundFile.beatSounds,
+                        onSelect = { viewModel.updateBeatSound(it) }
+                    )
                     HorizontalDivider(modifier = Modifier.padding(start = 12.dp))
-
-                    // Rhythm Row
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 12.dp, vertical = 10.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = stringResource(R.string.rhythm),
-                            style = MaterialTheme.typography.titleMedium
-                        )
-
-                        Box {
-                            TextButton(onClick = { showRhythmMenu = true }) {
-                                Row(
-                                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Text(
-                                        text = viewModel.selectedRhythmSound.displayName,
-                                        style = MaterialTheme.typography.bodyLarge,
-                                        color = MaterialTheme.colorScheme.secondary
-                                    )
-                                    Icon(
-                                        imageVector = Icons.Default.ArrowDropDown,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.secondary
-                                    )
-                                }
-                            }
-
-                            DropdownMenu(
-                                expanded = showRhythmMenu,
-                                onDismissRequest = { showRhythmMenu = false }
-                            ) {
-                                SoundFile.rhythmSounds.forEach { sound ->
-                                    DropdownMenuItem(
-                                        text = {
-                                            Text(
-                                                sound.displayName,
-                                                style = MaterialTheme.typography.bodyLarge
-                                            )
-                                        },
-                                        onClick = {
-                                            viewModel.updateRhythmSound(sound)
-                                            showRhythmMenu = false
-                                        }
-                                    )
-                                }
-                            }
-                        }
-                    }
+                    SoundPickerRow(
+                        label = stringResource(R.string.rhythm),
+                        selected = viewModel.selectedRhythmSound,
+                        options = SoundFile.rhythmSounds,
+                        onSelect = { viewModel.updateRhythmSound(it) }
+                    )
                 }
             }
 
@@ -358,7 +205,7 @@ fun InstantMetronomeView(
                                     .fillMaxHeight()
                                     .background(
                                         MaterialTheme.colorScheme.onSecondary,
-                                        RoundedCornerShape(2.dp)
+                                        RoundedCornerShape(1.dp)
                                     )
                             )
                             Box(
@@ -367,7 +214,7 @@ fun InstantMetronomeView(
                                     .fillMaxHeight()
                                     .background(
                                         MaterialTheme.colorScheme.onSecondary,
-                                        RoundedCornerShape(2.dp)
+                                        RoundedCornerShape(1.dp)
                                     )
                             )
                         }

@@ -18,8 +18,6 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedIconButton
-import androidx.compose.material3.Slider
-import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
@@ -92,35 +90,11 @@ fun SongDetail(
                         fontWeight = FontWeight.Thin
                     )
                 }
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    OutlinedIconButton(
-                        onClick = { viewModel.updateDraftBpm(viewModel.draftBpm - 1f) },
-                        modifier = Modifier.size(48.dp)
-                    ) {
-                        Text("−", fontSize = 24.sp, fontWeight = FontWeight.Bold)
-                    }
-                    Slider(
-                        value = viewModel.draftBpm,
-                        onValueChange = { viewModel.updateDraftBpm(it) },
-                        valueRange = MetronomeConstants.MIN_BPM..MetronomeConstants.MAX_BPM,
-                        modifier = Modifier.weight(1f),
-                        colors = SliderDefaults.colors(
-                            thumbColor = MaterialTheme.colorScheme.secondary,
-                            activeTrackColor = MaterialTheme.colorScheme.secondary,
-                            inactiveTrackColor = MaterialTheme.colorScheme.secondary.copy(alpha = 0.24f)
-                        )
-                    )
-                    OutlinedIconButton(
-                        onClick = { viewModel.updateDraftBpm(viewModel.draftBpm + 1f) },
-                        modifier = Modifier.size(48.dp)
-                    ) {
-                        Icon(imageVector = Icons.Default.Add, contentDescription = null)
-                    }
-                }
+                BpmSliderControl(
+                    value = viewModel.draftBpm,
+                    onValueChange = { viewModel.updateDraftBpm(it) },
+                    valueRange = MetronomeConstants.MIN_BPM..MetronomeConstants.MAX_BPM
+                )
             }
             HorizontalDivider(modifier = Modifier.padding(start = 12.dp))
             FormRow(label = stringResource(R.string.beats_per_bar)) {
