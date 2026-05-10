@@ -11,6 +11,8 @@ class FakeAudioPlayerService : IAudioPlayerService {
 
     var startCount = 0
     var stopCount = 0
+    var polyrhythmStartCount = 0
+    var polyrhythmStopCount = 0
 
     override fun setupAudioPlayer(beatResourceId: Int, rhythmResourceId: Int) {}
     override fun startMetronome(
@@ -26,7 +28,7 @@ class FakeAudioPlayerService : IAudioPlayerService {
         accentPattern: List<Boolean>?,
         alternateSixteenth: Boolean
     ) {}
-    override fun startPolyrhythm(bpm: Float, beats: Int, against: Int) {}
-    override fun stopPolyrhythm() {}
+    override fun startPolyrhythm(bpm: Float, beats: Int, against: Int) { polyrhythmStartCount++ }
+    override fun stopPolyrhythm() { polyrhythmStopCount++ }
     override fun release() {}
 }

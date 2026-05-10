@@ -16,6 +16,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -43,6 +44,7 @@ fun SettingsView(
             SettingsToggleRow(
                 label = stringResource(R.string.settings_always_use_dark_theme),
                 checked = viewModel.alwaysUseDarkTheme,
+                switchModifier = Modifier.testTag("always_use_dark_theme_switch"),
                 onCheckedChange = {
                     viewModel.updateAlwaysUseDarkTheme(it)
                     onAlwaysUseDarkThemeChange(it)
@@ -179,7 +181,8 @@ private fun SettingsSectionTitle(text: String) {
 private fun SettingsToggleRow(
     label: String,
     checked: Boolean,
-    onCheckedChange: (Boolean) -> Unit
+    onCheckedChange: (Boolean) -> Unit,
+    switchModifier: Modifier = Modifier
 ) {
     Row(
         modifier = Modifier
@@ -192,7 +195,11 @@ private fun SettingsToggleRow(
             style = MaterialTheme.typography.titleMedium,
             modifier = Modifier.weight(1f)
         )
-        Switch(checked = checked, onCheckedChange = onCheckedChange)
+        Switch(
+            checked = checked,
+            onCheckedChange = onCheckedChange,
+            modifier = switchModifier
+        )
     }
 }
 

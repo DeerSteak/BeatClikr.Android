@@ -1,20 +1,35 @@
 package com.bfunkstudios.beatclikr
 
+import android.content.Context
+import androidx.room.Room
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import com.bfunkstudios.beatclikr.data.IAppPreferences
+import com.bfunkstudios.beatclikr.data.SongRepository
+import com.bfunkstudios.beatclikr.data.SongRepositoryImpl
+import com.bfunkstudios.beatclikr.data.db.BeatClikrDatabase
+import com.bfunkstudios.beatclikr.data.db.SongDao
 import com.bfunkstudios.beatclikr.di.AppModule
+import com.bfunkstudios.beatclikr.di.ApplicationScope
 import com.bfunkstudios.beatclikr.services.IAudioPlayerService
-import dagger.Binds
 import dagger.Module
+import dagger.Provides
 import dagger.hilt.InstallIn
+import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
 import dagger.hilt.android.testing.UninstallModules
 import dagger.hilt.components.SingletonComponent
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import org.junit.Before
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import javax.inject.Inject
@@ -34,12 +49,28 @@ class InstantMetronomeViewTest {
 
     @Module
     @InstallIn(SingletonComponent::class)
-    abstract class TestModule {
-        @Binds @Singleton
-        abstract fun bindAudio(fake: FakeAudioPlayerService): IAudioPlayerService
+    object TestModule {
+        @Provides @Singleton
+        fun provideAudio(): IAudioPlayerService = FakeAudioPlayerService()
 
-        @Binds @Singleton
-        abstract fun bindPrefs(fake: FakeAppPreferences): IAppPreferences
+        @Provides @Singleton
+        fun providePrefs(): IAppPreferences = FakeAppPreferences()
+
+        @Provides @Singleton
+        fun provideDatabase(@ApplicationContext context: Context): BeatClikrDatabase =
+            Room.inMemoryDatabaseBuilder(context, BeatClikrDatabase::class.java)
+                .allowMainThreadQueries()
+                .build()
+
+        @Provides @Singleton
+        fun provideSongDao(db: BeatClikrDatabase): SongDao = db.songDao()
+
+        @Provides @Singleton
+        fun provideSongRepository(impl: SongRepositoryImpl): SongRepository = impl
+
+        @Provides @Singleton @ApplicationScope
+        fun provideApplicationScope(): CoroutineScope =
+            CoroutineScope(SupervisorJob() + Dispatchers.IO)
     }
 
     @Before
@@ -108,5 +139,44 @@ class InstantMetronomeViewTest {
     @Test
     fun tapTempoButtonDisplays() {
         composeRule.onNodeWithText(activity.getString(R.string.tap_tempo)).assertIsDisplayed()
+    }
+
+    @Test
+    fun polyrhythmIsInsideMetronomeContainerNotBottomNav() {
+        composeRule.onNodeWithTag("metronome_mode_metronome").assertIsDisplayed()
+        composeRule.onNodeWithTag("metronome_mode_polyrhythm").assertIsDisplayed()
+        composeRule
+            .onNodeWithContentDescription(activity.getString(R.string.polyrhythm))
+            .assertDoesNotExist()
+    }
+
+    @Test
+    fun switchingToPolyrhythmStopsMetronome() {
+        composeRule.onNodeWithText(activity.getString(R.string.play)).performClick()
+        composeRule.onNodeWithTag("metronome_mode_polyrhythm").performClick()
+
+        val fake = audio as FakeAudioPlayerService
+        assertEquals(1, fake.startCount)
+        assertEquals(1, fake.stopCount)
+    }
+
+    @Test
+    fun switchingToMetronomeStopsPolyrhythm() {
+        composeRule.onNodeWithTag("metronome_mode_polyrhythm").performClick()
+        composeRule.onNodeWithText(activity.getString(R.string.play)).performClick()
+        composeRule.onNodeWithTag("metronome_mode_metronome").performClick()
+
+        val fake = audio as FakeAudioPlayerService
+        assertEquals(1, fake.polyrhythmStartCount)
+        assertEquals(1, fake.polyrhythmStopCount)
+    }
+
+    @Test
+    fun alwaysUseDarkThemeSettingPersists() {
+        composeRule.onNodeWithText(activity.getString(R.string.settings)).performClick()
+        composeRule.onNodeWithText(activity.getString(R.string.appearance)).assertIsDisplayed()
+        composeRule.onNodeWithTag("always_use_dark_theme_switch").performClick()
+
+        assertTrue(FakeAppPreferences.instance.alwaysUseDarkTheme)
     }
 }

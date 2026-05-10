@@ -3,6 +3,7 @@ package com.bfunkstudios.beatclikr
 import com.bfunkstudios.beatclikr.data.IAppPreferences
 import com.bfunkstudios.beatclikr.data.SoundFile
 import com.bfunkstudios.beatclikr.services.IAudioPlayerService
+import com.bfunkstudios.beatclikr.constants.MetronomeConstants
 import com.bfunkstudios.beatclikr.ui.PolyrhythmViewModel
 import io.mockk.every
 import io.mockk.mockk
@@ -83,6 +84,71 @@ class PolyrhythmViewModelTest {
         assertTrue(viewModel.playheadResetID > resetId)
         verify { prefs.polyrhythmBeats = 4 }
         verify { audio.startPolyrhythm(120f, 4, 2) }
+    }
+
+    @Test
+    fun `changing against while playing restarts playback`() {
+        viewModel.start()
+        val resetId = viewModel.playheadResetID
+        viewModel.updateAgainst(5)
+        assertEquals(5, viewModel.against)
+        assertTrue(viewModel.playheadResetID > resetId)
+        verify { prefs.polyrhythmAgainst = 5 }
+        verify { audio.startPolyrhythm(120f, 3, 5) }
+    }
+
+    @Test
+    fun `changing bpm while playing restarts playback`() {
+        viewModel.start()
+        val resetId = viewModel.playheadResetID
+        viewModel.updateBpm(144f)
+        assertEquals(144f, viewModel.bpm)
+        assertTrue(viewModel.playheadResetID > resetId)
+        verify { prefs.polyrhythmBpm = 144f }
+        verify { audio.startPolyrhythm(144f, 3, 2) }
+    }
+
+    @Test
+    fun `bpm clamps to metronome range`() {
+        viewModel.updateBpm(0f)
+        assertEquals(MetronomeConstants.MIN_BPM, viewModel.bpm)
+
+        viewModel.updateBpm(999f)
+        assertEquals(MetronomeConstants.MAX_BPM, viewModel.bpm)
+    }
+
+    @Test
+    fun `count updates clamp to supported range`() {
+        viewModel.updateBeats(0)
+        viewModel.updateAgainst(99)
+
+        assertEquals(1, viewModel.beats)
+        assertEquals(15, viewModel.against)
+        verify { prefs.polyrhythmBeats = 1 }
+        verify { prefs.polyrhythmAgainst = 15 }
+    }
+
+    @Test
+    fun `sound changes save preferences and reload audio`() {
+        viewModel.updateBeatSound(SoundFile.KICK)
+        viewModel.updateRhythmSound(SoundFile.SNARE)
+
+        assertEquals(SoundFile.KICK, viewModel.selectedBeatSound)
+        assertEquals(SoundFile.SNARE, viewModel.selectedRhythmSound)
+        verify { prefs.polyrhythmBeatSound = SoundFile.KICK }
+        verify { prefs.polyrhythmRhythmSound = SoundFile.SNARE }
+        verify { audio.setupAudioPlayer(SoundFile.KICK.resourceId!!, SoundFile.CLICK_LO.resourceId!!) }
+        verify { audio.setupAudioPlayer(SoundFile.KICK.resourceId!!, SoundFile.SNARE.resourceId!!) }
+    }
+
+    @Test
+    fun `start propagates mute true to audio`() {
+        every { prefs.muteMetronome } returns true
+
+        viewModel.start()
+
+        verify { audio.isMuted = true }
+        verify { audio.startPolyrhythm(120f, 3, 2) }
     }
 
     @Test

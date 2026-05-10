@@ -7,6 +7,7 @@ import android.os.Handler
 import android.os.HandlerThread
 import android.os.SystemClock
 import com.bfunkstudios.beatclikr.constants.MetronomeConstants
+import com.bfunkstudios.beatclikr.data.PolyrhythmGrid
 
 interface MetronomeAudioEngineDelegate {
     fun metronomeBeatFired(isBeat: Boolean, beatInterval: Float)
@@ -59,11 +60,8 @@ class MetronomeAudioEngine(private val context: Context) {
     private var pendingPolyrhythmAgainst = 2
     private var hasPendingPolyrhythmStart = false
     private var polyrhythmBpm = 120f
-    private var polyrhythmBeats = 3
     private var polyrhythmAgainst = 2
-    private var polyrhythmLcm = 6
-    private var polyrhythmBeatGridStep = 3
-    private var polyrhythmRhythmGridStep = 2
+    private var polyrhythmGrid = PolyrhythmGrid.create(beats = 3, against = 2)
     private var polyrhythmStepDurationNanos = 0L
     private var polyrhythmStepIndex = 0
     private var nextPolyrhythmStepTimeNanos = 0L
@@ -314,12 +312,9 @@ class MetronomeAudioEngine(private val context: Context) {
 
     private fun doStartPolyrhythm(bpm: Float, beats: Int, against: Int) {
         polyrhythmBpm = bpm
-        polyrhythmBeats = beats.coerceIn(1, 15)
         polyrhythmAgainst = against.coerceIn(1, 15)
-        polyrhythmLcm = computeLCM(polyrhythmBeats, polyrhythmAgainst)
-        polyrhythmBeatGridStep = polyrhythmLcm / polyrhythmAgainst
-        polyrhythmRhythmGridStep = polyrhythmLcm / polyrhythmBeats
-        val stepDurationMs = polyrhythmAgainst * (60_000.0 / polyrhythmBpm) / polyrhythmLcm
+        polyrhythmGrid = PolyrhythmGrid.create(beats = beats, against = against)
+        val stepDurationMs = polyrhythmAgainst * (60_000.0 / polyrhythmBpm) / polyrhythmGrid.lcm
         polyrhythmStepDurationNanos = (stepDurationMs * 1_000_000L).toLong()
         polyrhythmStepIndex = 0
         nextPolyrhythmStepTimeNanos = SystemClock.elapsedRealtimeNanos() + (firstBeatDelayMs * 1_000_000L)
@@ -340,13 +335,14 @@ class MetronomeAudioEngine(private val context: Context) {
         if (nowNanos >= nextPolyrhythmStepTimeNanos - lookaheadNanos) {
             playCurrentPolyrhythmStep()
             nextPolyrhythmStepTimeNanos = nowNanos + polyrhythmStepDurationNanos
-            polyrhythmStepIndex = (polyrhythmStepIndex + 1) % polyrhythmLcm
+            polyrhythmStepIndex = (polyrhythmStepIndex + 1) % polyrhythmGrid.lcm
         }
     }
 
     private fun playCurrentPolyrhythmStep() {
-        val beatFired = polyrhythmStepIndex % polyrhythmBeatGridStep == 0
-        val rhythmFired = polyrhythmStepIndex % polyrhythmRhythmGridStep == 0
+        val step = polyrhythmGrid.stepAt(polyrhythmStepIndex)
+        val beatFired = step.beatFired
+        val rhythmFired = step.rhythmFired
         if (!beatFired && !rhythmFired) return
 
         if (!isMuted) {
@@ -363,21 +359,8 @@ class MetronomeAudioEngine(private val context: Context) {
         polyrhythmDelegate?.polyrhythmBeatFired(
             beatFired = beatFired,
             rhythmFired = rhythmFired,
-            beatIndex = polyrhythmStepIndex / polyrhythmBeatGridStep,
-            rhythmIndex = polyrhythmStepIndex / polyrhythmRhythmGridStep
+            beatIndex = step.beatIndex,
+            rhythmIndex = step.rhythmIndex
         )
-    }
-
-    private fun computeLCM(a: Int, b: Int): Int = a / computeGCD(a, b) * b
-
-    private fun computeGCD(aValue: Int, bValue: Int): Int {
-        var a = aValue
-        var b = bValue
-        while (b != 0) {
-            val next = a % b
-            a = b
-            b = next
-        }
-        return a
     }
 }

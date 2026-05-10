@@ -22,6 +22,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -56,6 +57,12 @@ fun MetronomeContainerView(
                     val selected = selectedMode == mode
                     SegmentedButton(
                         selected = selected,
+                        modifier = Modifier.testTag(
+                            when (mode) {
+                                MetronomeMode.Metronome -> "metronome_mode_metronome"
+                                MetronomeMode.Polyrhythm -> "metronome_mode_polyrhythm"
+                            }
+                        ),
                         onClick = {
                             if (selectedMode != mode) {
                                 when (mode) {
