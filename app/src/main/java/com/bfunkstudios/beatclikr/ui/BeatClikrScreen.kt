@@ -11,6 +11,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.FeaturedPlayList
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.PlaylistPlay
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -42,19 +43,25 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
 import com.bfunkstudios.beatclikr.R
 import com.bfunkstudios.beatclikr.ui.components.SongDetail
 import com.bfunkstudios.beatclikr.ui.components.SongLibraryView
+import java.util.UUID
 
 // --- Navigation destinations ---
 
 private const val ROUTE_INSTANT = "instant"
 private const val ROUTE_LIBRARY = "library"
+private const val ROUTE_PLAYLIST = "playlist"
+private const val ROUTE_PLAYLIST_DETAIL = "playlist_detail/{playlistId}"
 private const val ROUTE_SETTINGS = "settings"
+private const val ARG_PLAYLIST_ID = "playlistId"
 
 private sealed class AppTab(
     val route: String,
@@ -64,10 +71,11 @@ private sealed class AppTab(
 ) {
     object Instant : AppTab(ROUTE_INSTANT, R.string.tab_instant, iconRes = R.drawable.metronome_tab_icon)
     object Library : AppTab(ROUTE_LIBRARY, R.string.tab_library, Icons.AutoMirrored.Filled.FeaturedPlayList)
+    object Playlist : AppTab(ROUTE_PLAYLIST, R.string.tab_playlist, Icons.Filled.PlaylistPlay)
     object Settings : AppTab(ROUTE_SETTINGS, R.string.tab_settings, Icons.Filled.Settings)
 
     companion object {
-        val all = listOf(Instant, Library, Settings)
+        val all = listOf(Instant, Library, Playlist, Settings)
     }
 }
 
@@ -111,6 +119,7 @@ fun BeatClikrApp(
     navController: NavHostController = rememberNavController(),
     songLibraryViewModel: SongLibraryViewModel = hiltViewModel(),
     metronomeViewModel: MetronomeViewModel = hiltViewModel(),
+    playlistViewModel: PlaylistViewModel = hiltViewModel(),
     onAlwaysUseDarkThemeChange: (Boolean) -> Unit = {}
 ) {
     val backStackEntry by navController.currentBackStackEntryAsState()
@@ -120,19 +129,38 @@ fun BeatClikrApp(
 
     val uiState by songLibraryViewModel.uiState.collectAsState()
     val hasSongs = uiState.songList.isNotEmpty()
+    val playlists by playlistViewModel.playlists.collectAsState()
+    val selectedPlaylist by playlistViewModel.selectedPlaylist.collectAsState()
 
     var editMode by remember { mutableStateOf(false) }
     var showSongDetail by remember { mutableStateOf(false) }
     val songDetailSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
+    var playlistListEditMode by remember { mutableStateOf(false) }
+    var playlistDetailEditMode by remember { mutableStateOf(false) }
+    var showNewPlaylistDialog by remember { mutableStateOf(false) }
+    var showSongPickerForPlaylist by remember { mutableStateOf(false) }
+
     LaunchedEffect(showSongDetail) {
         if (showSongDetail) songLibraryViewModel.initDraft(uiState.selectedSong)
     }
 
+    LaunchedEffect(currentRoute) {
+        if (currentRoute != ROUTE_PLAYLIST) playlistListEditMode = false
+        if (currentRoute != ROUTE_PLAYLIST_DETAIL) playlistDetailEditMode = false
+        if (currentRoute != ROUTE_PLAYLIST && currentRoute != ROUTE_PLAYLIST_DETAIL) {
+            showNewPlaylistDialog = false
+            showSongPickerForPlaylist = false
+        }
+    }
+
     val appBarTitle = when (currentRoute) {
         ROUTE_INSTANT -> stringResource(R.string.instant_metronome)
+        ROUTE_LIBRARY -> stringResource(R.string.song_library)
+        ROUTE_PLAYLIST -> stringResource(R.string.tab_playlist)
+        ROUTE_PLAYLIST_DETAIL -> selectedPlaylist?.playlist?.name ?: stringResource(R.string.tab_playlist)
         ROUTE_SETTINGS -> stringResource(R.string.settings)
-        else          -> stringResource(R.string.song_library)
+        else -> stringResource(R.string.app_name)
     }
 
     Scaffold(
@@ -154,10 +182,36 @@ fun BeatClikrApp(
                                     tint = MaterialTheme.colorScheme.primary
                                 )
                             }
+                            if (hasSongs) {
+                                TextButton(onClick = { editMode = !editMode }) {
+                                    Text(if (editMode) stringResource(R.string.done) else stringResource(R.string.edit))
+                                }
+                            }
                         }
-                        if (currentRoute == ROUTE_LIBRARY && hasSongs) {
-                            TextButton(onClick = { editMode = !editMode }) {
-                                Text(if (editMode) stringResource(R.string.done) else stringResource(R.string.edit))
+                        if (currentRoute == ROUTE_PLAYLIST) {
+                            IconButton(onClick = { showNewPlaylistDialog = true }) {
+                                Icon(
+                                    imageVector = Icons.Default.Add,
+                                    contentDescription = stringResource(R.string.new_playlist),
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                            if (playlists.isNotEmpty()) {
+                                TextButton(onClick = { playlistListEditMode = !playlistListEditMode }) {
+                                    Text(if (playlistListEditMode) stringResource(R.string.done) else stringResource(R.string.edit))
+                                }
+                            }
+                        }
+                        if (currentRoute == ROUTE_PLAYLIST_DETAIL) {
+                            IconButton(onClick = { showSongPickerForPlaylist = true }) {
+                                Icon(
+                                    imageVector = Icons.Default.Add,
+                                    contentDescription = stringResource(R.string.add_song),
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                            TextButton(onClick = { playlistDetailEditMode = !playlistDetailEditMode }) {
+                                Text(if (playlistDetailEditMode) stringResource(R.string.done) else stringResource(R.string.edit))
                             }
                         }
                     }
@@ -226,6 +280,39 @@ fun BeatClikrApp(
                         metronomeViewModel.playSong(song)
                     },
                     navigateToDetail = { showSongDetail = true }
+                )
+            }
+            composable(ROUTE_PLAYLIST) {
+                PlaylistListView(
+                    viewModel = playlistViewModel,
+                    editMode = playlistListEditMode,
+                    showNewPlaylistDialog = showNewPlaylistDialog,
+                    onNewPlaylistDialogDismiss = { showNewPlaylistDialog = false },
+                    onNavigateToDetail = { playlistId ->
+                        playlistViewModel.selectPlaylist(playlistId)
+                        navController.navigate("playlist_detail/$playlistId")
+                    }
+                )
+            }
+            composable(
+                route = ROUTE_PLAYLIST_DETAIL,
+                arguments = listOf(navArgument(ARG_PLAYLIST_ID) { type = NavType.StringType })
+            ) { backStackEntry ->
+                val playlistId = backStackEntry.arguments
+                    ?.getString(ARG_PLAYLIST_ID)
+                    ?.let { UUID.fromString(it) }
+                LaunchedEffect(playlistId) {
+                    if (playlistId != null) playlistViewModel.selectPlaylist(playlistId)
+                }
+                PlaylistDetailView(
+                    viewModel = playlistViewModel,
+                    editMode = playlistDetailEditMode,
+                    showSongPicker = showSongPickerForPlaylist,
+                    onSongPickerDismiss = { showSongPickerForPlaylist = false },
+                    isPlaying = metronomeViewModel.isPlaying,
+                    beatPulse = metronomeViewModel.beatPulse,
+                    onPlayPause = { metronomeViewModel.togglePlayPause() },
+                    onPlaySong = { song -> metronomeViewModel.playSong(song) }
                 )
             }
             composable(ROUTE_SETTINGS) {

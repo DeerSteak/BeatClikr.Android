@@ -4,6 +4,8 @@ import android.content.Context
 import androidx.room.Room
 import com.bfunkstudios.beatclikr.data.AppPreferences
 import com.bfunkstudios.beatclikr.data.IAppPreferences
+import com.bfunkstudios.beatclikr.data.PlaylistRepository
+import com.bfunkstudios.beatclikr.data.PlaylistRepositoryImpl
 import com.bfunkstudios.beatclikr.data.SongRepository
 import com.bfunkstudios.beatclikr.data.SongRepositoryImpl
 import com.bfunkstudios.beatclikr.data.db.BeatClikrDatabase
@@ -27,6 +29,9 @@ abstract class AppModule {
     @Binds @Singleton
     abstract fun bindSongRepository(impl: SongRepositoryImpl): SongRepository
 
+    @Binds @Singleton
+    abstract fun bindPlaylistRepository(impl: PlaylistRepositoryImpl): PlaylistRepository
+
     companion object {
 
         @Provides @Singleton
@@ -40,11 +45,14 @@ abstract class AppModule {
         @Provides @Singleton
         fun provideDatabase(@ApplicationContext context: Context): BeatClikrDatabase =
             Room.databaseBuilder(context, BeatClikrDatabase::class.java, "beatclikr.db")
-                .addMigrations(BeatClikrDatabase.MIGRATION_1_2)
+                .addMigrations(BeatClikrDatabase.MIGRATION_1_2, BeatClikrDatabase.MIGRATION_2_3)
                 .build()
 
         @Provides @Singleton
         fun provideSongDao(db: BeatClikrDatabase) = db.songDao()
+
+        @Provides @Singleton
+        fun providePlaylistDao(db: BeatClikrDatabase) = db.playlistDao()
 
         @Provides @Singleton @ApplicationScope
         fun provideApplicationScope(): CoroutineScope =
