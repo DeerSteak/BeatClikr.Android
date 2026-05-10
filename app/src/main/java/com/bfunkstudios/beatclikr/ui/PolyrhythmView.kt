@@ -42,6 +42,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -83,7 +84,7 @@ fun PolyrhythmView(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     CountSelector(
-                        label = "Rhythm",
+                        label = stringResource(R.string.rhythm),
                         value = viewModel.beats,
                         onDecrease = { viewModel.updateBeats(viewModel.beats - 1) },
                         onIncrease = { viewModel.updateBeats(viewModel.beats + 1) },
@@ -98,7 +99,7 @@ fun PolyrhythmView(
                         modifier = Modifier.width(32.dp)
                     )
                     CountSelector(
-                        label = "Beat",
+                        label = stringResource(R.string.beat),
                         value = viewModel.against,
                         onDecrease = { viewModel.updateAgainst(viewModel.against - 1) },
                         onIncrease = { viewModel.updateAgainst(viewModel.against + 1) },
@@ -108,14 +109,14 @@ fun PolyrhythmView(
 
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     PolyrhythmDotRow(
-                        label = "Beat",
+                        label = stringResource(R.string.beat),
                         count = viewModel.against,
                         activeIndex = viewModel.activeBeatIndex,
                         pulse = viewModel.beatPulse,
                         color = MaterialTheme.colorScheme.primary
                     )
                     PolyrhythmDotRow(
-                        label = "Rhythm",
+                        label = stringResource(R.string.rhythm),
                         count = viewModel.beats,
                         activeIndex = viewModel.activeRhythmIndex,
                         pulse = viewModel.rhythmPulse,
@@ -152,7 +153,7 @@ fun PolyrhythmView(
                             textAlign = TextAlign.Center
                         )
                         Text(
-                            text = "BPM",
+                            text = stringResource(R.string.bpm),
                             style = MaterialTheme.typography.labelLarge,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             letterSpacing = 2.sp
@@ -181,7 +182,7 @@ fun PolyrhythmView(
             }
             Spacer(modifier = Modifier.width(8.dp))
             Text(
-                text = if (viewModel.isPlaying) "Pause" else "Play",
+                text = if (viewModel.isPlaying) stringResource(R.string.pause) else stringResource(R.string.play),
                 style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
             )
         }
@@ -189,14 +190,14 @@ fun PolyrhythmView(
         SectionCard {
             Column {
                 SoundPickerRow(
-                    label = "Beat",
+                    label = stringResource(R.string.beat),
                     selected = viewModel.selectedBeatSound,
                     options = SoundFile.beatSounds,
                     onSelect = { viewModel.updateBeatSound(it) }
                 )
                 HorizontalDivider(modifier = Modifier.padding(start = 12.dp))
                 SoundPickerRow(
-                    label = "Rhythm",
+                    label = stringResource(R.string.rhythm),
                     selected = viewModel.selectedRhythmSound,
                     options = SoundFile.rhythmSounds,
                     onSelect = { viewModel.updateRhythmSound(it) }

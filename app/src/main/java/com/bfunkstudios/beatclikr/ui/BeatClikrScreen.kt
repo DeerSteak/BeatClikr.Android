@@ -9,10 +9,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.List
+import androidx.compose.material.icons.automirrored.filled.FeaturedPlayList
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.GraphicEq
-import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -39,6 +38,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -64,11 +64,12 @@ private const val ROUTE_SETTINGS = "settings"
 private sealed class AppTab(
     val route: String,
     val titleRes: Int,
-    val icon: ImageVector
+    val icon: ImageVector? = null,
+    val iconRes: Int? = null
 ) {
-    object Instant : AppTab(ROUTE_INSTANT, R.string.tab_instant, Icons.Filled.MusicNote)
+    object Instant : AppTab(ROUTE_INSTANT, R.string.tab_instant, iconRes = R.drawable.metronome_tab_icon)
     object Polyrhythm : AppTab(ROUTE_POLYRHYTHM, R.string.tab_polyrhythm, Icons.Filled.GraphicEq)
-    object Library : AppTab(ROUTE_LIBRARY, R.string.tab_library, Icons.AutoMirrored.Filled.List)
+    object Library : AppTab(ROUTE_LIBRARY, R.string.tab_library, Icons.AutoMirrored.Filled.FeaturedPlayList)
     object Settings : AppTab(ROUTE_SETTINGS, R.string.tab_settings, Icons.Filled.Settings)
 
     companion object {
@@ -206,9 +207,15 @@ fun BeatClikrApp(
                             }
                         },
                         icon = {
-                            Icon(
-                                imageVector = tab.icon,
-                                contentDescription = stringResource(tab.titleRes)
+                            val contentDescription = stringResource(tab.titleRes)
+                            tab.iconRes?.let { iconRes ->
+                                Icon(
+                                    painter = painterResource(iconRes),
+                                    contentDescription = contentDescription
+                                )
+                            } ?: Icon(
+                                imageVector = checkNotNull(tab.icon),
+                                contentDescription = contentDescription
                             )
                         },
                         label = { Text(stringResource(tab.titleRes)) },
