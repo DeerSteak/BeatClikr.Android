@@ -48,6 +48,7 @@ import com.bfunkstudios.beatclikr.R
 import com.bfunkstudios.beatclikr.constants.AppLocale
 import com.bfunkstudios.beatclikr.constants.MetronomeConstants
 import com.bfunkstudios.beatclikr.data.SoundFile
+import com.bfunkstudios.beatclikr.ui.components.BeatPatternSelector
 import com.bfunkstudios.beatclikr.ui.components.BpmSliderControl
 import com.bfunkstudios.beatclikr.ui.components.GrooveSelector
 import com.bfunkstudios.beatclikr.ui.components.MetronomePlayerView
@@ -151,6 +152,11 @@ fun InstantMetronomeView(
             }
         }
 
+        PlayPauseButton(
+            isPlaying = viewModel.isPlaying,
+            onClick = { viewModel.togglePlayPause() }
+        )
+
         SectionCard {
             Column {
                 Row(
@@ -218,6 +224,19 @@ fun InstantMetronomeView(
                     selected = viewModel.selectedGroove,
                     onSelect = { viewModel.updateGroove(it) }
                 )
+                if (viewModel.selectedGroove.isOddMeter) {
+                    Text(
+                        text = stringResource(R.string.beat_pattern),
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        letterSpacing = 1.sp,
+                        modifier = Modifier.padding(start = 4.dp, top = 4.dp, end = 4.dp)
+                    )
+                    BeatPatternSelector(
+                        selected = viewModel.selectedBeatPattern,
+                        onSelect = { viewModel.updateBeatPattern(it) }
+                    )
+                }
             }
         }
 
@@ -239,60 +258,67 @@ fun InstantMetronomeView(
             }
         }
 
-        Button(
-            onClick = { viewModel.togglePlayPause() },
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(56.dp),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = MaterialTheme.colorScheme.secondary
-            )
-        ) {
-            if (viewModel.isPlaying) {
-                Box(
-                    modifier = Modifier
-                        .size(24.dp)
-                        .padding(4.dp)
+    }
+}
+
+@Composable
+private fun PlayPauseButton(
+    isPlaying: Boolean,
+    onClick: () -> Unit
+) {
+    Button(
+        onClick = onClick,
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(56.dp),
+        colors = ButtonDefaults.buttonColors(
+            containerColor = MaterialTheme.colorScheme.secondary
+        )
+    ) {
+        if (isPlaying) {
+            Box(
+                modifier = Modifier
+                    .size(24.dp)
+                    .padding(4.dp)
+            ) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    modifier = Modifier.fillMaxSize()
                 ) {
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(4.dp),
-                        modifier = Modifier.fillMaxSize()
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .weight(1f)
-                                .fillMaxHeight()
-                                .background(
-                                    MaterialTheme.colorScheme.onSecondary,
-                                    RoundedCornerShape(1.dp)
-                                )
-                        )
-                        Box(
-                            modifier = Modifier
-                                .weight(1f)
-                                .fillMaxHeight()
-                                .background(
-                                    MaterialTheme.colorScheme.onSecondary,
-                                    RoundedCornerShape(1.dp)
-                                )
-                        )
-                    }
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight()
+                            .background(
+                                MaterialTheme.colorScheme.onSecondary,
+                                RoundedCornerShape(1.dp)
+                            )
+                    )
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight()
+                            .background(
+                                MaterialTheme.colorScheme.onSecondary,
+                                RoundedCornerShape(1.dp)
+                            )
+                    )
                 }
-            } else {
-                Icon(
-                    imageVector = Icons.Default.PlayArrow,
-                    contentDescription = null,
-                    modifier = Modifier.size(24.dp)
-                )
             }
-            Spacer(modifier = Modifier.width(8.dp))
-            Text(
-                text = if (viewModel.isPlaying) stringResource(R.string.pause) else stringResource(R.string.play),
-                style = MaterialTheme.typography.titleMedium.copy(
-                    fontWeight = FontWeight.Bold
-                )
+        } else {
+            Icon(
+                imageVector = Icons.Default.PlayArrow,
+                contentDescription = null,
+                modifier = Modifier.size(24.dp)
             )
         }
+        Spacer(modifier = Modifier.width(8.dp))
+        Text(
+            text = if (isPlaying) stringResource(R.string.pause) else stringResource(R.string.play),
+            style = MaterialTheme.typography.titleMedium.copy(
+                fontWeight = FontWeight.Bold
+            )
+        )
     }
 }
 

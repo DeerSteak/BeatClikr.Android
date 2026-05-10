@@ -1,6 +1,7 @@
 package com.bfunkstudios.beatclikr
 
 import com.bfunkstudios.beatclikr.constants.MetronomeConstants
+import com.bfunkstudios.beatclikr.data.BeatPattern
 import com.bfunkstudios.beatclikr.data.ClickerType
 import com.bfunkstudios.beatclikr.data.Groove
 import com.bfunkstudios.beatclikr.data.IAppPreferences
@@ -38,6 +39,7 @@ class MetronomeViewModelTest {
         prefs = mockk(relaxed = true)
         every { prefs.instantBpm } returns 120f
         every { prefs.instantGroove } returns Groove.Quarter
+        every { prefs.instantBeatPattern } returns null
         every { prefs.instantBeatSound } returns SoundFile.CLICK_HI
         every { prefs.instantRhythmSound } returns SoundFile.CLICK_LO
         every { prefs.rampEnabled } returns false
@@ -237,10 +239,20 @@ class MetronomeViewModelTest {
     fun `odd meter grooves expose iOS subdivision values`() {
         viewModel.updateGroove(Groove.OddMeterQuarter)
         viewModel.start()
-        verify { audio.startMetronome(any(), 1) }
+        verify { audio.startMetronome(any(), 1, BeatPattern.default.accentArray) }
 
         viewModel.updateGroove(Groove.OddMeterEighth)
-        verify { audio.updateTempo(any(), 2) }
+        verify { audio.updateTempo(any(), 2, BeatPattern.default.accentArray) }
+    }
+
+    @Test
+    fun `updateBeatPattern saves to prefs and updates tempo while playing`() {
+        viewModel.updateGroove(Groove.OddMeterEighth)
+        viewModel.start()
+        viewModel.updateBeatPattern(BeatPattern.FiveEightA)
+        assertEquals(BeatPattern.FiveEightA, viewModel.selectedBeatPattern)
+        verify { prefs.instantBeatPattern = BeatPattern.FiveEightA }
+        verify { audio.updateTempo(any(), 2, BeatPattern.FiveEightA.accentArray) }
     }
 
     // --- Play / Stop ---

@@ -8,6 +8,7 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.bfunkstudios.beatclikr.constants.MetronomeConstants
+import com.bfunkstudios.beatclikr.data.BeatPattern
 import com.bfunkstudios.beatclikr.data.Groove
 import com.bfunkstudios.beatclikr.data.Song
 import com.bfunkstudios.beatclikr.data.SongRepository
@@ -60,6 +61,8 @@ class SongLibraryViewModel @Inject constructor(
         private set
     var draftGroove by mutableStateOf(Groove.Eighth)
         private set
+    var draftBeatPattern by mutableStateOf(BeatPattern.default)
+        private set
 
     val isDraftValid: Boolean get() = draftTitle.isNotBlank() && draftArtist.isNotBlank()
 
@@ -70,6 +73,7 @@ class SongLibraryViewModel @Inject constructor(
         draftBpm = song?.beatsPerMinute ?: 120f
         draftBeatsPerMeasure = song?.beatsPerMeasure ?: 4
         draftGroove = song?.groove ?: Groove.Eighth
+        draftBeatPattern = song?.beatPattern ?: BeatPattern.default
         draftLiveSequence = song?.liveSequence
         draftRehearsalSequence = song?.rehearsalSequence
     }
@@ -79,6 +83,7 @@ class SongLibraryViewModel @Inject constructor(
     fun updateDraftBpm(value: Float) { draftBpm = value.coerceIn(MetronomeConstants.MIN_BPM, MetronomeConstants.MAX_BPM) }
     fun updateDraftBeatsPerMeasure(value: Int) { draftBeatsPerMeasure = value.coerceIn(1, 16) }
     fun updateDraftGroove(value: Groove) { draftGroove = value }
+    fun updateDraftBeatPattern(value: BeatPattern) { draftBeatPattern = value }
 
     fun saveDraft() {
         saveSong(Song(
@@ -89,7 +94,8 @@ class SongLibraryViewModel @Inject constructor(
             beatsPerMeasure = draftBeatsPerMeasure,
             groove = draftGroove,
             liveSequence = draftLiveSequence,
-            rehearsalSequence = draftRehearsalSequence
+            rehearsalSequence = draftRehearsalSequence,
+            beatPattern = if (draftGroove.isOddMeter) draftBeatPattern else null
         ))
     }
 

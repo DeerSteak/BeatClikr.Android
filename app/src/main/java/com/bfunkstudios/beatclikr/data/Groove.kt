@@ -13,5 +13,6 @@ enum class Groove(val subdivisions: Int) {
 
     companion object {
         val standardEntries = listOf(Quarter, Eighth, Triplet, Sixteenth)
+        val selectableEntries = listOf(Quarter, Eighth, Triplet, Sixteenth, OddMeterQuarter, OddMeterEighth)
     }
 }

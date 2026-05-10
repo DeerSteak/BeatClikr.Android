@@ -16,7 +16,7 @@ fun GrooveSelector(
     modifier: Modifier = Modifier
 ) {
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Groove.standardEntries.chunked(2).forEach { rowGrooves ->
+        Groove.selectableEntries.chunked(2).forEach { rowGrooves ->
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 rowGrooves.forEach { groove ->
                     GrooveButton(

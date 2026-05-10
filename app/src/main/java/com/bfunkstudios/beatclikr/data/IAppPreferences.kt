@@ -3,6 +3,7 @@ package com.bfunkstudios.beatclikr.data
 interface IAppPreferences {
     var instantBpm: Float
     var instantGroove: Groove
+    var instantBeatPattern: BeatPattern?
     var rampEnabled: Boolean
     var rampIncrement: Int
     var rampInterval: Int

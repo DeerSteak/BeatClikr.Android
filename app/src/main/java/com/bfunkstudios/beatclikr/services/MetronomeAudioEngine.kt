@@ -25,6 +25,7 @@ class MetronomeAudioEngine(private val context: Context) {
     private var isPlaying: Boolean = false
     private var currentBPM: Float = 60f
     private var currentSubdivisions: Int = 1
+    private var currentAccentPattern: List<Boolean>? = null
     private var subdivisionCounter: Int = 0
     private var nextBeatTimeNanos: Long = 0L
 
@@ -34,6 +35,7 @@ class MetronomeAudioEngine(private val context: Context) {
 
     private var pendingBpm: Float = 60f
     private var pendingSubdivisions: Int = 1
+    private var pendingAccentPattern: List<Boolean>? = null
     private var pendingDelegate: MetronomeAudioEngineDelegate? = null
     private var hasPendingStart = false
 
@@ -60,7 +62,7 @@ class MetronomeAudioEngine(private val context: Context) {
 
                     if (beatLoaded && rhythmLoaded && hasPendingStart) {
                         hasPendingStart = false
-                        pendingDelegate?.let { doStart(pendingBpm, pendingSubdivisions, it) }
+                        pendingDelegate?.let { doStart(pendingBpm, pendingSubdivisions, pendingAccentPattern, it) }
                     }
                 }
             }
@@ -77,17 +79,23 @@ class MetronomeAudioEngine(private val context: Context) {
         }
     }
 
-    fun startMetronome(bpm: Float, subdivisions: Int, delegate: MetronomeAudioEngineDelegate) {
+    fun startMetronome(
+        bpm: Float,
+        subdivisions: Int,
+        accentPattern: List<Boolean>?,
+        delegate: MetronomeAudioEngineDelegate
+    ) {
         handler.post {
             handler.removeCallbacks(timerRunnable)
             if (!beatLoaded || !rhythmLoaded) {
                 pendingBpm = bpm
                 pendingSubdivisions = subdivisions
+                pendingAccentPattern = accentPattern
                 pendingDelegate = delegate
                 hasPendingStart = true
                 return@post
             }
-            doStart(bpm, subdivisions, delegate)
+            doStart(bpm, subdivisions, accentPattern, delegate)
         }
     }
 
@@ -100,10 +108,14 @@ class MetronomeAudioEngine(private val context: Context) {
         }
     }
 
-    fun updateTempo(bpm: Float, subdivisions: Int) {
+    fun updateTempo(bpm: Float, subdivisions: Int, accentPattern: List<Boolean>?) {
         handler.post {
             currentBPM = bpm
             currentSubdivisions = subdivisions
+            currentAccentPattern = accentPattern
+            if (currentAccentPattern != null && subdivisionCounter >= currentAccentPattern!!.size) {
+                subdivisionCounter = 0
+            }
         }
     }
 
@@ -118,10 +130,16 @@ class MetronomeAudioEngine(private val context: Context) {
         handlerThread.quitSafely()
     }
 
-    private fun doStart(bpm: Float, subdivisions: Int, delegate: MetronomeAudioEngineDelegate) {
+    private fun doStart(
+        bpm: Float,
+        subdivisions: Int,
+        accentPattern: List<Boolean>?,
+        delegate: MetronomeAudioEngineDelegate
+    ) {
         this.delegate = delegate
         this.currentBPM = bpm
         this.currentSubdivisions = subdivisions
+        this.currentAccentPattern = accentPattern
         this.subdivisionCounter = 0
 
         val currentTimeNanos = SystemClock.elapsedRealtimeNanos()
@@ -166,15 +184,18 @@ class MetronomeAudioEngine(private val context: Context) {
             nextBeatTimeNanos = nowNanos + subdivisionDurationNanos
 
             subdivisionCounter++
-            if (subdivisionCounter >= currentSubdivisions) {
+            if (subdivisionCounter >= currentStepCount()) {
                 subdivisionCounter = 0
             }
         }
     }
 
     private fun playCurrentBeat(subdivisionDurationNanos: Long) {
-        val isBeat = subdivisionCounter == 0
-        val beatInterval = currentSubdivisions * (subdivisionDurationNanos / 1_000_000_000f)
+        val accentPattern = currentAccentPattern
+        val isBeat = accentPattern?.getOrNull(subdivisionCounter) ?: (subdivisionCounter == 0)
+        val ticksToNextBeat = accentPattern?.let { ticksToNextAccent(it, subdivisionCounter) }
+            ?: currentSubdivisions
+        val beatInterval = ticksToNextBeat * (subdivisionDurationNanos / 1_000_000_000f)
 
         if (!isMuted) {
             if (isBeat) {
@@ -185,5 +206,16 @@ class MetronomeAudioEngine(private val context: Context) {
         }
 
         delegate?.metronomeBeatFired(isBeat, beatInterval)
+    }
+
+    private fun currentStepCount(): Int = currentAccentPattern?.size ?: currentSubdivisions
+
+    private fun ticksToNextAccent(accentPattern: List<Boolean>, currentIndex: Int): Int {
+        if (accentPattern.isEmpty()) return currentSubdivisions
+        for (offset in 1..accentPattern.size) {
+            val nextIndex = (currentIndex + offset) % accentPattern.size
+            if (accentPattern[nextIndex]) return offset
+        }
+        return accentPattern.size
     }
 }

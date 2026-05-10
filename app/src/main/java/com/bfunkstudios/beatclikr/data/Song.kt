@@ -15,7 +15,8 @@ data class Song(
     @ColumnInfo(name = "subdivisions")
     var groove: Groove,
     var liveSequence: Int?,
-    var rehearsalSequence: Int?
+    var rehearsalSequence: Int?,
+    var beatPattern: BeatPattern? = null
 ) {
     companion object {
         fun instantSong() = Song(

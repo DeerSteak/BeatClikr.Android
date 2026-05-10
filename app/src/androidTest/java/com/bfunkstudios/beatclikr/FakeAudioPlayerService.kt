@@ -11,8 +11,8 @@ class FakeAudioPlayerService : IAudioPlayerService {
     var stopCount = 0
 
     override fun setupAudioPlayer(beatResourceId: Int, rhythmResourceId: Int) {}
-    override fun startMetronome(bpm: Float, subdivisions: Int) { startCount++ }
+    override fun startMetronome(bpm: Float, subdivisions: Int, accentPattern: List<Boolean>?) { startCount++ }
     override fun stopMetronome() { stopCount++ }
-    override fun updateTempo(bpm: Float, subdivisions: Int) {}
+    override fun updateTempo(bpm: Float, subdivisions: Int, accentPattern: List<Boolean>?) {}
     override fun release() {}
 }

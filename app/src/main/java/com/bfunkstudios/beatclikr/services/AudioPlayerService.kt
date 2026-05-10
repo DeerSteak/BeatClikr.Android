@@ -18,16 +18,16 @@ class AudioPlayerService private constructor(context: Context) : IAudioPlayerSer
         audioEngine.loadSounds(beatResourceId, rhythmResourceId)
     }
 
-    override fun startMetronome(bpm: Float, subdivisions: Int) {
-        audioEngine.startMetronome(bpm, subdivisions, this)
+    override fun startMetronome(bpm: Float, subdivisions: Int, accentPattern: List<Boolean>?) {
+        audioEngine.startMetronome(bpm, subdivisions, accentPattern, this)
     }
 
     override fun stopMetronome() {
         audioEngine.stopMetronome()
     }
 
-    override fun updateTempo(bpm: Float, subdivisions: Int) {
-        audioEngine.updateTempo(bpm, subdivisions)
+    override fun updateTempo(bpm: Float, subdivisions: Int, accentPattern: List<Boolean>?) {
+        audioEngine.updateTempo(bpm, subdivisions, accentPattern)
     }
 
     override fun release() {

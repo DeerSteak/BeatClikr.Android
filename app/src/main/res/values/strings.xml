@@ -24,6 +24,7 @@
     <string name="ramp_every">Every</string>
     <string name="ramp_bpm_value">%1$d BPM</string>
     <string name="ramp_beats_value">%1$d beats</string>
+    <string name="beat_pattern">PATTERN</string>
 
     <!-- Subdivisions -->
     <string name="subdivision_quarter">Quarter</string>

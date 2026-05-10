@@ -7,6 +7,7 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.bfunkstudios.beatclikr.constants.MetronomeConstants
+import com.bfunkstudios.beatclikr.data.BeatPattern
 import com.bfunkstudios.beatclikr.data.ClickerType
 import com.bfunkstudios.beatclikr.data.Groove
 import com.bfunkstudios.beatclikr.data.IAppPreferences
@@ -38,13 +39,15 @@ class MetronomeViewModel @Inject constructor(
     var currentSong by mutableStateOf(
         Song.instantSong().copy(
             beatsPerMinute = prefs.instantBpm,
-            groove = prefs.instantGroove
+            groove = prefs.instantGroove,
+            beatPattern = prefs.instantBeatPattern
         )
     )
         private set
 
     val beatsPerMinute: Float get() = currentSong.beatsPerMinute
     val selectedGroove: Groove get() = currentSong.groove
+    val selectedBeatPattern: BeatPattern get() = currentSong.beatPattern ?: BeatPattern.default
 
     var selectedBeatSound by mutableStateOf(prefs.instantBeatSound)
         private set
@@ -78,7 +81,7 @@ class MetronomeViewModel @Inject constructor(
         currentSong = song
         clickerType = type
         if (isPlaying) {
-            audio.updateTempo(currentSong.beatsPerMinute, getSubdivisionValue())
+            audio.updateTempo(currentSong.beatsPerMinute, getSubdivisionValue(), computeAccentPattern())
         }
     }
 
@@ -87,13 +90,22 @@ class MetronomeViewModel @Inject constructor(
             beatsPerMinute = bpm.coerceIn(MetronomeConstants.MIN_BPM, MetronomeConstants.MAX_BPM)
         )
         if (clickerType == ClickerType.INSTANT) prefs.instantBpm = currentSong.beatsPerMinute
-        if (isPlaying) audio.updateTempo(currentSong.beatsPerMinute, getSubdivisionValue())
+        if (isPlaying) audio.updateTempo(currentSong.beatsPerMinute, getSubdivisionValue(), computeAccentPattern())
     }
 
     fun updateGroove(groove: Groove) {
-        currentSong = currentSong.copy(groove = groove)
+        currentSong = currentSong.copy(
+            groove = groove,
+            beatPattern = if (groove.isOddMeter) selectedBeatPattern else currentSong.beatPattern
+        )
         if (clickerType == ClickerType.INSTANT) prefs.instantGroove = currentSong.groove
-        if (isPlaying) audio.updateTempo(currentSong.beatsPerMinute, getSubdivisionValue())
+        if (isPlaying) audio.updateTempo(currentSong.beatsPerMinute, getSubdivisionValue(), computeAccentPattern())
+    }
+
+    fun updateBeatPattern(pattern: BeatPattern) {
+        currentSong = currentSong.copy(beatPattern = pattern)
+        if (clickerType == ClickerType.INSTANT) prefs.instantBeatPattern = pattern
+        if (isPlaying) audio.updateTempo(currentSong.beatsPerMinute, getSubdivisionValue(), computeAccentPattern())
     }
 
     fun updateRampEnabled(enabled: Boolean) {
@@ -139,13 +151,14 @@ class MetronomeViewModel @Inject constructor(
         if (clickerType == ClickerType.INSTANT) {
             currentSong = Song.instantSong().copy(
                 beatsPerMinute = currentSong.beatsPerMinute,
-                groove = currentSong.groove
+                groove = currentSong.groove,
+                beatPattern = currentSong.beatPattern
             )
         }
         audio.isMuted = prefs.muteMetronome
         activeBpm = currentSong.beatsPerMinute
         rampBeatCount = -1
-        audio.startMetronome(currentSong.beatsPerMinute, getSubdivisionValue())
+        audio.startMetronome(currentSong.beatsPerMinute, getSubdivisionValue(), computeAccentPattern())
         isPlaying = true
     }
 
@@ -202,12 +215,15 @@ class MetronomeViewModel @Inject constructor(
         if (newBpm == currentSong.beatsPerMinute) return
 
         currentSong = currentSong.copy(beatsPerMinute = newBpm)
-        audio.updateTempo(newBpm, getSubdivisionValue())
+        audio.updateTempo(newBpm, getSubdivisionValue(), computeAccentPattern())
     }
 
     private fun handleRhythm() {}
 
     private fun getSubdivisionValue(): Int = currentSong.groove.subdivisions
+
+    private fun computeAccentPattern(): List<Boolean>? =
+        if (currentSong.groove.isOddMeter) selectedBeatPattern.accentArray else null
 
     override fun onCleared() {
         super.onCleared()

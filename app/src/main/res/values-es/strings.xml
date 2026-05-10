@@ -24,6 +24,7 @@
     <string name="ramp_every">Cada</string>
     <string name="ramp_bpm_value">%1$d BPM</string>
     <string name="ramp_beats_value">%1$d tiempos</string>
+    <string name="beat_pattern">PATRÓN</string>
 
     <!-- Subdivisions -->
     <string name="subdivision_quarter">Negra</string>

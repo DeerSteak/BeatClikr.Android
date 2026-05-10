@@ -19,6 +19,10 @@ class AppPreferences(context: Context) : IAppPreferences {
         )
         set(value) = prefs.edit { putString(Keys.INSTANT_SUBDIVISIONS, value.name) }
 
+    override var instantBeatPattern: BeatPattern?
+        get() = prefs.getString(Keys.INSTANT_BEAT_PATTERN, null)?.let { BeatPattern.fromRawValue(it) }
+        set(value) = prefs.edit { putString(Keys.INSTANT_BEAT_PATTERN, value?.rawValue) }
+
     override var rampEnabled: Boolean
         get() = prefs.getBoolean(Keys.RAMP_ENABLED, false)
         set(value) = prefs.edit { putBoolean(Keys.RAMP_ENABLED, value) }
@@ -92,6 +96,7 @@ class AppPreferences(context: Context) : IAppPreferences {
     private object Keys {
         const val INSTANT_BPM = "instant_bpm"
         const val INSTANT_SUBDIVISIONS = "instant_subdivisions"
+        const val INSTANT_BEAT_PATTERN = "instant_beat_pattern"
         const val RAMP_ENABLED = "ramp_enabled"
         const val RAMP_INCREMENT = "ramp_increment"
         const val RAMP_INTERVAL = "ramp_interval"

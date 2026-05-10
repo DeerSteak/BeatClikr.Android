@@ -39,7 +39,9 @@ abstract class AppModule {
 
         @Provides @Singleton
         fun provideDatabase(@ApplicationContext context: Context): BeatClikrDatabase =
-            Room.databaseBuilder(context, BeatClikrDatabase::class.java, "beatclikr.db").build()
+            Room.databaseBuilder(context, BeatClikrDatabase::class.java, "beatclikr.db")
+                .addMigrations(BeatClikrDatabase.MIGRATION_1_2)
+                .build()
 
         @Provides @Singleton
         fun provideSongDao(db: BeatClikrDatabase) = db.songDao()
