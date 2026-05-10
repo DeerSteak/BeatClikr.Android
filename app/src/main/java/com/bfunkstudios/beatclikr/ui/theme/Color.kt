@@ -6,6 +6,10 @@ import androidx.compose.ui.graphics.Color
 val AccentColor = Color(0xFFFF5722)        // Orange accent (iOS AccentColor)
 val AppPrimaryLight = Color(0xFF408CC9)    // Blue primary for light mode
 val AppPrimaryDark = Color(0xFF0E6A96)     // Darker blue for dark mode
+val AppPrimaryContainerLight = Color(0xFFD7EBFA)
+val AppPrimaryContainerDark = Color(0xFF174D69)
+val AccentContainerLight = Color(0xFFFFDBD0)
+val AccentContainerDark = Color(0xFF8F2F14)
 
 // Neutral surface colors (no purple tint)
 val SurfaceLight = Color(0xFFFFFFFF)       // Pure white
