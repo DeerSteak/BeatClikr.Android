@@ -11,6 +11,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.FeaturedPlayList
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Fullscreen
 import androidx.compose.material.icons.filled.PlaylistPlay
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -140,6 +141,7 @@ fun BeatClikrApp(
     var playlistDetailEditMode by remember { mutableStateOf(false) }
     var showNewPlaylistDialog by remember { mutableStateOf(false) }
     var showSongPickerForPlaylist by remember { mutableStateOf(false) }
+    var showFocusView by remember { mutableStateOf(false) }
 
     LaunchedEffect(showSongDetail) {
         if (showSongDetail) songLibraryViewModel.initDraft(uiState.selectedSong)
@@ -151,6 +153,7 @@ fun BeatClikrApp(
         if (currentRoute != ROUTE_PLAYLIST && currentRoute != ROUTE_PLAYLIST_DETAIL) {
             showNewPlaylistDialog = false
             showSongPickerForPlaylist = false
+            showFocusView = false
         }
     }
 
@@ -203,6 +206,16 @@ fun BeatClikrApp(
                             }
                         }
                         if (currentRoute == ROUTE_PLAYLIST_DETAIL) {
+                            val entries = viewModel@ playlistViewModel.sortedEntries(selectedPlaylist)
+                            if (!playlistDetailEditMode && entries.isNotEmpty()) {
+                                IconButton(onClick = { showFocusView = true }) {
+                                    Icon(
+                                        imageVector = Icons.Default.Fullscreen,
+                                        contentDescription = "Focus View",
+                                        tint = MaterialTheme.colorScheme.primary
+                                    )
+                                }
+                            }
                             IconButton(onClick = { showSongPickerForPlaylist = true }) {
                                 Icon(
                                     imageVector = Icons.Default.Add,
@@ -322,6 +335,17 @@ fun BeatClikrApp(
                 )
             }
         }
+    }
+
+    if (showFocusView) {
+        PlaylistFocusView(
+            viewModel = playlistViewModel,
+            isPlaying = metronomeViewModel.isPlaying,
+            beatPulse = metronomeViewModel.beatPulse,
+            onPlayPause = { metronomeViewModel.togglePlayPause() },
+            onPlaySong = { song -> metronomeViewModel.playSong(song) },
+            onDismiss = { showFocusView = false }
+        )
     }
 
     if (showSongDetail) {
