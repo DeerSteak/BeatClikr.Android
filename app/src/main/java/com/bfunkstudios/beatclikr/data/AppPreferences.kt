@@ -97,6 +97,10 @@ class AppPreferences(context: Context) : IAppPreferences {
         get() = prefs.getBoolean(Keys.USE_FLASHLIGHT, false)
         set(value) = prefs.edit { putBoolean(Keys.USE_FLASHLIGHT, value) }
 
+    override var alwaysUseDarkTheme: Boolean
+        get() = prefs.getBoolean(Keys.ALWAYS_USE_DARK_THEME, false)
+        set(value) = prefs.edit { putBoolean(Keys.ALWAYS_USE_DARK_THEME, value) }
+
     override var muteMetronome: Boolean
         get() = prefs.getBoolean(Keys.MUTE_METRONOME, false)
         set(value) = prefs.edit { putBoolean(Keys.MUTE_METRONOME, value) }
@@ -141,6 +145,7 @@ class AppPreferences(context: Context) : IAppPreferences {
         const val POLYRHYTHM_RHYTHM_SOUND = "polyrhythm_rhythm_sound"
         const val USE_VIBRATION = "use_vibration"
         const val USE_FLASHLIGHT = "use_flashlight"
+        const val ALWAYS_USE_DARK_THEME = "always_use_dark_theme"
         const val MUTE_METRONOME = "mute_metronome"
         const val KEEP_SCREEN_AWAKE = "keep_screen_awake"
         const val SIXTEENTH_ALTERNATE = "sixteenth_alternate"

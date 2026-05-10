@@ -45,7 +45,8 @@ private val LightColorScheme = lightColorScheme(
 
 @Composable
 fun BeatClikrTheme(
-    darkTheme: Boolean = isSystemInDarkTheme(),
+    forceDarkTheme: Boolean = false,
+    darkTheme: Boolean = forceDarkTheme || isSystemInDarkTheme(),
     // Dynamic color disabled to use custom BeatClikr brand colors
     dynamicColor: Boolean = false,
     content: @Composable () -> Unit

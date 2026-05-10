@@ -20,6 +20,9 @@ class SettingsViewModel @Inject constructor(
     var useVibration by mutableStateOf(prefs.useVibration)
         private set
 
+    var alwaysUseDarkTheme by mutableStateOf(prefs.alwaysUseDarkTheme)
+        private set
+
     var muteMetronome by mutableStateOf(prefs.muteMetronome)
         private set
 
@@ -55,6 +58,11 @@ class SettingsViewModel @Inject constructor(
     fun updateUseVibration(value: Boolean) {
         useVibration = value
         prefs.useVibration = value
+    }
+
+    fun updateAlwaysUseDarkTheme(value: Boolean) {
+        alwaysUseDarkTheme = value
+        prefs.alwaysUseDarkTheme = value
     }
 
     fun updateMuteMetronome(value: Boolean) {

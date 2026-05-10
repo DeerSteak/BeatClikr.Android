@@ -28,6 +28,7 @@ import com.bfunkstudios.beatclikr.ui.components.SoundPickerRow
 fun SettingsView(
     metronomeViewModel: MetronomeViewModel,
     modifier: Modifier = Modifier,
+    onAlwaysUseDarkThemeChange: (Boolean) -> Unit = {},
     viewModel: SettingsViewModel = hiltViewModel()
 ) {
     Column(
@@ -37,6 +38,18 @@ fun SettingsView(
             .verticalScroll(rememberScrollState())
             .padding(16.dp)
     ) {
+        SettingsSectionTitle(stringResource(R.string.appearance))
+        SectionCard {
+            SettingsToggleRow(
+                label = stringResource(R.string.settings_always_use_dark_theme),
+                checked = viewModel.alwaysUseDarkTheme,
+                onCheckedChange = {
+                    viewModel.updateAlwaysUseDarkTheme(it)
+                    onAlwaysUseDarkThemeChange(it)
+                }
+            )
+        }
+
         SettingsSectionTitle(stringResource(R.string.settings_metronome_playback))
         SectionCard {
             SettingsToggleRow(

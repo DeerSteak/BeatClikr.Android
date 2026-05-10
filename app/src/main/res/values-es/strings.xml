@@ -12,6 +12,8 @@
     <string name="song_library">Biblioteca de Canciones</string>
     <string name="song_detail">Detalles de la canción</string>
     <string name="settings">Ajustes</string>
+    <string name="appearance">Apariencia</string>
+    <string name="settings_always_use_dark_theme">Usar siempre el tema oscuro</string>
 
     <!-- Metronome screen -->
     <string name="bpm">BPM</string>

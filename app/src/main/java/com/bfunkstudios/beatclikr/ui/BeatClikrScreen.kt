@@ -113,7 +113,8 @@ private fun BeatClikrAppBar(
 fun BeatClikrApp(
     navController: NavHostController = rememberNavController(),
     songLibraryViewModel: SongLibraryViewModel = hiltViewModel(),
-    metronomeViewModel: MetronomeViewModel = hiltViewModel()
+    metronomeViewModel: MetronomeViewModel = hiltViewModel(),
+    onAlwaysUseDarkThemeChange: (Boolean) -> Unit = {}
 ) {
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
@@ -245,7 +246,10 @@ fun BeatClikrApp(
                 )
             }
             composable(ROUTE_SETTINGS) {
-                SettingsView(metronomeViewModel = metronomeViewModel)
+                SettingsView(
+                    metronomeViewModel = metronomeViewModel,
+                    onAlwaysUseDarkThemeChange = onAlwaysUseDarkThemeChange
+                )
             }
         }
     }

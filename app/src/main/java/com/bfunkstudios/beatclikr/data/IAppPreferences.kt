@@ -18,6 +18,7 @@ interface IAppPreferences {
     var polyrhythmRhythmSound: SoundFile
     var useVibration: Boolean
     var useFlashlight: Boolean
+    var alwaysUseDarkTheme: Boolean
     var muteMetronome: Boolean
     var keepScreenAwake: Boolean
     var sixteenthAlternate: Boolean
