@@ -35,8 +35,8 @@ class AudioPlayerService private constructor(context: Context) : IAudioPlayerSer
         delegate = null
     }
 
-    override fun metronomeBeatFired(isBeat: Boolean) {
-        delegate?.metronomeBeatFired(isBeat)
+    override fun metronomeBeatFired(isBeat: Boolean, beatInterval: Float) {
+        delegate?.metronomeBeatFired(isBeat, beatInterval)
     }
 
     companion object {

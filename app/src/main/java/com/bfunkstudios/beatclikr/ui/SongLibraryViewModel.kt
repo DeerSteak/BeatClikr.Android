@@ -8,9 +8,9 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.bfunkstudios.beatclikr.constants.MetronomeConstants
+import com.bfunkstudios.beatclikr.data.Groove
 import com.bfunkstudios.beatclikr.data.Song
 import com.bfunkstudios.beatclikr.data.SongRepository
-import com.bfunkstudios.beatclikr.data.Subdivisions
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -58,7 +58,7 @@ class SongLibraryViewModel @Inject constructor(
         private set
     var draftBeatsPerMeasure by mutableIntStateOf(4)
         private set
-    var draftSubdivisions by mutableStateOf(Subdivisions.Eighth)
+    var draftGroove by mutableStateOf(Groove.Eighth)
         private set
 
     val isDraftValid: Boolean get() = draftTitle.isNotBlank() && draftArtist.isNotBlank()
@@ -69,7 +69,7 @@ class SongLibraryViewModel @Inject constructor(
         draftArtist = song?.artist ?: ""
         draftBpm = song?.beatsPerMinute ?: 120f
         draftBeatsPerMeasure = song?.beatsPerMeasure ?: 4
-        draftSubdivisions = song?.subdivisions ?: Subdivisions.Eighth
+        draftGroove = song?.groove ?: Groove.Eighth
         draftLiveSequence = song?.liveSequence
         draftRehearsalSequence = song?.rehearsalSequence
     }
@@ -78,7 +78,7 @@ class SongLibraryViewModel @Inject constructor(
     fun updateDraftArtist(value: String) { draftArtist = value }
     fun updateDraftBpm(value: Float) { draftBpm = value.coerceIn(MetronomeConstants.MIN_BPM, MetronomeConstants.MAX_BPM) }
     fun updateDraftBeatsPerMeasure(value: Int) { draftBeatsPerMeasure = value.coerceIn(1, 16) }
-    fun updateDraftSubdivisions(value: Subdivisions) { draftSubdivisions = value }
+    fun updateDraftGroove(value: Groove) { draftGroove = value }
 
     fun saveDraft() {
         saveSong(Song(
@@ -87,7 +87,7 @@ class SongLibraryViewModel @Inject constructor(
             artist = draftArtist,
             beatsPerMinute = draftBpm,
             beatsPerMeasure = draftBeatsPerMeasure,
-            subdivisions = draftSubdivisions,
+            groove = draftGroove,
             liveSequence = draftLiveSequence,
             rehearsalSequence = draftRehearsalSequence
         ))

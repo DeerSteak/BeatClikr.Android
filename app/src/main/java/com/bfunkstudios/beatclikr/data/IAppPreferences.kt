@@ -2,7 +2,10 @@ package com.bfunkstudios.beatclikr.data
 
 interface IAppPreferences {
     var instantBpm: Float
-    var instantSubdivisions: Subdivisions
+    var instantGroove: Groove
+    var rampEnabled: Boolean
+    var rampIncrement: Int
+    var rampInterval: Int
     var instantBeatSound: SoundFile
     var instantRhythmSound: SoundFile
     var playlistBeatSound: SoundFile

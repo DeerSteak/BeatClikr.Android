@@ -12,11 +12,11 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.bfunkstudios.beatclikr.R
-import com.bfunkstudios.beatclikr.data.Subdivisions
+import com.bfunkstudios.beatclikr.data.Groove
 
 @Composable
 fun GrooveButton(
-    subdivision: Subdivisions,
+    groove: Groove,
     isSelected: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
@@ -33,11 +33,13 @@ fun GrooveButton(
         shape = RoundedCornerShape(24.dp)
     ) {
         Text(
-            text = when (subdivision) {
-                Subdivisions.Quarter   -> stringResource(R.string.subdivision_quarter)
-                Subdivisions.Eighth    -> stringResource(R.string.subdivision_eighth)
-                Subdivisions.Triplet   -> stringResource(R.string.subdivision_triplet)
-                Subdivisions.Sixteenth -> stringResource(R.string.subdivision_sixteenth)
+            text = when (groove) {
+                Groove.Quarter -> stringResource(R.string.subdivision_quarter)
+                Groove.Eighth -> stringResource(R.string.subdivision_eighth)
+                Groove.Triplet -> stringResource(R.string.subdivision_triplet)
+                Groove.Sixteenth -> stringResource(R.string.subdivision_sixteenth)
+                Groove.OddMeterQuarter -> stringResource(R.string.groove_odd_quarter)
+                Groove.OddMeterEighth -> stringResource(R.string.groove_odd_eighth)
             },
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Bold

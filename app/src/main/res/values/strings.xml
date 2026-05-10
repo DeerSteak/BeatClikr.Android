@@ -19,12 +19,19 @@
     <string name="pause">Pause</string>
     <string name="increase_bpm">Increase BPM</string>
     <string name="decrease_bpm">Decrease BPM</string>
+    <string name="tempo_ramp">Tempo Ramp</string>
+    <string name="ramp_increase_by">Increase by</string>
+    <string name="ramp_every">Every</string>
+    <string name="ramp_bpm_value">%1$d BPM</string>
+    <string name="ramp_beats_value">%1$d beats</string>
 
     <!-- Subdivisions -->
     <string name="subdivision_quarter">Quarter</string>
     <string name="subdivision_eighth">Eighth</string>
     <string name="subdivision_triplet">Triplet</string>
     <string name="subdivision_sixteenth">Sixteenth</string>
+    <string name="groove_odd_quarter">Odd Quarter</string>
+    <string name="groove_odd_eighth">Odd Eighth</string>
 
     <!-- Song detail -->
     <string name="section_song_info">Song Info</string>

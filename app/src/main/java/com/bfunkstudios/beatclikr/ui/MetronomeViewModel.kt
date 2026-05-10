@@ -8,10 +8,10 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.bfunkstudios.beatclikr.constants.MetronomeConstants
 import com.bfunkstudios.beatclikr.data.ClickerType
+import com.bfunkstudios.beatclikr.data.Groove
 import com.bfunkstudios.beatclikr.data.IAppPreferences
 import com.bfunkstudios.beatclikr.data.Song
 import com.bfunkstudios.beatclikr.data.SoundFile
-import com.bfunkstudios.beatclikr.data.Subdivisions
 import com.bfunkstudios.beatclikr.services.IAudioPlayerService
 import com.bfunkstudios.beatclikr.services.MetronomeAudioEngineDelegate
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -38,13 +38,13 @@ class MetronomeViewModel @Inject constructor(
     var currentSong by mutableStateOf(
         Song.instantSong().copy(
             beatsPerMinute = prefs.instantBpm,
-            subdivisions = prefs.instantSubdivisions
+            groove = prefs.instantGroove
         )
     )
         private set
 
     val beatsPerMinute: Float get() = currentSong.beatsPerMinute
-    val selectedSubdivisions: Subdivisions get() = currentSong.subdivisions
+    val selectedGroove: Groove get() = currentSong.groove
 
     var selectedBeatSound by mutableStateOf(prefs.instantBeatSound)
         private set
@@ -52,6 +52,17 @@ class MetronomeViewModel @Inject constructor(
     var selectedRhythmSound by mutableStateOf(prefs.instantRhythmSound)
         private set
 
+    var rampEnabled by mutableStateOf(prefs.rampEnabled)
+        private set
+
+    var rampIncrement by mutableStateOf(prefs.rampIncrement)
+        private set
+
+    var rampInterval by mutableStateOf(prefs.rampInterval)
+        private set
+
+    private var activeBpm: Float = prefs.instantBpm
+    private var rampBeatCount = -1
     private val tapTimestamps = mutableListOf<Long>()
 
     init {
@@ -79,10 +90,25 @@ class MetronomeViewModel @Inject constructor(
         if (isPlaying) audio.updateTempo(currentSong.beatsPerMinute, getSubdivisionValue())
     }
 
-    fun updateSubdivisions(subdivisions: Subdivisions) {
-        currentSong = currentSong.copy(subdivisions = subdivisions)
-        if (clickerType == ClickerType.INSTANT) prefs.instantSubdivisions = currentSong.subdivisions
+    fun updateGroove(groove: Groove) {
+        currentSong = currentSong.copy(groove = groove)
+        if (clickerType == ClickerType.INSTANT) prefs.instantGroove = currentSong.groove
         if (isPlaying) audio.updateTempo(currentSong.beatsPerMinute, getSubdivisionValue())
+    }
+
+    fun updateRampEnabled(enabled: Boolean) {
+        rampEnabled = enabled
+        if (clickerType == ClickerType.INSTANT) prefs.rampEnabled = enabled
+    }
+
+    fun updateRampIncrement(increment: Int) {
+        rampIncrement = increment.coerceAtLeast(1)
+        if (clickerType == ClickerType.INSTANT) prefs.rampIncrement = rampIncrement
+    }
+
+    fun updateRampInterval(interval: Int) {
+        rampInterval = interval.coerceAtLeast(1)
+        if (clickerType == ClickerType.INSTANT) prefs.rampInterval = rampInterval
     }
 
     fun updateBeatSound(sound: SoundFile) {
@@ -113,18 +139,25 @@ class MetronomeViewModel @Inject constructor(
         if (clickerType == ClickerType.INSTANT) {
             currentSong = Song.instantSong().copy(
                 beatsPerMinute = currentSong.beatsPerMinute,
-                subdivisions = currentSong.subdivisions
+                groove = currentSong.groove
             )
         }
         audio.isMuted = prefs.muteMetronome
+        activeBpm = currentSong.beatsPerMinute
+        rampBeatCount = -1
         audio.startMetronome(currentSong.beatsPerMinute, getSubdivisionValue())
         isPlaying = true
     }
 
     fun stop() {
+        val shouldRestoreRampBpm = rampEnabled && clickerType == ClickerType.INSTANT
         audio.stopMetronome()
+        rampBeatCount = -1
         isPlaying = false
         iconScale = MetronomeConstants.ICON_SCALE_MIN
+        if (shouldRestoreRampBpm) {
+            currentSong = currentSong.copy(beatsPerMinute = activeBpm)
+        }
     }
 
     fun recordTap() {
@@ -145,29 +178,36 @@ class MetronomeViewModel @Inject constructor(
         updateBPM((60_000.0 / avgIntervalMs).toFloat())
     }
 
-    override fun metronomeBeatFired(isBeat: Boolean) {
+    override fun metronomeBeatFired(isBeat: Boolean, beatInterval: Float) {
         viewModelScope.launch(Dispatchers.Main) {
             if (isBeat) {
                 iconScale = MetronomeConstants.ICON_SCALE_MAX
+                handleBeat()
                 delay(16)
                 iconScale = MetronomeConstants.ICON_SCALE_MIN
-                handleBeat()
             } else {
                 handleRhythm()
             }
         }
     }
 
-    private fun handleBeat() {}
+    private fun handleBeat() {
+        if (!rampEnabled || clickerType != ClickerType.INSTANT) return
+
+        rampBeatCount += 1
+        if (rampBeatCount <= 0 || rampBeatCount % rampInterval != 0) return
+
+        val newBpm = (currentSong.beatsPerMinute + rampIncrement)
+            .coerceAtMost(MetronomeConstants.MAX_BPM)
+        if (newBpm == currentSong.beatsPerMinute) return
+
+        currentSong = currentSong.copy(beatsPerMinute = newBpm)
+        audio.updateTempo(newBpm, getSubdivisionValue())
+    }
 
     private fun handleRhythm() {}
 
-    private fun getSubdivisionValue(): Int = when (currentSong.subdivisions) {
-        Subdivisions.Quarter -> 1
-        Subdivisions.Eighth -> 2
-        Subdivisions.Triplet -> 3
-        Subdivisions.Sixteenth -> 4
-    }
+    private fun getSubdivisionValue(): Int = currentSong.groove.subdivisions
 
     override fun onCleared() {
         super.onCleared()

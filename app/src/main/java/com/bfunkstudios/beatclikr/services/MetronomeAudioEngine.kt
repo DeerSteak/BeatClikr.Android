@@ -9,7 +9,7 @@ import android.os.SystemClock
 import com.bfunkstudios.beatclikr.constants.MetronomeConstants
 
 interface MetronomeAudioEngineDelegate {
-    fun metronomeBeatFired(isBeat: Boolean)
+    fun metronomeBeatFired(isBeat: Boolean, beatInterval: Float)
 }
 
 class MetronomeAudioEngine(private val context: Context) {
@@ -160,9 +160,9 @@ class MetronomeAudioEngine(private val context: Context) {
         val lookaheadNanos = lookaheadToleranceMs * 1_000_000L
 
         if (nowNanos >= nextBeatTimeNanos - lookaheadNanos) {
-            playCurrentBeat()
-
             val subdivisionDurationNanos = getSubdivisionDurationNanos()
+            playCurrentBeat(subdivisionDurationNanos)
+
             nextBeatTimeNanos = nowNanos + subdivisionDurationNanos
 
             subdivisionCounter++
@@ -172,8 +172,9 @@ class MetronomeAudioEngine(private val context: Context) {
         }
     }
 
-    private fun playCurrentBeat() {
+    private fun playCurrentBeat(subdivisionDurationNanos: Long) {
         val isBeat = subdivisionCounter == 0
+        val beatInterval = currentSubdivisions * (subdivisionDurationNanos / 1_000_000_000f)
 
         if (!isMuted) {
             if (isBeat) {
@@ -183,6 +184,6 @@ class MetronomeAudioEngine(private val context: Context) {
             }
         }
 
-        delegate?.metronomeBeatFired(isBeat)
+        delegate?.metronomeBeatFired(isBeat, beatInterval)
     }
 }

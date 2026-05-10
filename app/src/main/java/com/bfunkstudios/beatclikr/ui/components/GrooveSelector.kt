@@ -7,33 +7,25 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import com.bfunkstudios.beatclikr.data.Subdivisions
+import com.bfunkstudios.beatclikr.data.Groove
 
 @Composable
 fun GrooveSelector(
-    selected: Subdivisions,
-    onSelect: (Subdivisions) -> Unit,
+    selected: Groove,
+    onSelect: (Groove) -> Unit,
     modifier: Modifier = Modifier
 ) {
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Subdivisions.entries.take(2).forEach { subdivision ->
-                GrooveButton(
-                    subdivision = subdivision,
-                    isSelected = selected == subdivision,
-                    onClick = { onSelect(subdivision) },
-                    modifier = Modifier.weight(1f)
-                )
-            }
-        }
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Subdivisions.entries.drop(2).forEach { subdivision ->
-                GrooveButton(
-                    subdivision = subdivision,
-                    isSelected = selected == subdivision,
-                    onClick = { onSelect(subdivision) },
-                    modifier = Modifier.weight(1f)
-                )
+        Groove.standardEntries.chunked(2).forEach { rowGrooves ->
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                rowGrooves.forEach { groove ->
+                    GrooveButton(
+                        groove = groove,
+                        isSelected = selected == groove,
+                        onClick = { onSelect(groove) },
+                        modifier = Modifier.weight(1f)
+                    )
+                }
             }
         }
     }

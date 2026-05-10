@@ -19,12 +19,19 @@
     <string name="pause">Pausa</string>
     <string name="increase_bpm">Aumentar BPM</string>
     <string name="decrease_bpm">Disminuir BPM</string>
+    <string name="tempo_ramp">Rampa de tempo</string>
+    <string name="ramp_increase_by">Aumentar por</string>
+    <string name="ramp_every">Cada</string>
+    <string name="ramp_bpm_value">%1$d BPM</string>
+    <string name="ramp_beats_value">%1$d tiempos</string>
 
     <!-- Subdivisions -->
     <string name="subdivision_quarter">Negra</string>
     <string name="subdivision_eighth">Corchea</string>
     <string name="subdivision_triplet">Tresillo</string>
     <string name="subdivision_sixteenth">Semicorchea</string>
+    <string name="groove_odd_quarter">Negra irregular</string>
+    <string name="groove_odd_eighth">Corchea irregular</string>
 
     <!-- Song detail -->
     <string name="section_song_info">Información de la canción</string>

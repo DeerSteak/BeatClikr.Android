@@ -13,11 +13,23 @@ class AppPreferences(context: Context) : IAppPreferences {
         get() = prefs.getFloat(Keys.INSTANT_BPM, 120f)
         set(value) = prefs.edit { putFloat(Keys.INSTANT_BPM, value) }
 
-    override var instantSubdivisions: Subdivisions
-        get() = Subdivisions.valueOf(
-            prefs.getString(Keys.INSTANT_SUBDIVISIONS, Subdivisions.Quarter.name)!!
+    override var instantGroove: Groove
+        get() = Groove.valueOf(
+            prefs.getString(Keys.INSTANT_SUBDIVISIONS, Groove.Quarter.name)!!
         )
         set(value) = prefs.edit { putString(Keys.INSTANT_SUBDIVISIONS, value.name) }
+
+    override var rampEnabled: Boolean
+        get() = prefs.getBoolean(Keys.RAMP_ENABLED, false)
+        set(value) = prefs.edit { putBoolean(Keys.RAMP_ENABLED, value) }
+
+    override var rampIncrement: Int
+        get() = prefs.getInt(Keys.RAMP_INCREMENT, 2).takeIf { it > 0 } ?: 2
+        set(value) = prefs.edit { putInt(Keys.RAMP_INCREMENT, value) }
+
+    override var rampInterval: Int
+        get() = prefs.getInt(Keys.RAMP_INTERVAL, 8).takeIf { it > 0 } ?: 8
+        set(value) = prefs.edit { putInt(Keys.RAMP_INTERVAL, value) }
 
     override var instantBeatSound: SoundFile
         get() = SoundFile.valueOf(
@@ -80,6 +92,9 @@ class AppPreferences(context: Context) : IAppPreferences {
     private object Keys {
         const val INSTANT_BPM = "instant_bpm"
         const val INSTANT_SUBDIVISIONS = "instant_subdivisions"
+        const val RAMP_ENABLED = "ramp_enabled"
+        const val RAMP_INCREMENT = "ramp_increment"
+        const val RAMP_INTERVAL = "ramp_interval"
         const val INSTANT_BEAT_SOUND = "instant_beat_sound"
         const val INSTANT_RHYTHM_SOUND = "instant_rhythm_sound"
         const val PLAYLIST_BEAT_SOUND = "playlist_beat_sound"

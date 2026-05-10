@@ -1,12 +1,15 @@
 package com.bfunkstudios.beatclikr
 
 import com.bfunkstudios.beatclikr.data.IAppPreferences
+import com.bfunkstudios.beatclikr.data.Groove
 import com.bfunkstudios.beatclikr.data.SoundFile
-import com.bfunkstudios.beatclikr.data.Subdivisions
 
 class FakeAppPreferences : IAppPreferences {
     override var instantBpm: Float = 120f
-    override var instantSubdivisions: Subdivisions = Subdivisions.Quarter
+    override var instantGroove: Groove = Groove.Quarter
+    override var rampEnabled: Boolean = false
+    override var rampIncrement: Int = 2
+    override var rampInterval: Int = 8
     override var instantBeatSound: SoundFile = SoundFile.CLICK_HI
     override var instantRhythmSound: SoundFile = SoundFile.CLICK_LO
     override var playlistBeatSound: SoundFile = SoundFile.CLICK_HI

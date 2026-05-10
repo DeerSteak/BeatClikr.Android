@@ -25,7 +25,8 @@ fun BpmSliderControl(
     value: Float,
     onValueChange: (Float) -> Unit,
     valueRange: ClosedFloatingPointRange<Float>,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true
 ) {
     Row(
         modifier = modifier.fillMaxWidth(),
@@ -34,6 +35,7 @@ fun BpmSliderControl(
     ) {
         OutlinedIconButton(
             onClick = { onValueChange((value - 1f).coerceIn(valueRange)) },
+            enabled = enabled,
             modifier = Modifier.size(48.dp),
             colors = IconButtonDefaults.outlinedIconButtonColors(
                 contentColor = MaterialTheme.colorScheme.secondary
@@ -46,6 +48,7 @@ fun BpmSliderControl(
             value = value,
             onValueChange = onValueChange,
             valueRange = valueRange,
+            enabled = enabled,
             modifier = Modifier.weight(1f),
             colors = SliderDefaults.colors(
                 thumbColor = MaterialTheme.colorScheme.secondary,
@@ -56,6 +59,7 @@ fun BpmSliderControl(
 
         OutlinedIconButton(
             onClick = { onValueChange((value + 1f).coerceIn(valueRange)) },
+            enabled = enabled,
             modifier = Modifier.size(48.dp),
             colors = IconButtonDefaults.outlinedIconButtonColors(
                 contentColor = MaterialTheme.colorScheme.secondary

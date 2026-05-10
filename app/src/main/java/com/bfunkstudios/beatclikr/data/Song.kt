@@ -1,5 +1,6 @@
 package com.bfunkstudios.beatclikr.data
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 import java.util.UUID
@@ -11,7 +12,8 @@ data class Song(
     var artist: String,
     var beatsPerMinute: Float,
     var beatsPerMeasure: Int,
-    var subdivisions: Subdivisions,
+    @ColumnInfo(name = "subdivisions")
+    var groove: Groove,
     var liveSequence: Int?,
     var rehearsalSequence: Int?
 ) {
@@ -21,7 +23,7 @@ data class Song(
             artist = "Song",
             beatsPerMinute = 120f,
             beatsPerMeasure = 4,
-            subdivisions = Subdivisions.Quarter,
+            groove = Groove.Quarter,
             liveSequence = null,
             rehearsalSequence = null
         )
