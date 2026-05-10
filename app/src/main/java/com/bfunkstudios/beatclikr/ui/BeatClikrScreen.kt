@@ -11,8 +11,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -55,7 +57,9 @@ import com.bfunkstudios.beatclikr.ui.components.SongLibraryView
 // --- Navigation destinations ---
 
 private const val ROUTE_INSTANT = "instant"
+private const val ROUTE_POLYRHYTHM = "polyrhythm"
 private const val ROUTE_LIBRARY = "library"
+private const val ROUTE_SETTINGS = "settings"
 
 private sealed class AppTab(
     val route: String,
@@ -63,10 +67,12 @@ private sealed class AppTab(
     val icon: ImageVector
 ) {
     object Instant : AppTab(ROUTE_INSTANT, R.string.tab_instant, Icons.Filled.MusicNote)
+    object Polyrhythm : AppTab(ROUTE_POLYRHYTHM, R.string.tab_polyrhythm, Icons.Filled.GraphicEq)
     object Library : AppTab(ROUTE_LIBRARY, R.string.tab_library, Icons.AutoMirrored.Filled.List)
+    object Settings : AppTab(ROUTE_SETTINGS, R.string.tab_settings, Icons.Filled.Settings)
 
     companion object {
-        val all = listOf(Instant, Library)
+        val all = listOf(Instant, Polyrhythm, Library, Settings)
     }
 }
 
@@ -129,6 +135,8 @@ fun BeatClikrApp(
 
     val appBarTitle = when (currentRoute) {
         ROUTE_INSTANT -> stringResource(R.string.instant_metronome)
+        ROUTE_POLYRHYTHM -> stringResource(R.string.polyrhythm)
+        ROUTE_SETTINGS -> stringResource(R.string.settings)
         else          -> stringResource(R.string.song_library)
     }
 
@@ -224,6 +232,9 @@ fun BeatClikrApp(
             composable(ROUTE_INSTANT) {
                 InstantMetronomeView(viewModel = metronomeViewModel)
             }
+            composable(ROUTE_POLYRHYTHM) {
+                PolyrhythmView()
+            }
             composable(ROUTE_LIBRARY) {
                 SongLibraryView(
                     uiState = uiState,
@@ -232,6 +243,9 @@ fun BeatClikrApp(
                     onPlaySong = { metronomeViewModel.playSong(it) },
                     navigateToDetail = { showSongDetail = true }
                 )
+            }
+            composable(ROUTE_SETTINGS) {
+                SettingsView(metronomeViewModel = metronomeViewModel)
             }
         }
     }

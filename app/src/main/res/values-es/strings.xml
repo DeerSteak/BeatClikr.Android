@@ -4,10 +4,14 @@
     <string name="back">Atrás</string>
     <string name="add_song">Agregar canción</string>
     <string name="instant_metronome">Metrónomo instantáneo</string>
+    <string name="polyrhythm">Polirritmia</string>
     <string name="tab_instant">Instantáneo</string>
+    <string name="tab_polyrhythm">Poli</string>
     <string name="tab_library">Biblioteca</string>
+    <string name="tab_settings">Ajustes</string>
     <string name="song_library">Biblioteca de canciones</string>
     <string name="song_detail">Detalle de canción</string>
+    <string name="settings">Ajustes</string>
 
     <!-- Metronome screen -->
     <string name="bpm">BPM</string>
@@ -25,6 +29,20 @@
     <string name="ramp_bpm_value">%1$d BPM</string>
     <string name="ramp_beats_value">%1$d tiempos</string>
     <string name="beat_pattern">PATRÓN</string>
+    <string name="settings_metronome_playback">Reproducción del metrónomo</string>
+    <string name="settings_flashlight">Linterna</string>
+    <string name="settings_vibration">Vibración</string>
+    <string name="settings_mute_metronome">Silenciar siempre</string>
+    <string name="settings_keep_awake">Mantener pantalla encendida</string>
+    <string name="settings_sixteenth_alternate">Alternar semicorcheas</string>
+    <string name="settings_metronome_playback_description">Controla el comportamiento visual, táctil y sonoro durante la reproducción del metrónomo.</string>
+    <string name="settings_metronome_instruments">Instrumentos del metrónomo</string>
+    <string name="settings_playlist_instruments">Instrumentos de playlist</string>
+    <string name="settings_polyrhythm_instruments">Instrumentos de polirritmia</string>
+    <string name="settings_instruments_description">Elige los sonidos para tiempos acentuados y subdivisiones rítmicas.</string>
+    <string name="about">Acerca de</string>
+    <string name="version">Versión</string>
+    <string name="version_value">1.0</string>
 
     <!-- Subdivisions -->
     <string name="subdivision_quarter">Negra</string>

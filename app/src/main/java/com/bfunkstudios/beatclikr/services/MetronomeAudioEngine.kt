@@ -12,6 +12,15 @@ interface MetronomeAudioEngineDelegate {
     fun metronomeBeatFired(isBeat: Boolean, beatInterval: Float)
 }
 
+interface PolyrhythmAudioEngineDelegate {
+    fun polyrhythmBeatFired(
+        beatFired: Boolean,
+        rhythmFired: Boolean,
+        beatIndex: Int,
+        rhythmIndex: Int
+    )
+}
+
 class MetronomeAudioEngine(private val context: Context) {
     private val soundPool: SoundPool
     private val handlerThread = HandlerThread("MetronomeThread").also { it.start() }
@@ -19,6 +28,8 @@ class MetronomeAudioEngine(private val context: Context) {
 
     private var beatSoundId: Int = 0
     private var rhythmSoundId: Int = 0
+    private var beatResourceId: Int? = null
+    private var rhythmResourceId: Int? = null
     private var beatLoaded = false
     private var rhythmLoaded = false
 
@@ -26,18 +37,36 @@ class MetronomeAudioEngine(private val context: Context) {
     private var currentBPM: Float = 60f
     private var currentSubdivisions: Int = 1
     private var currentAccentPattern: List<Boolean>? = null
+    private var currentAlternateSixteenth = false
     private var subdivisionCounter: Int = 0
     private var nextBeatTimeNanos: Long = 0L
 
     private var delegate: MetronomeAudioEngineDelegate? = null
+    var polyrhythmDelegate: PolyrhythmAudioEngineDelegate? = null
 
     @Volatile var isMuted: Boolean = false
 
     private var pendingBpm: Float = 60f
     private var pendingSubdivisions: Int = 1
     private var pendingAccentPattern: List<Boolean>? = null
+    private var pendingAlternateSixteenth = false
     private var pendingDelegate: MetronomeAudioEngineDelegate? = null
     private var hasPendingStart = false
+
+    private var isPolyrhythmPlaying = false
+    private var pendingPolyrhythmBpm = 120f
+    private var pendingPolyrhythmBeats = 3
+    private var pendingPolyrhythmAgainst = 2
+    private var hasPendingPolyrhythmStart = false
+    private var polyrhythmBpm = 120f
+    private var polyrhythmBeats = 3
+    private var polyrhythmAgainst = 2
+    private var polyrhythmLcm = 6
+    private var polyrhythmBeatGridStep = 3
+    private var polyrhythmRhythmGridStep = 2
+    private var polyrhythmStepDurationNanos = 0L
+    private var polyrhythmStepIndex = 0
+    private var nextPolyrhythmStepTimeNanos = 0L
 
     private val checkInterval = MetronomeConstants.TIMER_CHECK_INTERVAL_MS
     private val firstBeatDelayMs = MetronomeConstants.FIRST_BEAT_DELAY_MS
@@ -50,7 +79,7 @@ class MetronomeAudioEngine(private val context: Context) {
             .build()
 
         soundPool = SoundPool.Builder()
-            .setMaxStreams(2)
+            .setMaxStreams(8)
             .setAudioAttributes(audioAttributes)
             .build()
 
@@ -60,9 +89,17 @@ class MetronomeAudioEngine(private val context: Context) {
                     if (sampleId == beatSoundId) beatLoaded = true
                     if (sampleId == rhythmSoundId) rhythmLoaded = true
 
-                    if (beatLoaded && rhythmLoaded && hasPendingStart) {
-                        hasPendingStart = false
-                        pendingDelegate?.let { doStart(pendingBpm, pendingSubdivisions, pendingAccentPattern, it) }
+                    if (beatLoaded && rhythmLoaded) {
+                        if (hasPendingStart) {
+                            hasPendingStart = false
+                            pendingDelegate?.let {
+                                doStart(pendingBpm, pendingSubdivisions, pendingAccentPattern, pendingAlternateSixteenth, it)
+                            }
+                        }
+                        if (hasPendingPolyrhythmStart) {
+                            hasPendingPolyrhythmStart = false
+                            doStartPolyrhythm(pendingPolyrhythmBpm, pendingPolyrhythmBeats, pendingPolyrhythmAgainst)
+                        }
                     }
                 }
             }
@@ -71,9 +108,17 @@ class MetronomeAudioEngine(private val context: Context) {
 
     fun loadSounds(beatResourceId: Int, rhythmResourceId: Int) {
         handler.post {
+            val sameResources = this.beatResourceId == beatResourceId && this.rhythmResourceId == rhythmResourceId
+            if (sameResources && (beatLoaded && rhythmLoaded || beatSoundId != 0 && rhythmSoundId != 0)) {
+                return@post
+            }
+
             beatLoaded = false
             rhythmLoaded = false
             hasPendingStart = false
+            hasPendingPolyrhythmStart = false
+            this.beatResourceId = beatResourceId
+            this.rhythmResourceId = rhythmResourceId
             beatSoundId = soundPool.load(context, beatResourceId, 1)
             rhythmSoundId = soundPool.load(context, rhythmResourceId, 1)
         }
@@ -83,6 +128,7 @@ class MetronomeAudioEngine(private val context: Context) {
         bpm: Float,
         subdivisions: Int,
         accentPattern: List<Boolean>?,
+        alternateSixteenth: Boolean,
         delegate: MetronomeAudioEngineDelegate
     ) {
         handler.post {
@@ -91,11 +137,12 @@ class MetronomeAudioEngine(private val context: Context) {
                 pendingBpm = bpm
                 pendingSubdivisions = subdivisions
                 pendingAccentPattern = accentPattern
+                pendingAlternateSixteenth = alternateSixteenth
                 pendingDelegate = delegate
                 hasPendingStart = true
                 return@post
             }
-            doStart(bpm, subdivisions, accentPattern, delegate)
+            doStart(bpm, subdivisions, accentPattern, alternateSixteenth, delegate)
         }
     }
 
@@ -108,11 +155,40 @@ class MetronomeAudioEngine(private val context: Context) {
         }
     }
 
-    fun updateTempo(bpm: Float, subdivisions: Int, accentPattern: List<Boolean>?) {
+    fun startPolyrhythm(bpm: Float, beats: Int, against: Int) {
+        handler.post {
+            handler.removeCallbacks(polyrhythmRunnable)
+            if (!beatLoaded || !rhythmLoaded) {
+                pendingPolyrhythmBpm = bpm
+                pendingPolyrhythmBeats = beats
+                pendingPolyrhythmAgainst = against
+                hasPendingPolyrhythmStart = true
+                return@post
+            }
+            doStartPolyrhythm(bpm, beats, against)
+        }
+    }
+
+    fun stopPolyrhythm() {
+        handler.post {
+            isPolyrhythmPlaying = false
+            hasPendingPolyrhythmStart = false
+            handler.removeCallbacks(polyrhythmRunnable)
+            polyrhythmStepIndex = 0
+        }
+    }
+
+    fun updateTempo(
+        bpm: Float,
+        subdivisions: Int,
+        accentPattern: List<Boolean>?,
+        alternateSixteenth: Boolean
+    ) {
         handler.post {
             currentBPM = bpm
             currentSubdivisions = subdivisions
             currentAccentPattern = accentPattern
+            currentAlternateSixteenth = alternateSixteenth
             if (currentAccentPattern != null && subdivisionCounter >= currentAccentPattern!!.size) {
                 subdivisionCounter = 0
             }
@@ -122,10 +198,14 @@ class MetronomeAudioEngine(private val context: Context) {
     fun release() {
         handler.post {
             isPlaying = false
+            isPolyrhythmPlaying = false
             hasPendingStart = false
+            hasPendingPolyrhythmStart = false
             handler.removeCallbacks(timerRunnable)
+            handler.removeCallbacks(polyrhythmRunnable)
             soundPool.release()
             delegate = null
+            polyrhythmDelegate = null
         }
         handlerThread.quitSafely()
     }
@@ -134,12 +214,14 @@ class MetronomeAudioEngine(private val context: Context) {
         bpm: Float,
         subdivisions: Int,
         accentPattern: List<Boolean>?,
+        alternateSixteenth: Boolean,
         delegate: MetronomeAudioEngineDelegate
     ) {
         this.delegate = delegate
         this.currentBPM = bpm
         this.currentSubdivisions = subdivisions
         this.currentAccentPattern = accentPattern
+        this.currentAlternateSixteenth = alternateSixteenth
         this.subdivisionCounter = 0
 
         val currentTimeNanos = SystemClock.elapsedRealtimeNanos()
@@ -196,9 +278,11 @@ class MetronomeAudioEngine(private val context: Context) {
         val ticksToNextBeat = accentPattern?.let { ticksToNextAccent(it, subdivisionCounter) }
             ?: currentSubdivisions
         val beatInterval = ticksToNextBeat * (subdivisionDurationNanos / 1_000_000_000f)
+        val shouldPlayBeatSound = isBeat ||
+            (accentPattern == null && currentAlternateSixteenth && currentSubdivisions == 4 && subdivisionCounter == 2)
 
         if (!isMuted) {
-            if (isBeat) {
+            if (shouldPlayBeatSound) {
                 soundPool.play(beatSoundId, 1f, 1f, 1, 0, 1f)
             } else {
                 soundPool.play(rhythmSoundId, 1f, 1f, 1, 0, 1f)
@@ -217,5 +301,83 @@ class MetronomeAudioEngine(private val context: Context) {
             if (accentPattern[nextIndex]) return offset
         }
         return accentPattern.size
+    }
+
+    private val polyrhythmRunnable = object : Runnable {
+        override fun run() {
+            checkAndPlayPolyrhythmStep()
+            if (isPolyrhythmPlaying) {
+                handler.postDelayed(this, checkInterval)
+            }
+        }
+    }
+
+    private fun doStartPolyrhythm(bpm: Float, beats: Int, against: Int) {
+        polyrhythmBpm = bpm
+        polyrhythmBeats = beats.coerceIn(1, 15)
+        polyrhythmAgainst = against.coerceIn(1, 15)
+        polyrhythmLcm = computeLCM(polyrhythmBeats, polyrhythmAgainst)
+        polyrhythmBeatGridStep = polyrhythmLcm / polyrhythmAgainst
+        polyrhythmRhythmGridStep = polyrhythmLcm / polyrhythmBeats
+        val stepDurationMs = polyrhythmAgainst * (60_000.0 / polyrhythmBpm) / polyrhythmLcm
+        polyrhythmStepDurationNanos = (stepDurationMs * 1_000_000L).toLong()
+        polyrhythmStepIndex = 0
+        nextPolyrhythmStepTimeNanos = SystemClock.elapsedRealtimeNanos() + (firstBeatDelayMs * 1_000_000L)
+        isPolyrhythmPlaying = true
+        handler.removeCallbacks(polyrhythmRunnable)
+        handler.post(polyrhythmRunnable)
+    }
+
+    private fun checkAndPlayPolyrhythmStep() {
+        if (!isPolyrhythmPlaying) {
+            handler.removeCallbacks(polyrhythmRunnable)
+            return
+        }
+
+        val nowNanos = SystemClock.elapsedRealtimeNanos()
+        val lookaheadNanos = lookaheadToleranceMs * 1_000_000L
+
+        if (nowNanos >= nextPolyrhythmStepTimeNanos - lookaheadNanos) {
+            playCurrentPolyrhythmStep()
+            nextPolyrhythmStepTimeNanos = nowNanos + polyrhythmStepDurationNanos
+            polyrhythmStepIndex = (polyrhythmStepIndex + 1) % polyrhythmLcm
+        }
+    }
+
+    private fun playCurrentPolyrhythmStep() {
+        val beatFired = polyrhythmStepIndex % polyrhythmBeatGridStep == 0
+        val rhythmFired = polyrhythmStepIndex % polyrhythmRhythmGridStep == 0
+        if (!beatFired && !rhythmFired) return
+
+        if (!isMuted) {
+            when {
+                beatFired && rhythmFired -> {
+                    soundPool.play(rhythmSoundId, 1f, 1f, 1, 0, 1f)
+                    soundPool.play(beatSoundId, 1f, 1f, 1, 0, 1f)
+                }
+                beatFired -> soundPool.play(beatSoundId, 1f, 1f, 1, 0, 1f)
+                rhythmFired -> soundPool.play(rhythmSoundId, 1f, 1f, 1, 0, 1f)
+            }
+        }
+
+        polyrhythmDelegate?.polyrhythmBeatFired(
+            beatFired = beatFired,
+            rhythmFired = rhythmFired,
+            beatIndex = polyrhythmStepIndex / polyrhythmBeatGridStep,
+            rhythmIndex = polyrhythmStepIndex / polyrhythmRhythmGridStep
+        )
+    }
+
+    private fun computeLCM(a: Int, b: Int): Int = a / computeGCD(a, b) * b
+
+    private fun computeGCD(aValue: Int, bValue: Int): Int {
+        var a = aValue
+        var b = bValue
+        while (b != 0) {
+            val next = a % b
+            a = b
+            b = next
+        }
+        return a
     }
 }

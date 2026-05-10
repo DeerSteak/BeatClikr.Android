@@ -61,6 +61,32 @@ class AppPreferences(context: Context) : IAppPreferences {
         )
         set(value) = prefs.edit { putString(Keys.PLAYLIST_RHYTHM_SOUND, value.name) }
 
+    // --- Polyrhythm mode ---
+
+    override var polyrhythmBpm: Float
+        get() = prefs.getFloat(Keys.POLYRHYTHM_BPM, 120f)
+        set(value) = prefs.edit { putFloat(Keys.POLYRHYTHM_BPM, value) }
+
+    override var polyrhythmBeats: Int
+        get() = prefs.getInt(Keys.POLYRHYTHM_BEATS, 3).coerceIn(1, 15)
+        set(value) = prefs.edit { putInt(Keys.POLYRHYTHM_BEATS, value) }
+
+    override var polyrhythmAgainst: Int
+        get() = prefs.getInt(Keys.POLYRHYTHM_AGAINST, 2).coerceIn(1, 15)
+        set(value) = prefs.edit { putInt(Keys.POLYRHYTHM_AGAINST, value) }
+
+    override var polyrhythmBeatSound: SoundFile
+        get() = SoundFile.valueOf(
+            prefs.getString(Keys.POLYRHYTHM_BEAT_SOUND, SoundFile.CLICK_HI.name)!!
+        )
+        set(value) = prefs.edit { putString(Keys.POLYRHYTHM_BEAT_SOUND, value.name) }
+
+    override var polyrhythmRhythmSound: SoundFile
+        get() = SoundFile.valueOf(
+            prefs.getString(Keys.POLYRHYTHM_RHYTHM_SOUND, SoundFile.CLICK_LO.name)!!
+        )
+        set(value) = prefs.edit { putString(Keys.POLYRHYTHM_RHYTHM_SOUND, value.name) }
+
     // --- Behavior ---
 
     override var useVibration: Boolean
@@ -78,6 +104,10 @@ class AppPreferences(context: Context) : IAppPreferences {
     override var keepScreenAwake: Boolean
         get() = prefs.getBoolean(Keys.KEEP_SCREEN_AWAKE, false)
         set(value) = prefs.edit { putBoolean(Keys.KEEP_SCREEN_AWAKE, value) }
+
+    override var sixteenthAlternate: Boolean
+        get() = prefs.getBoolean(Keys.SIXTEENTH_ALTERNATE, false)
+        set(value) = prefs.edit { putBoolean(Keys.SIXTEENTH_ALTERNATE, value) }
 
     // --- Practice reminders ---
 
@@ -104,10 +134,16 @@ class AppPreferences(context: Context) : IAppPreferences {
         const val INSTANT_RHYTHM_SOUND = "instant_rhythm_sound"
         const val PLAYLIST_BEAT_SOUND = "playlist_beat_sound"
         const val PLAYLIST_RHYTHM_SOUND = "playlist_rhythm_sound"
+        const val POLYRHYTHM_BPM = "polyrhythm_bpm"
+        const val POLYRHYTHM_BEATS = "polyrhythm_beats"
+        const val POLYRHYTHM_AGAINST = "polyrhythm_against"
+        const val POLYRHYTHM_BEAT_SOUND = "polyrhythm_beat_sound"
+        const val POLYRHYTHM_RHYTHM_SOUND = "polyrhythm_rhythm_sound"
         const val USE_VIBRATION = "use_vibration"
         const val USE_FLASHLIGHT = "use_flashlight"
         const val MUTE_METRONOME = "mute_metronome"
         const val KEEP_SCREEN_AWAKE = "keep_screen_awake"
+        const val SIXTEENTH_ALTERNATE = "sixteenth_alternate"
         const val REMINDER_ENABLED = "reminder_enabled"
         const val REMINDER_HOUR = "reminder_hour"
         const val REMINDER_MINUTE = "reminder_minute"

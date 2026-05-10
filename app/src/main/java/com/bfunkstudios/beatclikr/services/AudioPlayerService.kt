@@ -10,6 +10,10 @@ class AudioPlayerService private constructor(context: Context) : IAudioPlayerSer
     private val audioEngine = MetronomeAudioEngine(context.applicationContext)
 
     override var delegate: MetronomeAudioEngineDelegate? = null
+    override var polyrhythmDelegate: PolyrhythmAudioEngineDelegate?
+        get() = audioEngine.polyrhythmDelegate
+        set(value) { audioEngine.polyrhythmDelegate = value }
+
     override var isMuted: Boolean
         get() = audioEngine.isMuted
         set(value) { audioEngine.isMuted = value }
@@ -18,16 +22,36 @@ class AudioPlayerService private constructor(context: Context) : IAudioPlayerSer
         audioEngine.loadSounds(beatResourceId, rhythmResourceId)
     }
 
-    override fun startMetronome(bpm: Float, subdivisions: Int, accentPattern: List<Boolean>?) {
-        audioEngine.startMetronome(bpm, subdivisions, accentPattern, this)
+    override fun startMetronome(
+        bpm: Float,
+        subdivisions: Int,
+        accentPattern: List<Boolean>?,
+        alternateSixteenth: Boolean
+    ) {
+        audioEngine.stopPolyrhythm()
+        audioEngine.startMetronome(bpm, subdivisions, accentPattern, alternateSixteenth, this)
     }
 
     override fun stopMetronome() {
         audioEngine.stopMetronome()
     }
 
-    override fun updateTempo(bpm: Float, subdivisions: Int, accentPattern: List<Boolean>?) {
-        audioEngine.updateTempo(bpm, subdivisions, accentPattern)
+    override fun updateTempo(
+        bpm: Float,
+        subdivisions: Int,
+        accentPattern: List<Boolean>?,
+        alternateSixteenth: Boolean
+    ) {
+        audioEngine.updateTempo(bpm, subdivisions, accentPattern, alternateSixteenth)
+    }
+
+    override fun startPolyrhythm(bpm: Float, beats: Int, against: Int) {
+        audioEngine.stopMetronome()
+        audioEngine.startPolyrhythm(bpm, beats, against)
+    }
+
+    override fun stopPolyrhythm() {
+        audioEngine.stopPolyrhythm()
     }
 
     override fun release() {

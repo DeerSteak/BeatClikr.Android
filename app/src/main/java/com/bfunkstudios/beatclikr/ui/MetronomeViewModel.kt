@@ -80,8 +80,16 @@ class MetronomeViewModel @Inject constructor(
     fun loadSong(song: Song, type: ClickerType = ClickerType.INSTANT) {
         currentSong = song
         clickerType = type
+        selectedBeatSound = if (type == ClickerType.INSTANT) prefs.instantBeatSound else prefs.playlistBeatSound
+        selectedRhythmSound = if (type == ClickerType.INSTANT) prefs.instantRhythmSound else prefs.playlistRhythmSound
+        setupMetronomeFromSelection()
         if (isPlaying) {
-            audio.updateTempo(currentSong.beatsPerMinute, getSubdivisionValue(), computeAccentPattern())
+            audio.updateTempo(
+                currentSong.beatsPerMinute,
+                getSubdivisionValue(),
+                computeAccentPattern(),
+                prefs.sixteenthAlternate
+            )
         }
     }
 
@@ -90,7 +98,14 @@ class MetronomeViewModel @Inject constructor(
             beatsPerMinute = bpm.coerceIn(MetronomeConstants.MIN_BPM, MetronomeConstants.MAX_BPM)
         )
         if (clickerType == ClickerType.INSTANT) prefs.instantBpm = currentSong.beatsPerMinute
-        if (isPlaying) audio.updateTempo(currentSong.beatsPerMinute, getSubdivisionValue(), computeAccentPattern())
+        if (isPlaying) {
+            audio.updateTempo(
+                currentSong.beatsPerMinute,
+                getSubdivisionValue(),
+                computeAccentPattern(),
+                prefs.sixteenthAlternate
+            )
+        }
     }
 
     fun updateGroove(groove: Groove) {
@@ -99,13 +114,27 @@ class MetronomeViewModel @Inject constructor(
             beatPattern = if (groove.isOddMeter) selectedBeatPattern else currentSong.beatPattern
         )
         if (clickerType == ClickerType.INSTANT) prefs.instantGroove = currentSong.groove
-        if (isPlaying) audio.updateTempo(currentSong.beatsPerMinute, getSubdivisionValue(), computeAccentPattern())
+        if (isPlaying) {
+            audio.updateTempo(
+                currentSong.beatsPerMinute,
+                getSubdivisionValue(),
+                computeAccentPattern(),
+                prefs.sixteenthAlternate
+            )
+        }
     }
 
     fun updateBeatPattern(pattern: BeatPattern) {
         currentSong = currentSong.copy(beatPattern = pattern)
         if (clickerType == ClickerType.INSTANT) prefs.instantBeatPattern = pattern
-        if (isPlaying) audio.updateTempo(currentSong.beatsPerMinute, getSubdivisionValue(), computeAccentPattern())
+        if (isPlaying) {
+            audio.updateTempo(
+                currentSong.beatsPerMinute,
+                getSubdivisionValue(),
+                computeAccentPattern(),
+                prefs.sixteenthAlternate
+            )
+        }
     }
 
     fun updateRampEnabled(enabled: Boolean) {
@@ -125,22 +154,44 @@ class MetronomeViewModel @Inject constructor(
 
     fun updateBeatSound(sound: SoundFile) {
         selectedBeatSound = sound
-        if (clickerType == ClickerType.INSTANT) prefs.instantBeatSound = sound
-        val beatResId = sound.resourceId
-        val rhythmResId = selectedRhythmSound.resourceId
-        if (beatResId != null && rhythmResId != null) setupMetronome(beatResId, rhythmResId)
+        if (clickerType == ClickerType.INSTANT) {
+            prefs.instantBeatSound = sound
+        } else {
+            prefs.playlistBeatSound = sound
+        }
+        setupMetronomeFromSelection()
     }
 
     fun updateRhythmSound(sound: SoundFile) {
         selectedRhythmSound = sound
-        if (clickerType == ClickerType.INSTANT) prefs.instantRhythmSound = sound
-        val beatResId = selectedBeatSound.resourceId
-        val rhythmResId = sound.resourceId
-        if (beatResId != null && rhythmResId != null) setupMetronome(beatResId, rhythmResId)
+        if (clickerType == ClickerType.INSTANT) {
+            prefs.instantRhythmSound = sound
+        } else {
+            prefs.playlistRhythmSound = sound
+        }
+        setupMetronomeFromSelection()
     }
 
     fun setupMetronome(beatResourceId: Int, rhythmResourceId: Int) {
         audio.setupAudioPlayer(beatResourceId, rhythmResourceId)
+    }
+
+    fun refreshPlaybackSettings() {
+        if (isPlaying) {
+            audio.updateTempo(
+                currentSong.beatsPerMinute,
+                getSubdivisionValue(),
+                computeAccentPattern(),
+                prefs.sixteenthAlternate
+            )
+        }
+    }
+
+    fun applyMetronomeSoundSettings(beat: SoundFile, rhythm: SoundFile) {
+        if (clickerType != ClickerType.INSTANT) return
+        selectedBeatSound = beat
+        selectedRhythmSound = rhythm
+        setupMetronomeFromSelection()
     }
 
     fun togglePlayPause() {
@@ -149,16 +200,24 @@ class MetronomeViewModel @Inject constructor(
 
     fun start() {
         if (clickerType == ClickerType.INSTANT) {
+            selectedBeatSound = prefs.instantBeatSound
+            selectedRhythmSound = prefs.instantRhythmSound
             currentSong = Song.instantSong().copy(
                 beatsPerMinute = currentSong.beatsPerMinute,
                 groove = currentSong.groove,
                 beatPattern = currentSong.beatPattern
             )
+            setupMetronomeFromSelection()
         }
         audio.isMuted = prefs.muteMetronome
         activeBpm = currentSong.beatsPerMinute
         rampBeatCount = -1
-        audio.startMetronome(currentSong.beatsPerMinute, getSubdivisionValue(), computeAccentPattern())
+        audio.startMetronome(
+            currentSong.beatsPerMinute,
+            getSubdivisionValue(),
+            computeAccentPattern(),
+            prefs.sixteenthAlternate
+        )
         isPlaying = true
     }
 
@@ -215,7 +274,7 @@ class MetronomeViewModel @Inject constructor(
         if (newBpm == currentSong.beatsPerMinute) return
 
         currentSong = currentSong.copy(beatsPerMinute = newBpm)
-        audio.updateTempo(newBpm, getSubdivisionValue(), computeAccentPattern())
+        audio.updateTempo(newBpm, getSubdivisionValue(), computeAccentPattern(), prefs.sixteenthAlternate)
     }
 
     private fun handleRhythm() {}
@@ -224,6 +283,12 @@ class MetronomeViewModel @Inject constructor(
 
     private fun computeAccentPattern(): List<Boolean>? =
         if (currentSong.groove.isOddMeter) selectedBeatPattern.accentArray else null
+
+    private fun setupMetronomeFromSelection() {
+        val beatResId = selectedBeatSound.resourceId
+        val rhythmResId = selectedRhythmSound.resourceId
+        if (beatResId != null && rhythmResId != null) setupMetronome(beatResId, rhythmResId)
+    }
 
     override fun onCleared() {
         super.onCleared()
