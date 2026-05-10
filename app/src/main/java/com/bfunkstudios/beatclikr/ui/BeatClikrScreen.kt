@@ -11,7 +11,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.FeaturedPlayList
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -48,8 +47,6 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.bfunkstudios.beatclikr.R
-import com.bfunkstudios.beatclikr.constants.MetronomeConstants
-import com.bfunkstudios.beatclikr.ui.components.MetronomePlayerView
 import com.bfunkstudios.beatclikr.ui.components.SongDetail
 import com.bfunkstudios.beatclikr.ui.components.SongLibraryView
 
@@ -138,54 +135,34 @@ fun BeatClikrApp(
         else          -> stringResource(R.string.song_library)
     }
 
-    val appBarLeading: (@Composable () -> Unit)? =
-        if (currentRoute == ROUTE_LIBRARY && hasSongs) {
-            {
-                MetronomePlayerView(
-                    scale = metronomeViewModel.iconScale,
-                    bpm = metronomeViewModel.beatsPerMinute,
-                    size = MetronomeConstants.PLAYER_VIEW_TOOLBAR_SIZE.dp,
-                    modifier = Modifier.padding(start = 8.dp)
-                )
-            }
-        } else null
-
     Scaffold(
         topBar = {
-            BeatClikrAppBar(
-                title = appBarTitle,
-                canNavigateBack = !isTopLevel,
-                navigateUp = { navController.popBackStack() },
-                leadingContent = appBarLeading,
-                actions = {
-                    if (currentRoute == ROUTE_LIBRARY) {
-                        IconButton(onClick = {
-                            songLibraryViewModel.setSelectedSong(null)
-                            showSongDetail = true
-                        }) {
-                            Icon(
-                                imageVector = Icons.Default.Add,
-                                contentDescription = stringResource(R.string.add_song),
-                                tint = MaterialTheme.colorScheme.primary
-                            )
-                        }
-                        if (metronomeViewModel.isPlaying) {
-                            IconButton(onClick = { metronomeViewModel.stop() }) {
+            if (currentRoute != ROUTE_INSTANT) {
+                BeatClikrAppBar(
+                    title = appBarTitle,
+                    canNavigateBack = !isTopLevel,
+                    navigateUp = { navController.popBackStack() },
+                    actions = {
+                        if (currentRoute == ROUTE_LIBRARY) {
+                            IconButton(onClick = {
+                                songLibraryViewModel.setSelectedSong(null)
+                                showSongDetail = true
+                            }) {
                                 Icon(
-                                    imageVector = Icons.Default.Pause,
-                                    contentDescription = stringResource(R.string.pause),
+                                    imageVector = Icons.Default.Add,
+                                    contentDescription = stringResource(R.string.add_song),
                                     tint = MaterialTheme.colorScheme.primary
                                 )
                             }
                         }
-                    }
-                    if (currentRoute == ROUTE_LIBRARY && hasSongs) {
-                        TextButton(onClick = { editMode = !editMode }) {
-                            Text(if (editMode) stringResource(R.string.done) else stringResource(R.string.edit))
+                        if (currentRoute == ROUTE_LIBRARY && hasSongs) {
+                            TextButton(onClick = { editMode = !editMode }) {
+                                Text(if (editMode) stringResource(R.string.done) else stringResource(R.string.edit))
+                            }
                         }
                     }
-                }
-            )
+                )
+            }
         },
         bottomBar = {
             NavigationBar(
@@ -241,7 +218,13 @@ fun BeatClikrApp(
                     uiState = uiState,
                     viewModel = songLibraryViewModel,
                     editMode = editMode,
-                    onPlaySong = { metronomeViewModel.playSong(it) },
+                    isPlaying = metronomeViewModel.isPlaying,
+                    beatPulse = metronomeViewModel.beatPulse,
+                    onPlayPause = { metronomeViewModel.togglePlayPause() },
+                    onPlaySong = { song ->
+                        songLibraryViewModel.markSongPlaying(song)
+                        metronomeViewModel.playSong(song)
+                    },
                     navigateToDetail = { showSongDetail = true }
                 )
             }

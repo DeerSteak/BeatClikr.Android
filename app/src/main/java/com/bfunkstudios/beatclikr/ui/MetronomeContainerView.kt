@@ -98,7 +98,7 @@ fun MetronomeContainerView(
 
         Box(modifier = Modifier.weight(1f)) {
             when (selectedMode) {
-                MetronomeMode.Metronome -> InstantMetronomeView(viewModel = metronomeViewModel)
+                MetronomeMode.Metronome -> MetronomeView(viewModel = metronomeViewModel)
                 MetronomeMode.Polyrhythm -> PolyrhythmView(viewModel = polyrhythmViewModel)
             }
         }

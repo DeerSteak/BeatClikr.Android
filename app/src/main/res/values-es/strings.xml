@@ -14,6 +14,12 @@
     <string name="settings">Ajustes</string>
     <string name="appearance">Apariencia</string>
     <string name="settings_always_use_dark_theme">Usar siempre el tema oscuro</string>
+    <string name="previous">Anterior</string>
+    <string name="next">Siguiente</string>
+    <string name="previous_song">Canción anterior</string>
+    <string name="next_song">Siguiente canción</string>
+    <string name="now_playing">Reproduciendo ahora</string>
+    <string name="tap_song_to_begin">Toca una canción para comenzar</string>
 
     <!-- Metronome screen -->
     <string name="bpm">BPM</string>
@@ -64,7 +70,7 @@
     <string name="required">Obligatorio</string>
     <string name="beats_per_minute_label">Pulsos por minuto: %1$d</string>
     <string name="beats_per_measure_label">Pulsos por compás: %1$d</string>
-    <string name="empty_song_library">Toca una canción para comenzar</string>
+    <string name="empty_song_library">Toca + para añadir una canción</string>
     <string name="edit">Editar</string>
     <string name="done">Hecho</string>
     <string name="cancel">Cancelar</string>

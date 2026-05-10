@@ -38,7 +38,7 @@ fun BpmSliderControl(
             enabled = enabled,
             modifier = Modifier.size(48.dp),
             colors = IconButtonDefaults.outlinedIconButtonColors(
-                contentColor = MaterialTheme.colorScheme.secondary
+                contentColor = MaterialTheme.colorScheme.primary
             )
         ) {
             Text("−", fontSize = 24.sp, fontWeight = FontWeight.Bold)
@@ -51,9 +51,9 @@ fun BpmSliderControl(
             enabled = enabled,
             modifier = Modifier.weight(1f),
             colors = SliderDefaults.colors(
-                thumbColor = MaterialTheme.colorScheme.secondary,
-                activeTrackColor = MaterialTheme.colorScheme.secondary,
-                inactiveTrackColor = MaterialTheme.colorScheme.secondary.copy(alpha = 0.24f)
+                thumbColor = MaterialTheme.colorScheme.primary,
+                activeTrackColor = MaterialTheme.colorScheme.primary,
+                inactiveTrackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.24f)
             )
         )
 
@@ -62,7 +62,7 @@ fun BpmSliderControl(
             enabled = enabled,
             modifier = Modifier.size(48.dp),
             colors = IconButtonDefaults.outlinedIconButtonColors(
-                contentColor = MaterialTheme.colorScheme.secondary
+                contentColor = MaterialTheme.colorScheme.primary
             )
         ) {
             Icon(imageVector = Icons.Default.Add, contentDescription = null)

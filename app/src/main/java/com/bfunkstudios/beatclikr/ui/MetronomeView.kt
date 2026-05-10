@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -47,17 +48,15 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.bfunkstudios.beatclikr.R
 import com.bfunkstudios.beatclikr.constants.AppLocale
 import com.bfunkstudios.beatclikr.constants.MetronomeConstants
-import com.bfunkstudios.beatclikr.data.SoundFile
 import com.bfunkstudios.beatclikr.ui.components.BeatPatternSelector
 import com.bfunkstudios.beatclikr.ui.components.BpmSliderControl
 import com.bfunkstudios.beatclikr.ui.components.GrooveSelector
 import com.bfunkstudios.beatclikr.ui.components.MetronomePlayerView
 import com.bfunkstudios.beatclikr.ui.components.SectionCard
-import com.bfunkstudios.beatclikr.ui.components.SoundPickerRow
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun InstantMetronomeView(
+fun MetronomeView(
     modifier: Modifier = Modifier,
     viewModel: MetronomeViewModel = hiltViewModel()
 ) {
@@ -78,7 +77,8 @@ fun InstantMetronomeView(
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.surfaceVariant)
             .verticalScroll(rememberScrollState())
-            .padding(16.dp),
+            .padding(16.dp)
+            .navigationBarsPadding(),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         SectionCard {
@@ -126,7 +126,7 @@ fun InstantMetronomeView(
                         modifier = Modifier
                             .size(MetronomeConstants.PLAYER_VIEW_DEFAULT_SIZE.dp)
                             .clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f))
+                            .background(MaterialTheme.colorScheme.secondary.copy(alpha = 0.15f))
                             .clickable { viewModel.recordTap() },
                         contentAlignment = Alignment.Center
                     ) {
@@ -137,7 +137,7 @@ fun InstantMetronomeView(
                                 letterSpacing = 1.sp,
                                 lineHeight = 16.sp
                             ),
-                            color = MaterialTheme.colorScheme.primary,
+                            color = MaterialTheme.colorScheme.secondary,
                             textAlign = TextAlign.Center
                         )
                     }
@@ -152,10 +152,38 @@ fun InstantMetronomeView(
             }
         }
 
-        PlayPauseButton(
-            isPlaying = viewModel.isPlaying,
-            onClick = { viewModel.togglePlayPause() }
-        )
+        SectionCard {
+            Column(
+                modifier = Modifier.padding(12.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text(
+                    text = stringResource(R.string.groove),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    letterSpacing = 1.sp,
+                    modifier = Modifier.padding(horizontal = 4.dp)
+                )
+
+                GrooveSelector(
+                    selected = viewModel.selectedGroove,
+                    onSelect = { viewModel.updateGroove(it) }
+                )
+                if (viewModel.selectedGroove.isOddMeter) {
+                    Text(
+                        text = stringResource(R.string.beat_pattern),
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        letterSpacing = 1.sp,
+                        modifier = Modifier.padding(start = 4.dp, top = 4.dp, end = 4.dp)
+                    )
+                    BeatPatternSelector(
+                        selected = viewModel.selectedBeatPattern,
+                        onSelect = { viewModel.updateBeatPattern(it) }
+                    )
+                }
+            }
+        }
 
         SectionCard {
             Column {
@@ -207,57 +235,10 @@ fun InstantMetronomeView(
             }
         }
 
-        SectionCard {
-            Column(
-                modifier = Modifier.padding(12.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Text(
-                    text = stringResource(R.string.groove),
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    letterSpacing = 1.sp,
-                    modifier = Modifier.padding(horizontal = 4.dp)
-                )
-
-                GrooveSelector(
-                    selected = viewModel.selectedGroove,
-                    onSelect = { viewModel.updateGroove(it) }
-                )
-                if (viewModel.selectedGroove.isOddMeter) {
-                    Text(
-                        text = stringResource(R.string.beat_pattern),
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        letterSpacing = 1.sp,
-                        modifier = Modifier.padding(start = 4.dp, top = 4.dp, end = 4.dp)
-                    )
-                    BeatPatternSelector(
-                        selected = viewModel.selectedBeatPattern,
-                        onSelect = { viewModel.updateBeatPattern(it) }
-                    )
-                }
-            }
-        }
-
-        SectionCard {
-            Column {
-                SoundPickerRow(
-                    label = stringResource(R.string.beat),
-                    selected = viewModel.selectedBeatSound,
-                    options = SoundFile.beatSounds,
-                    onSelect = { viewModel.updateBeatSound(it) }
-                )
-                HorizontalDivider(modifier = Modifier.padding(start = 12.dp))
-                SoundPickerRow(
-                    label = stringResource(R.string.rhythm),
-                    selected = viewModel.selectedRhythmSound,
-                    options = SoundFile.rhythmSounds,
-                    onSelect = { viewModel.updateRhythmSound(it) }
-                )
-            }
-        }
-
+        PlayPauseButton(
+            isPlaying = viewModel.isPlaying,
+            onClick = { viewModel.togglePlayPause() }
+        )
     }
 }
 
@@ -272,7 +253,7 @@ private fun PlayPauseButton(
             .fillMaxWidth()
             .height(56.dp),
         colors = ButtonDefaults.buttonColors(
-            containerColor = MaterialTheme.colorScheme.secondary
+            containerColor = MaterialTheme.colorScheme.primary
         )
     ) {
         if (isPlaying) {
@@ -290,7 +271,7 @@ private fun PlayPauseButton(
                             .weight(1f)
                             .fillMaxHeight()
                             .background(
-                                MaterialTheme.colorScheme.onSecondary,
+                                MaterialTheme.colorScheme.onPrimary,
                                 RoundedCornerShape(1.dp)
                             )
                     )
@@ -299,7 +280,7 @@ private fun PlayPauseButton(
                             .weight(1f)
                             .fillMaxHeight()
                             .background(
-                                MaterialTheme.colorScheme.onSecondary,
+                                MaterialTheme.colorScheme.onPrimary,
                                 RoundedCornerShape(1.dp)
                             )
                     )

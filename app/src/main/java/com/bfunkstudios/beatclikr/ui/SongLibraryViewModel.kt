@@ -40,9 +40,48 @@ class SongLibraryViewModel @Inject constructor(
         initialValue = SongLibraryUiState()
     )
 
+    var currentSongId by mutableStateOf<UUID?>(null)
+        private set
+
     fun setSelectedSong(uuid: UUID?) {
         _selectedSong.value = if (uuid == null) null
         else uiState.value.songList.find { it.id == uuid }
+    }
+
+    fun markSongPlaying(song: Song) {
+        currentSongId = song.id
+    }
+
+    fun currentIndex(songs: List<Song> = uiState.value.songList): Int? =
+        currentSongId?.let { id -> songs.indexOfFirst { it.id == id }.takeIf { it >= 0 } }
+
+    fun currentSongTitle(songs: List<Song> = uiState.value.songList): String? =
+        currentIndex(songs)?.let { songs[it].title }
+
+    fun canGoPrevious(songs: List<Song> = uiState.value.songList): Boolean =
+        currentIndex(songs)?.let { it > 0 } ?: false
+
+    fun canGoNext(songs: List<Song> = uiState.value.songList): Boolean =
+        currentIndex(songs)?.let { it < songs.lastIndex } ?: false
+
+    fun playOrResume(songs: List<Song> = uiState.value.songList, onPlaySong: (Song) -> Unit) {
+        val song = currentIndex(songs)?.let { songs[it] } ?: songs.firstOrNull() ?: return
+        markSongPlaying(song)
+        onPlaySong(song)
+    }
+
+    fun playPrevious(songs: List<Song> = uiState.value.songList, onPlaySong: (Song) -> Unit) {
+        val index = currentIndex(songs) ?: return
+        val song = songs.getOrNull(index - 1) ?: return
+        markSongPlaying(song)
+        onPlaySong(song)
+    }
+
+    fun playNext(songs: List<Song> = uiState.value.songList, onPlaySong: (Song) -> Unit) {
+        val index = currentIndex(songs) ?: return
+        val song = songs.getOrNull(index + 1) ?: return
+        markSongPlaying(song)
+        onPlaySong(song)
     }
 
     // --- Draft state for song detail form ---

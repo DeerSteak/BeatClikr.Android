@@ -26,7 +26,6 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -51,10 +50,8 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.bfunkstudios.beatclikr.R
 import com.bfunkstudios.beatclikr.constants.AppLocale
 import com.bfunkstudios.beatclikr.constants.MetronomeConstants
-import com.bfunkstudios.beatclikr.data.SoundFile
 import com.bfunkstudios.beatclikr.ui.components.BpmSliderControl
 import com.bfunkstudios.beatclikr.ui.components.SectionCard
-import com.bfunkstudios.beatclikr.ui.components.SoundPickerRow
 
 @Composable
 fun PolyrhythmView(
@@ -185,24 +182,6 @@ fun PolyrhythmView(
                 text = if (viewModel.isPlaying) stringResource(R.string.pause) else stringResource(R.string.play),
                 style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
             )
-        }
-
-        SectionCard {
-            Column {
-                SoundPickerRow(
-                    label = stringResource(R.string.beat),
-                    selected = viewModel.selectedBeatSound,
-                    options = SoundFile.beatSounds,
-                    onSelect = { viewModel.updateBeatSound(it) }
-                )
-                HorizontalDivider(modifier = Modifier.padding(start = 12.dp))
-                SoundPickerRow(
-                    label = stringResource(R.string.rhythm),
-                    selected = viewModel.selectedRhythmSound,
-                    options = SoundFile.rhythmSounds,
-                    onSelect = { viewModel.updateRhythmSound(it) }
-                )
-            }
         }
     }
 }

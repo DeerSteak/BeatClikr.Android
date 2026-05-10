@@ -17,7 +17,10 @@ import com.bfunkstudios.beatclikr.services.IAudioPlayerService
 import com.bfunkstudios.beatclikr.services.MetronomeAudioEngineDelegate
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -28,6 +31,9 @@ class MetronomeViewModel @Inject constructor(
 ) : ViewModel(), MetronomeAudioEngineDelegate {
 
     var iconScale by mutableFloatStateOf(MetronomeConstants.ICON_SCALE_MIN)
+        private set
+
+    var beatPulse by mutableFloatStateOf(0f)
         private set
 
     var isPlaying by mutableStateOf(false)
@@ -67,6 +73,7 @@ class MetronomeViewModel @Inject constructor(
     private var activeBpm: Float = prefs.instantBpm
     private var rampBeatCount = -1
     private val tapTimestamps = mutableListOf<Long>()
+    private var beatPulseJob: Job? = null
 
     init {
         audio.delegate = this
@@ -227,6 +234,8 @@ class MetronomeViewModel @Inject constructor(
         rampBeatCount = -1
         isPlaying = false
         iconScale = MetronomeConstants.ICON_SCALE_MIN
+        beatPulseJob?.cancel()
+        beatPulse = 0f
         if (shouldRestoreRampBpm) {
             currentSong = currentSong.copy(beatsPerMinute = activeBpm)
         }
@@ -254,6 +263,10 @@ class MetronomeViewModel @Inject constructor(
         viewModelScope.launch(Dispatchers.Main) {
             if (isBeat) {
                 iconScale = MetronomeConstants.ICON_SCALE_MAX
+                beatPulseJob?.cancel()
+                beatPulseJob = launch {
+                    fadeBeatPulse((beatInterval * 1000).toLong().coerceAtLeast(1L))
+                }
                 handleBeat()
                 delay(16)
                 iconScale = MetronomeConstants.ICON_SCALE_MIN
@@ -278,6 +291,19 @@ class MetronomeViewModel @Inject constructor(
     }
 
     private fun handleRhythm() {}
+
+    private suspend fun fadeBeatPulse(durationMillis: Long) {
+        beatPulse = 1f
+        val frameMillis = 16L
+        var elapsedMillis = 0L
+        while (currentCoroutineContext().isActive && elapsedMillis < durationMillis) {
+            delay(frameMillis)
+            elapsedMillis += frameMillis
+            val progress = (elapsedMillis.toFloat() / durationMillis).coerceIn(0f, 1f)
+            beatPulse = 1f - progress
+        }
+        beatPulse = 0f
+    }
 
     private fun getSubdivisionValue(): Int = currentSong.groove.subdivisions
 

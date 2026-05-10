@@ -1,6 +1,6 @@
 package com.bfunkstudios.beatclikr.ui.components
 
-import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -23,11 +23,12 @@ fun GrooveButton(
 ) {
     Button(
         onClick = onClick,
-        modifier = modifier.height(48.dp),
+        modifier = modifier,
+        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp),
         colors = ButtonDefaults.buttonColors(
-            containerColor = if (isSelected) MaterialTheme.colorScheme.secondary
+            containerColor = if (isSelected) MaterialTheme.colorScheme.primary
                              else MaterialTheme.colorScheme.surfaceVariant,
-            contentColor = if (isSelected) MaterialTheme.colorScheme.onSecondary
+            contentColor = if (isSelected) MaterialTheme.colorScheme.onPrimary
                            else MaterialTheme.colorScheme.onSurface
         ),
         shape = RoundedCornerShape(24.dp)
@@ -41,7 +42,7 @@ fun GrooveButton(
                 Groove.OddMeterQuarter -> stringResource(R.string.groove_odd_quarter)
                 Groove.OddMeterEighth -> stringResource(R.string.groove_odd_eighth)
             },
-            style = MaterialTheme.typography.titleMedium,
+            style = MaterialTheme.typography.labelLarge,
             fontWeight = FontWeight.Bold
         )
     }

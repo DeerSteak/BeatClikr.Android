@@ -359,9 +359,22 @@ class MetronomeViewModelTest {
     }
 
     @Test
+    fun `metronomeBeatFired on beat starts beat pulse`() {
+        viewModel.metronomeBeatFired(isBeat = true, beatInterval = 0.5f)
+        assertEquals(1f, viewModel.beatPulse)
+    }
+
+    @Test
     fun `metronomeBeatFired on subdivision does not set iconScale to max`() {
         viewModel.metronomeBeatFired(isBeat = false, beatInterval = 0.5f)
         assertEquals(MetronomeConstants.ICON_SCALE_MIN, viewModel.iconScale)
+    }
+
+    @Test
+    fun `stop resets beat pulse`() {
+        viewModel.metronomeBeatFired(isBeat = true, beatInterval = 0.5f)
+        viewModel.stop()
+        assertEquals(0f, viewModel.beatPulse)
     }
 
     // --- Tap tempo ---
