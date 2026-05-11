@@ -15,6 +15,7 @@ import com.bfunkstudios.beatclikr.data.PracticeHistoryRepository
 import com.bfunkstudios.beatclikr.data.Song
 import com.bfunkstudios.beatclikr.data.SoundFile
 import com.bfunkstudios.beatclikr.services.IAudioPlayerService
+import com.bfunkstudios.beatclikr.services.IFlashlightService
 import com.bfunkstudios.beatclikr.services.MetronomeAudioEngineDelegate
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
@@ -29,7 +30,8 @@ import javax.inject.Inject
 class MetronomeViewModel @Inject constructor(
     private val audio: IAudioPlayerService,
     private val prefs: IAppPreferences,
-    private val practiceHistory: PracticeHistoryRepository
+    private val practiceHistory: PracticeHistoryRepository,
+    private val flashlight: IFlashlightService
 ) : ViewModel(), MetronomeAudioEngineDelegate {
 
     var iconScale by mutableFloatStateOf(MetronomeConstants.ICON_SCALE_MIN)
@@ -237,6 +239,7 @@ class MetronomeViewModel @Inject constructor(
     fun stop() {
         val shouldRestoreRampBpm = rampEnabled && clickerType == ClickerType.INSTANT
         audio.stopMetronome()
+        flashlight.turnFlashlightOff()
         rampBeatCount = -1
         isPlaying = false
         iconScale = MetronomeConstants.ICON_SCALE_MIN
@@ -283,6 +286,10 @@ class MetronomeViewModel @Inject constructor(
     }
 
     private fun handleBeat() {
+        if (prefs.useFlashlight) {
+            flashlight.turnFlashlightOn()
+        }
+
         if (!rampEnabled || clickerType != ClickerType.INSTANT) return
 
         rampBeatCount += 1
@@ -296,7 +303,11 @@ class MetronomeViewModel @Inject constructor(
         audio.updateTempo(newBpm, getSubdivisionValue(), computeAccentPattern(), prefs.sixteenthAlternate)
     }
 
-    private fun handleRhythm() {}
+    private fun handleRhythm() {
+        if (prefs.useFlashlight) {
+            flashlight.turnFlashlightOff()
+        }
+    }
 
     private suspend fun fadeBeatPulse(durationMillis: Long) {
         beatPulse = 1f

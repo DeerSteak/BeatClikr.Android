@@ -16,6 +16,7 @@ import com.bfunkstudios.beatclikr.data.db.SongDao
 import com.bfunkstudios.beatclikr.di.AppModule
 import com.bfunkstudios.beatclikr.di.ApplicationScope
 import com.bfunkstudios.beatclikr.services.IAudioPlayerService
+import com.bfunkstudios.beatclikr.services.IFlashlightService
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -52,6 +53,9 @@ class InstantMetronomeViewTest {
     object TestModule {
         @Provides @Singleton
         fun provideAudio(): IAudioPlayerService = FakeAudioPlayerService()
+
+        @Provides @Singleton
+        fun provideFlashlight(): IFlashlightService = FakeFlashlightService()
 
         @Provides @Singleton
         fun providePrefs(): IAppPreferences = FakeAppPreferences()

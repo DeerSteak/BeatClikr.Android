@@ -45,6 +45,14 @@
     <string name="beat_pattern">Patrón</string>
     <string name="settings_metronome_playback">Reproducción del metrónomo</string>
     <string name="settings_flashlight">Usar linterna</string>
+    <string name="settings_flashlight_requires_camera_permission">Requiere permisos de cámara.</string>
+    <string name="settings_flashlight_permission_title">Permiso de linterna</string>
+    <string name="settings_flashlight_permission_denied">BeatClikr necesita acceso a la cámara para usar la linterna del teléfono con el metrónomo.</string>
+    <string name="settings_flashlight_permission_blocked">El acceso a la cámara está bloqueado para BeatClikr. Actívalo en los ajustes de Android para usar la linterna con el metrónomo.</string>
+    <string name="settings_flashlight_unavailable_title">Linterna no disponible</string>
+    <string name="settings_flashlight_unavailable">Este dispositivo no tiene una linterna que BeatClikr pueda usar.</string>
+    <string name="open_settings">Abrir ajustes</string>
+    <string name="ok">OK</string>
     <string name="settings_vibration">Usar vibración</string>
     <string name="settings_mute_metronome">Silenciar siempre el metrónomo</string>
     <string name="settings_keep_awake">Mantener pantalla encendida</string>

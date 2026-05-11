@@ -12,7 +12,9 @@ import com.bfunkstudios.beatclikr.data.SongRepository
 import com.bfunkstudios.beatclikr.data.SongRepositoryImpl
 import com.bfunkstudios.beatclikr.data.db.BeatClikrDatabase
 import com.bfunkstudios.beatclikr.services.AudioPlayerService
+import com.bfunkstudios.beatclikr.services.FlashlightService
 import com.bfunkstudios.beatclikr.services.IAudioPlayerService
+import com.bfunkstudios.beatclikr.services.IFlashlightService
 import dagger.Binds
 import dagger.Module
 import dagger.Provides
@@ -42,6 +44,10 @@ abstract class AppModule {
         @Provides @Singleton
         fun provideAudioPlayerService(@ApplicationContext context: Context): IAudioPlayerService =
             AudioPlayerService.getInstance(context)
+
+        @Provides @Singleton
+        fun provideFlashlightService(@ApplicationContext context: Context): IFlashlightService =
+            FlashlightService(context)
 
         @Provides @Singleton
         fun provideAppPreferences(@ApplicationContext context: Context): IAppPreferences =

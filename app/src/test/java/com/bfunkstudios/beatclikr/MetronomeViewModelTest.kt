@@ -9,6 +9,7 @@ import com.bfunkstudios.beatclikr.data.PracticeHistoryRepository
 import com.bfunkstudios.beatclikr.data.Song
 import com.bfunkstudios.beatclikr.data.SoundFile
 import com.bfunkstudios.beatclikr.services.IAudioPlayerService
+import com.bfunkstudios.beatclikr.services.IFlashlightService
 import com.bfunkstudios.beatclikr.ui.MetronomeViewModel
 import io.mockk.every
 import io.mockk.mockk
@@ -32,6 +33,7 @@ class MetronomeViewModelTest {
     private lateinit var audio: IAudioPlayerService
     private lateinit var prefs: IAppPreferences
     private lateinit var practiceHistory: PracticeHistoryRepository
+    private lateinit var flashlight: IFlashlightService
     private lateinit var viewModel: MetronomeViewModel
 
     @Before
@@ -40,6 +42,7 @@ class MetronomeViewModelTest {
         audio = mockk(relaxed = true)
         prefs = mockk(relaxed = true)
         practiceHistory = mockk(relaxed = true)
+        flashlight = mockk(relaxed = true)
         every { prefs.instantBpm } returns 120f
         every { prefs.instantGroove } returns Groove.Quarter
         every { prefs.instantBeatPattern } returns null
@@ -49,7 +52,8 @@ class MetronomeViewModelTest {
         every { prefs.rampIncrement } returns 2
         every { prefs.rampInterval } returns 8
         every { prefs.muteMetronome } returns false
-        viewModel = MetronomeViewModel(audio, prefs, practiceHistory)
+        every { prefs.useFlashlight } returns false
+        viewModel = MetronomeViewModel(audio, prefs, practiceHistory, flashlight)
     }
 
     @After
@@ -87,6 +91,25 @@ class MetronomeViewModelTest {
     @Test
     fun `init sets audio delegate to viewModel`() {
         verify { audio.delegate = viewModel }
+    }
+
+    @Test
+    fun `beat turns flashlight on when enabled`() {
+        every { prefs.useFlashlight } returns true
+
+        viewModel.metronomeBeatFired(isBeat = true, beatInterval = 0.5f)
+
+        verify { flashlight.turnFlashlightOn() }
+    }
+
+    @Test
+    fun `rhythm and stop turn flashlight off`() {
+        every { prefs.useFlashlight } returns true
+
+        viewModel.metronomeBeatFired(isBeat = false, beatInterval = 0.5f)
+        viewModel.stop()
+
+        verify(exactly = 2) { flashlight.turnFlashlightOff() }
     }
 
     // --- BPM ---

@@ -1,7 +1,17 @@
 package com.bfunkstudios.beatclikr.ui
 
+import android.Manifest
+import android.app.Activity
 import android.app.TimePickerDialog
+import android.content.Context
+import android.content.Intent
+import android.content.ContextWrapper
+import android.content.pm.PackageManager
+import android.net.Uri
+import android.provider.Settings
 import android.text.format.DateFormat
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
@@ -12,11 +22,13 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -24,6 +36,8 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
 import com.bfunkstudios.beatclikr.R
 import com.bfunkstudios.beatclikr.data.SoundFile
 import com.bfunkstudios.beatclikr.ui.components.SectionCard
@@ -38,6 +52,29 @@ fun SettingsView(
     viewModel: SettingsViewModel = hiltViewModel()
 ) {
     val context = LocalContext.current
+    LaunchedEffect(Unit) {
+        if (viewModel.syncFlashlightStateOnEnter(context.hasCameraPermission())) {
+            metronomeViewModel.refreshPlaybackSettings()
+        }
+    }
+
+    val flashlightPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        val blocked = if (granted) {
+            false
+        } else {
+            context.findActivity()?.let { activity ->
+                !ActivityCompat.shouldShowRequestPermissionRationale(
+                    activity,
+                    Manifest.permission.CAMERA
+                )
+            } ?: false
+        }
+        viewModel.onFlashlightPermissionResult(granted = granted, blocked = blocked)
+        metronomeViewModel.refreshPlaybackSettings()
+    }
+
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -94,10 +131,14 @@ fun SettingsView(
         SectionCard {
             SettingsToggleRow(
                 label = stringResource(R.string.settings_flashlight),
+                subtitle = stringResource(R.string.settings_flashlight_requires_camera_permission),
                 checked = viewModel.useFlashlight,
-                onCheckedChange = {
-                    viewModel.updateUseFlashlight(it)
-                    metronomeViewModel.refreshPlaybackSettings()
+                onCheckedChange = { enabled ->
+                    when (viewModel.onFlashlightToggleRequested(enabled, context.hasCameraPermission())) {
+                        FlashlightSettingsAction.None -> metronomeViewModel.refreshPlaybackSettings()
+                        FlashlightSettingsAction.RequestPermission ->
+                            flashlightPermissionLauncher.launch(Manifest.permission.CAMERA)
+                    }
                 }
             )
             SettingsDivider()
@@ -208,6 +249,22 @@ fun SettingsView(
         }
         Spacer(modifier = Modifier.padding(bottom = 8.dp))
     }
+
+    viewModel.flashlightDialog?.let { dialog ->
+        FlashlightSettingsDialogContent(
+            dialog = dialog,
+            onDismiss = { viewModel.dismissFlashlightDialog() },
+            onOpenSettings = {
+                viewModel.dismissFlashlightDialog()
+                context.startActivity(
+                    Intent(
+                        Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                        Uri.fromParts("package", context.packageName, null)
+                    )
+                )
+            }
+        )
+    }
 }
 
 @Composable
@@ -221,8 +278,66 @@ private fun SettingsSectionTitle(text: String) {
 }
 
 @Composable
+private fun FlashlightSettingsDialogContent(
+    dialog: FlashlightSettingsDialog,
+    onDismiss: () -> Unit,
+    onOpenSettings: () -> Unit
+) {
+    when (dialog) {
+        FlashlightSettingsDialog.Unavailable -> {
+            AlertDialog(
+                onDismissRequest = onDismiss,
+                title = { Text(stringResource(R.string.settings_flashlight_unavailable_title)) },
+                text = { Text(stringResource(R.string.settings_flashlight_unavailable)) },
+                confirmButton = {
+                    androidx.compose.material3.TextButton(onClick = onDismiss) {
+                        Text(stringResource(R.string.ok))
+                    }
+                }
+            )
+        }
+        is FlashlightSettingsDialog.PermissionDenied -> {
+            AlertDialog(
+                onDismissRequest = onDismiss,
+                title = { Text(stringResource(R.string.settings_flashlight_permission_title)) },
+                text = {
+                    Text(
+                        text = stringResource(
+                            if (dialog.blocked) {
+                                R.string.settings_flashlight_permission_blocked
+                            } else {
+                                R.string.settings_flashlight_permission_denied
+                            }
+                        )
+                    )
+                },
+                confirmButton = {
+                    if (dialog.blocked) {
+                        androidx.compose.material3.TextButton(onClick = onOpenSettings) {
+                            Text(stringResource(R.string.open_settings))
+                        }
+                    } else {
+                        androidx.compose.material3.TextButton(onClick = onDismiss) {
+                            Text(stringResource(R.string.ok))
+                        }
+                    }
+                },
+                dismissButton = {
+                    if (dialog.blocked) {
+                        androidx.compose.material3.TextButton(onClick = onDismiss) {
+                            Text(stringResource(R.string.cancel))
+                        }
+                    }
+                }
+            )
+        }
+    }
+}
+
+@Composable
 private fun SettingsToggleRow(
     label: String,
+    subtitle: String? = null,
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit,
     switchModifier: Modifier = Modifier
@@ -233,11 +348,21 @@ private fun SettingsToggleRow(
             .padding(horizontal = 12.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.titleMedium,
+        Column(
             modifier = Modifier.weight(1f)
-        )
+        ) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.titleMedium
+            )
+            if (subtitle != null) {
+                Text(
+                    text = subtitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
         Switch(
             checked = checked,
             onCheckedChange = onCheckedChange,
@@ -293,3 +418,12 @@ private fun formatReminderTime(context: android.content.Context, hour: Int, minu
     }
     return DateFormat.getTimeFormat(context).format(calendar.time)
 }
+
+private tailrec fun Context.findActivity(): Activity? = when (this) {
+    is Activity -> this
+    is ContextWrapper -> baseContext.findActivity()
+    else -> null
+}
+
+private fun Context.hasCameraPermission(): Boolean =
+    ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED

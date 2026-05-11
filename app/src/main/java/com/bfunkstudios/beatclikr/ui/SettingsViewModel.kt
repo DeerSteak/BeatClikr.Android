@@ -6,15 +6,33 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import com.bfunkstudios.beatclikr.data.IAppPreferences
 import com.bfunkstudios.beatclikr.data.SoundFile
+import com.bfunkstudios.beatclikr.services.IFlashlightService
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 
+sealed interface FlashlightSettingsDialog {
+    data object Unavailable : FlashlightSettingsDialog
+    data class PermissionDenied(val blocked: Boolean) : FlashlightSettingsDialog
+}
+
+sealed interface FlashlightSettingsAction {
+    data object None : FlashlightSettingsAction
+    data object RequestPermission : FlashlightSettingsAction
+}
+
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
-    private val prefs: IAppPreferences
+    private val prefs: IAppPreferences,
+    private val flashlight: IFlashlightService
 ) : ViewModel() {
 
     var useFlashlight by mutableStateOf(prefs.useFlashlight)
+        private set
+
+    val hasFlashlight: Boolean
+        get() = flashlight.hasFlashlight
+
+    var flashlightDialog by mutableStateOf<FlashlightSettingsDialog?>(null)
         private set
 
     var useVibration by mutableStateOf(prefs.useVibration)
@@ -62,6 +80,55 @@ class SettingsViewModel @Inject constructor(
     fun updateUseFlashlight(value: Boolean) {
         useFlashlight = value
         prefs.useFlashlight = value
+    }
+
+    fun syncFlashlightStateOnEnter(hasCameraPermission: Boolean): Boolean {
+        if (!useFlashlight) return false
+        return when {
+            !flashlight.hasFlashlight -> {
+                updateUseFlashlight(false)
+                flashlightDialog = FlashlightSettingsDialog.Unavailable
+                true
+            }
+            !hasCameraPermission -> {
+                updateUseFlashlight(false)
+                true
+            }
+            else -> false
+        }
+    }
+
+    fun onFlashlightToggleRequested(enabled: Boolean, hasCameraPermission: Boolean): FlashlightSettingsAction {
+        if (!enabled) {
+            updateUseFlashlight(false)
+            return FlashlightSettingsAction.None
+        }
+
+        if (!flashlight.hasFlashlight) {
+            updateUseFlashlight(false)
+            flashlightDialog = FlashlightSettingsDialog.Unavailable
+            return FlashlightSettingsAction.None
+        }
+
+        if (hasCameraPermission) {
+            updateUseFlashlight(true)
+            return FlashlightSettingsAction.None
+        }
+
+        return FlashlightSettingsAction.RequestPermission
+    }
+
+    fun onFlashlightPermissionResult(granted: Boolean, blocked: Boolean) {
+        if (granted) {
+            updateUseFlashlight(true)
+        } else {
+            updateUseFlashlight(false)
+            flashlightDialog = FlashlightSettingsDialog.PermissionDenied(blocked)
+        }
+    }
+
+    fun dismissFlashlightDialog() {
+        flashlightDialog = null
     }
 
     fun updateUseVibration(value: Boolean) {
