@@ -49,6 +49,7 @@ fun SettingsView(
     metronomeViewModel: MetronomeViewModel,
     modifier: Modifier = Modifier,
     onAlwaysUseDarkThemeChange: (Boolean) -> Unit = {},
+    onKeepScreenAwakeChange: (Boolean) -> Unit = {},
     viewModel: SettingsViewModel = hiltViewModel()
 ) {
     val context = LocalContext.current
@@ -163,7 +164,10 @@ fun SettingsView(
             SettingsToggleRow(
                 label = stringResource(R.string.settings_keep_awake),
                 checked = viewModel.keepScreenAwake,
-                onCheckedChange = { viewModel.updateKeepScreenAwake(it) }
+                onCheckedChange = {
+                    viewModel.updateKeepScreenAwake(it)
+                    onKeepScreenAwakeChange(it)
+                }
             )
             SettingsDivider()
             SettingsToggleRow(

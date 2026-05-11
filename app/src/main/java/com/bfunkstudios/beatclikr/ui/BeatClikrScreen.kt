@@ -129,7 +129,8 @@ fun BeatClikrApp(
     metronomeViewModel: MetronomeViewModel = hiltViewModel(),
     playlistViewModel: PlaylistViewModel = hiltViewModel(),
     practiceHistoryViewModel: PracticeHistoryViewModel = hiltViewModel(),
-    onAlwaysUseDarkThemeChange: (Boolean) -> Unit = {}
+    onAlwaysUseDarkThemeChange: (Boolean) -> Unit = {},
+    onKeepScreenAwakeChange: (Boolean) -> Unit = {}
 ) {
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
@@ -361,7 +362,8 @@ fun BeatClikrApp(
             composable(ROUTE_SETTINGS) {
                 SettingsView(
                     metronomeViewModel = metronomeViewModel,
-                    onAlwaysUseDarkThemeChange = onAlwaysUseDarkThemeChange
+                    onAlwaysUseDarkThemeChange = onAlwaysUseDarkThemeChange,
+                    onKeepScreenAwakeChange = onKeepScreenAwakeChange
                 )
             }
         }
