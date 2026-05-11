@@ -9,9 +9,15 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import com.bfunkstudios.beatclikr.data.IAppPreferences
+import com.bfunkstudios.beatclikr.data.PlaylistRepository
+import com.bfunkstudios.beatclikr.data.PlaylistRepositoryImpl
+import com.bfunkstudios.beatclikr.data.PracticeHistoryRepository
+import com.bfunkstudios.beatclikr.data.PracticeHistoryRepositoryImpl
 import com.bfunkstudios.beatclikr.data.SongRepository
 import com.bfunkstudios.beatclikr.data.SongRepositoryImpl
 import com.bfunkstudios.beatclikr.data.db.BeatClikrDatabase
+import com.bfunkstudios.beatclikr.data.db.PlaylistDao
+import com.bfunkstudios.beatclikr.data.db.PracticeHistoryDao
 import com.bfunkstudios.beatclikr.data.db.SongDao
 import com.bfunkstudios.beatclikr.di.AppModule
 import com.bfunkstudios.beatclikr.di.ApplicationScope
@@ -74,7 +80,19 @@ class InstantMetronomeViewTest {
         fun provideSongDao(db: BeatClikrDatabase): SongDao = db.songDao()
 
         @Provides @Singleton
+        fun providePlaylistDao(db: BeatClikrDatabase): PlaylistDao = db.playlistDao()
+
+        @Provides @Singleton
+        fun providePracticeHistoryDao(db: BeatClikrDatabase): PracticeHistoryDao = db.practiceHistoryDao()
+
+        @Provides @Singleton
         fun provideSongRepository(impl: SongRepositoryImpl): SongRepository = impl
+
+        @Provides @Singleton
+        fun providePlaylistRepository(impl: PlaylistRepositoryImpl): PlaylistRepository = impl
+
+        @Provides @Singleton
+        fun providePracticeHistoryRepository(impl: PracticeHistoryRepositoryImpl): PracticeHistoryRepository = impl
 
         @Provides @Singleton @ApplicationScope
         fun provideApplicationScope(): CoroutineScope =
