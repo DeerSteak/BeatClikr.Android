@@ -84,6 +84,11 @@ class PlaylistViewModel @Inject constructor(
         }
     }
 
+    fun reorderEntries(reorderedEntries: List<PlaylistEntryWithSong>) {
+        val resequenced = reorderedEntries.mapIndexed { i, e -> e.copy(entry = e.entry.copy(sequence = i)) }
+        viewModelScope.launch { repository.reorderEntries(resequenced) }
+    }
+
     // --- Transport ---
 
     fun sortedEntries(playlist: PlaylistWithEntries?): List<PlaylistEntryWithSong> =

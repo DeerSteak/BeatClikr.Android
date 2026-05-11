@@ -59,6 +59,7 @@ fun SongLibraryView(
             Card(
                 modifier = Modifier
                     .padding(horizontal = 16.dp)
+                    .padding(top = 16.dp)
                     .fillMaxWidth()
                     .weight(1f),
                 colors = CardDefaults.cardColors(

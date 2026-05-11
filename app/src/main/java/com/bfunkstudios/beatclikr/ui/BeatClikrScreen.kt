@@ -325,7 +325,11 @@ fun BeatClikrApp(
                     isPlaying = metronomeViewModel.isPlaying,
                     beatPulse = metronomeViewModel.beatPulse,
                     onPlayPause = { metronomeViewModel.togglePlayPause() },
-                    onPlaySong = { song -> metronomeViewModel.playSong(song) }
+                    onPlaySong = { song -> metronomeViewModel.playSong(song) },
+                    onEditSong = { song ->
+                        songLibraryViewModel.setSelectedSong(song.id)
+                        showSongDetail = true
+                    }
                 )
             }
             composable(ROUTE_SETTINGS) {
