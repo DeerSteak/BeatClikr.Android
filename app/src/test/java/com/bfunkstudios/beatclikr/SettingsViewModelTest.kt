@@ -5,6 +5,9 @@ import com.bfunkstudios.beatclikr.data.SoundFile
 import com.bfunkstudios.beatclikr.services.IFlashlightService
 import com.bfunkstudios.beatclikr.ui.FlashlightSettingsAction
 import com.bfunkstudios.beatclikr.ui.FlashlightSettingsDialog
+import com.bfunkstudios.beatclikr.ui.ReminderPermissionStatus
+import com.bfunkstudios.beatclikr.ui.ReminderSettingsAction
+import com.bfunkstudios.beatclikr.ui.ReminderSettingsDialog
 import com.bfunkstudios.beatclikr.ui.SettingsViewModel
 import io.mockk.every
 import io.mockk.mockk
@@ -35,6 +38,8 @@ class SettingsViewModelTest {
         every { prefs.practiceReminderEnabled } returns false
         every { prefs.practiceReminderHour } returns 9
         every { prefs.practiceReminderMinute } returns 0
+        every { prefs.practiceReminderNotificationsDeferred } returns false
+        every { prefs.practiceReminderNotificationPermissionRequested } returns false
         every { prefs.instantBeatSound } returns SoundFile.CLICK_HI
         every { prefs.instantRhythmSound } returns SoundFile.CLICK_LO
         every { prefs.playlistBeatSound } returns SoundFile.CLICK_HI
@@ -68,6 +73,132 @@ class SettingsViewModelTest {
 
         assertTrue(viewModel.practiceReminderEnabled)
         verify { prefs.practiceReminderEnabled = true }
+    }
+
+    @Test
+    fun `onPracticeReminderToggleRequested requests permission before enabling reminders`() {
+        val action = viewModel.onPracticeReminderToggleRequested(
+            enabled = true,
+            status = ReminderPermissionStatus.NotDetermined
+        )
+
+        assertEquals(ReminderSettingsAction.RequestPermission, action)
+        assertFalse(viewModel.practiceReminderEnabled)
+    }
+
+    @Test
+    fun `onPracticeReminderToggleRequested enables reminders when notification permission is granted`() {
+        val action = viewModel.onPracticeReminderToggleRequested(
+            enabled = true,
+            status = ReminderPermissionStatus.Granted
+        )
+
+        assertEquals(ReminderSettingsAction.None, action)
+        assertTrue(viewModel.practiceReminderEnabled)
+        verify { prefs.practiceReminderEnabled = true }
+    }
+
+    @Test
+    fun `onPracticeReminderToggleRequested shows settings dialog when notifications are blocked`() {
+        val action = viewModel.onPracticeReminderToggleRequested(
+            enabled = true,
+            status = ReminderPermissionStatus.Blocked
+        )
+
+        assertEquals(ReminderSettingsAction.None, action)
+        assertFalse(viewModel.practiceReminderEnabled)
+        assertTrue(viewModel.notificationsBlockedLocally)
+        assertEquals(ReminderSettingsDialog.PermissionDenied(blocked = true), viewModel.reminderDialog)
+        verify { prefs.practiceReminderEnabled = false }
+    }
+
+    @Test
+    fun `turning reminders off clears local notification warnings`() {
+        every { prefs.practiceReminderEnabled } returns true
+        every { prefs.practiceReminderNotificationsDeferred } returns true
+        viewModel = SettingsViewModel(prefs, flashlight)
+        viewModel.syncReminderPermissionState(ReminderPermissionStatus.Blocked)
+
+        val action = viewModel.onPracticeReminderToggleRequested(
+            enabled = false,
+            status = ReminderPermissionStatus.Blocked
+        )
+
+        assertEquals(ReminderSettingsAction.None, action)
+        assertFalse(viewModel.practiceReminderEnabled)
+        assertFalse(viewModel.notificationsBlockedLocally)
+        assertFalse(viewModel.notificationsDeferredLocally)
+        verify { prefs.practiceReminderEnabled = false }
+        verify { prefs.practiceReminderNotificationsDeferred = false }
+    }
+
+    @Test
+    fun `syncReminderPermissionState shows cross device prompt for restored reminders without local permission`() {
+        every { prefs.practiceReminderEnabled } returns true
+        viewModel = SettingsViewModel(prefs, flashlight)
+
+        viewModel.syncReminderPermissionState(ReminderPermissionStatus.NotDetermined)
+
+        assertTrue(viewModel.showCrossDeviceReminderPrompt)
+        assertFalse(viewModel.notificationsBlockedLocally)
+    }
+
+    @Test
+    fun `syncReminderPermissionState keeps deferred warning without re-prompting`() {
+        every { prefs.practiceReminderEnabled } returns true
+        every { prefs.practiceReminderNotificationsDeferred } returns true
+        viewModel = SettingsViewModel(prefs, flashlight)
+
+        viewModel.syncReminderPermissionState(ReminderPermissionStatus.NotDetermined)
+
+        assertTrue(viewModel.notificationsDeferredLocally)
+        assertFalse(viewModel.showCrossDeviceReminderPrompt)
+    }
+
+    @Test
+    fun `declineRemindersFromOtherDevice stores deferred warning state`() {
+        every { prefs.practiceReminderEnabled } returns true
+        viewModel = SettingsViewModel(prefs, flashlight)
+        viewModel.syncReminderPermissionState(ReminderPermissionStatus.NotDetermined)
+
+        viewModel.declineRemindersFromOtherDevice()
+
+        assertFalse(viewModel.showCrossDeviceReminderPrompt)
+        assertTrue(viewModel.notificationsDeferredLocally)
+        verify { prefs.practiceReminderNotificationsDeferred = true }
+    }
+
+    @Test
+    fun `allowRemindersFromOtherDevice requests permission when local status is not determined`() {
+        val action = viewModel.allowRemindersFromOtherDevice(ReminderPermissionStatus.NotDetermined)
+
+        assertEquals(ReminderSettingsAction.RequestPermission, action)
+        assertFalse(viewModel.showCrossDeviceReminderPrompt)
+    }
+
+    @Test
+    fun `onPracticeReminderPermissionResult granted enables reminders and clears warnings`() {
+        viewModel.declineRemindersFromOtherDevice()
+
+        viewModel.onPracticeReminderPermissionResult(granted = true, blocked = false)
+
+        assertTrue(viewModel.practiceReminderEnabled)
+        assertFalse(viewModel.notificationsBlockedLocally)
+        assertFalse(viewModel.notificationsDeferredLocally)
+        verify { prefs.practiceReminderNotificationPermissionRequested = true }
+        verify { prefs.practiceReminderEnabled = true }
+        verify { prefs.practiceReminderNotificationsDeferred = false }
+    }
+
+    @Test
+    fun `onPracticeReminderPermissionResult denied disables reminders and shows dialog`() {
+        viewModel.onPracticeReminderPermissionResult(granted = false, blocked = true)
+
+        assertFalse(viewModel.practiceReminderEnabled)
+        assertTrue(viewModel.notificationsBlockedLocally)
+        assertEquals(ReminderSettingsDialog.PermissionDenied(blocked = true), viewModel.reminderDialog)
+        verify { prefs.practiceReminderNotificationPermissionRequested = true }
+        verify { prefs.practiceReminderEnabled = false }
     }
 
     @Test

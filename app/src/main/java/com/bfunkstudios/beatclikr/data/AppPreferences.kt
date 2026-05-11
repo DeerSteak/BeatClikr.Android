@@ -127,6 +127,14 @@ class AppPreferences(context: Context) : IAppPreferences {
         get() = prefs.getInt(Keys.REMINDER_MINUTE, 0)
         set(value) = prefs.edit { putInt(Keys.REMINDER_MINUTE, value) }
 
+    override var practiceReminderNotificationsDeferred: Boolean
+        get() = prefs.getBoolean(Keys.REMINDER_NOTIFICATIONS_DEFERRED, false)
+        set(value) = prefs.edit { putBoolean(Keys.REMINDER_NOTIFICATIONS_DEFERRED, value) }
+
+    override var practiceReminderNotificationPermissionRequested: Boolean
+        get() = prefs.getBoolean(Keys.REMINDER_NOTIFICATION_PERMISSION_REQUESTED, false)
+        set(value) = prefs.edit { putBoolean(Keys.REMINDER_NOTIFICATION_PERMISSION_REQUESTED, value) }
+
     private object Keys {
         const val INSTANT_BPM = "instant_bpm"
         const val INSTANT_SUBDIVISIONS = "instant_subdivisions"
@@ -152,6 +160,8 @@ class AppPreferences(context: Context) : IAppPreferences {
         const val REMINDER_ENABLED = "reminder_enabled"
         const val REMINDER_HOUR = "reminder_hour"
         const val REMINDER_MINUTE = "reminder_minute"
+        const val REMINDER_NOTIFICATIONS_DEFERRED = "reminder_notifications_deferred"
+        const val REMINDER_NOTIFICATION_PERMISSION_REQUESTED = "reminder_notification_permission_requested"
     }
 
     private companion object {

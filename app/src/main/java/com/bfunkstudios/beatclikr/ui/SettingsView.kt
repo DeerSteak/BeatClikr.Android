@@ -1,6 +1,7 @@
 package com.bfunkstudios.beatclikr.ui
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.app.Activity
 import android.app.TimePickerDialog
 import android.content.Context
@@ -8,6 +9,7 @@ import android.content.Intent
 import android.content.ContextWrapper
 import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Build
 import android.provider.Settings
 import android.text.format.DateFormat
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -19,15 +21,22 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.NotificationsOff
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -38,6 +47,9 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.bfunkstudios.beatclikr.R
 import com.bfunkstudios.beatclikr.data.SoundFile
 import com.bfunkstudios.beatclikr.ui.components.SectionCard
@@ -53,10 +65,22 @@ fun SettingsView(
     viewModel: SettingsViewModel = hiltViewModel()
 ) {
     val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
     LaunchedEffect(Unit) {
         if (viewModel.syncFlashlightStateOnEnter(context.hasCameraPermission())) {
             metronomeViewModel.refreshPlaybackSettings()
         }
+        viewModel.syncReminderPermissionState(context.reminderPermissionStatus(viewModel))
+    }
+
+    DisposableEffect(lifecycleOwner, context, viewModel) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                viewModel.syncReminderPermissionState(context.reminderPermissionStatus(viewModel))
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
     val flashlightPermissionLauncher = rememberLauncherForActivityResult(
@@ -74,6 +98,20 @@ fun SettingsView(
         }
         viewModel.onFlashlightPermissionResult(granted = granted, blocked = blocked)
         metronomeViewModel.refreshPlaybackSettings()
+    }
+
+    val reminderPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        val blocked = if (granted) {
+            false
+        } else {
+            context.reminderPermissionStatus(
+                viewModel = viewModel,
+                permissionRequestedOverride = true
+            ) == ReminderPermissionStatus.Blocked
+        }
+        viewModel.onPracticeReminderPermissionResult(granted = granted, blocked = blocked)
     }
 
     Column(
@@ -101,7 +139,18 @@ fun SettingsView(
             SettingsToggleRow(
                 label = stringResource(R.string.settings_practice_reminders_label),
                 checked = viewModel.practiceReminderEnabled,
-                onCheckedChange = { viewModel.updatePracticeReminderEnabled(it) }
+                onCheckedChange = { enabled ->
+                    when (
+                        viewModel.onPracticeReminderToggleRequested(
+                            enabled = enabled,
+                            status = context.reminderPermissionStatus(viewModel)
+                        )
+                    ) {
+                        ReminderSettingsAction.None -> Unit
+                        ReminderSettingsAction.RequestPermission ->
+                            reminderPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                    }
+                }
             )
             if (viewModel.practiceReminderEnabled) {
                 SettingsDivider()
@@ -127,6 +176,27 @@ fun SettingsView(
             }
         }
         SettingsFooter(stringResource(R.string.settings_practice_reminders_description))
+        if (viewModel.practiceReminderEnabled && viewModel.notificationsBlockedLocally) {
+            ReminderWarningRow(
+                icon = Icons.Default.Warning,
+                text = stringResource(R.string.settings_practice_reminders_blocked),
+                actionText = stringResource(R.string.open_settings),
+                onAction = { context.openNotificationSettings() }
+            )
+        } else if (viewModel.practiceReminderEnabled && viewModel.notificationsDeferredLocally) {
+            ReminderWarningRow(
+                icon = Icons.Default.NotificationsOff,
+                text = stringResource(R.string.settings_practice_reminders_deferred),
+                actionText = stringResource(R.string.enable),
+                onAction = {
+                    when (viewModel.allowRemindersFromOtherDevice(context.reminderPermissionStatus(viewModel))) {
+                        ReminderSettingsAction.None -> Unit
+                        ReminderSettingsAction.RequestPermission ->
+                            reminderPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                    }
+                }
+            )
+        }
 
         SettingsSectionTitle(stringResource(R.string.settings_metronome_playback))
         SectionCard {
@@ -269,6 +339,43 @@ fun SettingsView(
             }
         )
     }
+
+    if (viewModel.showCrossDeviceReminderPrompt) {
+        AlertDialog(
+            onDismissRequest = { viewModel.declineRemindersFromOtherDevice() },
+            title = { Text(stringResource(R.string.settings_practice_reminders)) },
+            text = { Text(stringResource(R.string.settings_practice_reminders_cross_device_prompt)) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        when (viewModel.allowRemindersFromOtherDevice(context.reminderPermissionStatus(viewModel))) {
+                            ReminderSettingsAction.None -> Unit
+                            ReminderSettingsAction.RequestPermission ->
+                                reminderPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                        }
+                    }
+                ) {
+                    Text(stringResource(R.string.allow_notifications))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { viewModel.declineRemindersFromOtherDevice() }) {
+                    Text(stringResource(R.string.not_now))
+                }
+            }
+        )
+    }
+
+    viewModel.reminderDialog?.let { dialog ->
+        ReminderSettingsDialogContent(
+            dialog = dialog,
+            onDismiss = { viewModel.dismissReminderDialog() },
+            onOpenSettings = {
+                viewModel.dismissReminderDialog()
+                context.openNotificationSettings()
+            }
+        )
+    }
 }
 
 @Composable
@@ -339,17 +446,85 @@ private fun FlashlightSettingsDialogContent(
 }
 
 @Composable
+private fun ReminderSettingsDialogContent(
+    dialog: ReminderSettingsDialog,
+    onDismiss: () -> Unit,
+    onOpenSettings: () -> Unit
+) {
+    when (dialog) {
+        is ReminderSettingsDialog.PermissionDenied -> {
+            AlertDialog(
+                onDismissRequest = onDismiss,
+                title = { Text(stringResource(R.string.settings_practice_reminders_notifications_disabled_title)) },
+                text = { Text(stringResource(R.string.settings_practice_reminders_notifications_disabled)) },
+                confirmButton = {
+                    if (dialog.blocked) {
+                        TextButton(onClick = onOpenSettings) {
+                            Text(stringResource(R.string.open_settings))
+                        }
+                    } else {
+                        TextButton(onClick = onDismiss) {
+                            Text(stringResource(R.string.ok))
+                        }
+                    }
+                },
+                dismissButton = {
+                    if (dialog.blocked) {
+                        TextButton(onClick = onDismiss) {
+                            Text(stringResource(R.string.cancel))
+                        }
+                    }
+                }
+            )
+        }
+    }
+}
+
+@Composable
+private fun ReminderWarningRow(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    text: String,
+    actionText: String,
+    onAction: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = 4.dp, top = 6.dp, end = 4.dp, bottom = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.secondary
+        )
+        Text(
+            text = text,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier
+                .weight(1f)
+                .padding(horizontal = 6.dp)
+        )
+        TextButton(onClick = onAction) {
+            Text(actionText)
+        }
+    }
+}
+
+@Composable
 private fun SettingsToggleRow(
     label: String,
     subtitle: String? = null,
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit,
-    switchModifier: Modifier = Modifier
+    @SuppressLint("ModifierParameter") switchModifier: Modifier = Modifier
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 10.dp),
+            .padding(horizontal = 12.dp, vertical = 10.dp)
+            .heightIn(min = 56.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Column(
@@ -431,3 +606,47 @@ private tailrec fun Context.findActivity(): Activity? = when (this) {
 
 private fun Context.hasCameraPermission(): Boolean =
     ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
+
+private fun Context.reminderPermissionStatus(
+    viewModel: SettingsViewModel,
+    permissionRequestedOverride: Boolean? = null
+): ReminderPermissionStatus {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+        return ReminderPermissionStatus.Granted
+    }
+    if (
+        ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) ==
+        PackageManager.PERMISSION_GRANTED
+    ) {
+        return ReminderPermissionStatus.Granted
+    }
+
+    val permissionRequested = permissionRequestedOverride
+        ?: viewModel.practiceReminderNotificationPermissionRequested
+    if (!permissionRequested) return ReminderPermissionStatus.NotDetermined
+
+    val canAskAgain = findActivity()?.let { activity ->
+        ActivityCompat.shouldShowRequestPermissionRationale(
+            activity,
+            Manifest.permission.POST_NOTIFICATIONS
+        )
+    } ?: false
+    return if (canAskAgain) ReminderPermissionStatus.Denied else ReminderPermissionStatus.Blocked
+}
+
+private fun Context.openNotificationSettings() {
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        startActivity(
+            Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
+                putExtra(Settings.EXTRA_APP_PACKAGE, packageName)
+            }
+        )
+    } else {
+        startActivity(
+            Intent(
+                Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                Uri.fromParts("package", packageName, null)
+            )
+        )
+    }
+}

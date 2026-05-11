@@ -20,6 +20,22 @@ sealed interface FlashlightSettingsAction {
     data object RequestPermission : FlashlightSettingsAction
 }
 
+enum class ReminderPermissionStatus {
+    Granted,
+    NotDetermined,
+    Denied,
+    Blocked
+}
+
+sealed interface ReminderSettingsAction {
+    data object None : ReminderSettingsAction
+    data object RequestPermission : ReminderSettingsAction
+}
+
+sealed interface ReminderSettingsDialog {
+    data class PermissionDenied(val blocked: Boolean) : ReminderSettingsDialog
+}
+
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
     private val prefs: IAppPreferences,
@@ -57,6 +73,21 @@ class SettingsViewModel @Inject constructor(
         private set
 
     var practiceReminderMinute by mutableStateOf(prefs.practiceReminderMinute)
+        private set
+
+    val practiceReminderNotificationPermissionRequested: Boolean
+        get() = prefs.practiceReminderNotificationPermissionRequested
+
+    var notificationsBlockedLocally by mutableStateOf(false)
+        private set
+
+    var notificationsDeferredLocally by mutableStateOf(prefs.practiceReminderNotificationsDeferred)
+        private set
+
+    var showCrossDeviceReminderPrompt by mutableStateOf(false)
+        private set
+
+    var reminderDialog by mutableStateOf<ReminderSettingsDialog?>(null)
         private set
 
     var metronomeBeatSound by mutableStateOf(prefs.instantBeatSound)
@@ -161,6 +192,98 @@ class SettingsViewModel @Inject constructor(
         prefs.practiceReminderEnabled = value
     }
 
+    fun syncReminderPermissionState(status: ReminderPermissionStatus) {
+        if (!practiceReminderEnabled) return
+        when (status) {
+            ReminderPermissionStatus.Granted -> {
+                clearReminderPermissionWarnings()
+            }
+            ReminderPermissionStatus.NotDetermined -> {
+                notificationsBlockedLocally = false
+                if (!notificationsDeferredLocally) {
+                    showCrossDeviceReminderPrompt = true
+                }
+            }
+            ReminderPermissionStatus.Denied,
+            ReminderPermissionStatus.Blocked -> {
+                notificationsBlockedLocally = true
+                clearReminderDeferral()
+            }
+        }
+    }
+
+    fun onPracticeReminderToggleRequested(
+        enabled: Boolean,
+        status: ReminderPermissionStatus
+    ): ReminderSettingsAction {
+        if (!enabled) {
+            updatePracticeReminderEnabled(false)
+            clearReminderPermissionWarnings()
+            return ReminderSettingsAction.None
+        }
+
+        return when (status) {
+            ReminderPermissionStatus.Granted -> {
+                updatePracticeReminderEnabled(true)
+                clearReminderPermissionWarnings()
+                ReminderSettingsAction.None
+            }
+            ReminderPermissionStatus.NotDetermined,
+            ReminderPermissionStatus.Denied -> {
+                ReminderSettingsAction.RequestPermission
+            }
+            ReminderPermissionStatus.Blocked -> {
+                updatePracticeReminderEnabled(false)
+                notificationsBlockedLocally = true
+                clearReminderDeferral()
+                reminderDialog = ReminderSettingsDialog.PermissionDenied(blocked = true)
+                ReminderSettingsAction.None
+            }
+        }
+    }
+
+    fun onPracticeReminderPermissionResult(granted: Boolean, blocked: Boolean) {
+        prefs.practiceReminderNotificationPermissionRequested = true
+        if (granted) {
+            updatePracticeReminderEnabled(true)
+            clearReminderPermissionWarnings()
+        } else {
+            updatePracticeReminderEnabled(false)
+            clearReminderDeferral()
+            notificationsBlockedLocally = blocked
+            reminderDialog = ReminderSettingsDialog.PermissionDenied(blocked)
+        }
+    }
+
+    fun allowRemindersFromOtherDevice(status: ReminderPermissionStatus): ReminderSettingsAction {
+        showCrossDeviceReminderPrompt = false
+        return when (status) {
+            ReminderPermissionStatus.Granted -> {
+                clearReminderPermissionWarnings()
+                ReminderSettingsAction.None
+            }
+            ReminderPermissionStatus.NotDetermined,
+            ReminderPermissionStatus.Denied -> ReminderSettingsAction.RequestPermission
+            ReminderPermissionStatus.Blocked -> {
+                notificationsBlockedLocally = true
+                clearReminderDeferral()
+                reminderDialog = ReminderSettingsDialog.PermissionDenied(blocked = true)
+                ReminderSettingsAction.None
+            }
+        }
+    }
+
+    fun declineRemindersFromOtherDevice() {
+        showCrossDeviceReminderPrompt = false
+        notificationsBlockedLocally = false
+        notificationsDeferredLocally = true
+        prefs.practiceReminderNotificationsDeferred = true
+    }
+
+    fun dismissReminderDialog() {
+        reminderDialog = null
+    }
+
     fun updatePracticeReminderTime(hour: Int, minute: Int) {
         val safeHour = hour.coerceIn(0, 23)
         val safeMinute = minute.coerceIn(0, 59)
@@ -198,5 +321,16 @@ class SettingsViewModel @Inject constructor(
     fun updatePolyrhythmRhythmSound(value: SoundFile) {
         polyrhythmRhythmSound = value
         prefs.polyrhythmRhythmSound = value
+    }
+
+    private fun clearReminderPermissionWarnings() {
+        notificationsBlockedLocally = false
+        showCrossDeviceReminderPrompt = false
+        clearReminderDeferral()
+    }
+
+    private fun clearReminderDeferral() {
+        notificationsDeferredLocally = false
+        prefs.practiceReminderNotificationsDeferred = false
     }
 }

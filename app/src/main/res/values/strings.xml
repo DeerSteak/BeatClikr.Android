@@ -19,6 +19,14 @@
     <string name="settings_practice_reminders_label">Send Practice Reminders</string>
     <string name="settings_practice_reminder_time">Reminder Time</string>
     <string name="settings_practice_reminders_description">Get a daily reminder to practice and keep your streak alive.</string>
+    <string name="settings_practice_reminders_blocked">Notifications are blocked on this device. You may still receive them on other devices.</string>
+    <string name="settings_practice_reminders_deferred">Reminders aren\'t enabled on this device.</string>
+    <string name="settings_practice_reminders_cross_device_prompt">Practice reminders are enabled on another device. Allow BeatClikr to send them on this device too?</string>
+    <string name="settings_practice_reminders_notifications_disabled_title">Notifications Disabled</string>
+    <string name="settings_practice_reminders_notifications_disabled">Practice reminders require notification permissions. Please enable them in Settings.</string>
+    <string name="allow_notifications">Allow Notifications</string>
+    <string name="not_now">Not Now</string>
+    <string name="enable">Enable</string>
     <string name="copyright">Copyright</string>
     <string name="copyright_value">© 2026 Benjamin Funk</string>
     <string name="previous">Previous</string>

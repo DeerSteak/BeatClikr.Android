@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
@@ -35,9 +36,10 @@ fun SoundPickerRow(
 
     Row(
         modifier = modifier
-            .fillMaxWidth()
             .clickable { expanded = true }
-            .padding(horizontal = 12.dp, vertical = 10.dp),
+            .fillMaxWidth()
+            .padding(horizontal = 12.dp, vertical = 10.dp)
+            .heightIn(min = 56.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {

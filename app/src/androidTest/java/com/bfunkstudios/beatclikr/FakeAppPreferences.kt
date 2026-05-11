@@ -34,6 +34,8 @@ class FakeAppPreferences : IAppPreferences {
     override var practiceReminderEnabled: Boolean = false
     override var practiceReminderHour: Int = 9
     override var practiceReminderMinute: Int = 0
+    override var practiceReminderNotificationsDeferred: Boolean = false
+    override var practiceReminderNotificationPermissionRequested: Boolean = false
 
     companion object {
         lateinit var instance: FakeAppPreferences

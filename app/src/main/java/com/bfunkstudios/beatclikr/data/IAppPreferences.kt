@@ -25,4 +25,6 @@ interface IAppPreferences {
     var practiceReminderEnabled: Boolean
     var practiceReminderHour: Int
     var practiceReminderMinute: Int
+    var practiceReminderNotificationsDeferred: Boolean
+    var practiceReminderNotificationPermissionRequested: Boolean
 }
