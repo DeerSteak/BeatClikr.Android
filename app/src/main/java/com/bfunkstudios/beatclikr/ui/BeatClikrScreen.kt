@@ -10,11 +10,13 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.FeaturedPlayList
+import androidx.compose.material.icons.automirrored.filled.QueueMusic
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Fullscreen
-import androidx.compose.material.icons.filled.PlaylistPlay
+import androidx.compose.material.icons.filled.QueueMusic
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -74,7 +76,9 @@ private sealed class AppTab(
 ) {
     object Instant : AppTab(ROUTE_INSTANT, R.string.tab_instant, iconRes = R.drawable.metronome_tab_icon)
     object Library : AppTab(ROUTE_LIBRARY, R.string.tab_library, Icons.AutoMirrored.Filled.FeaturedPlayList)
-    object Playlist : AppTab(ROUTE_PLAYLIST, R.string.tab_playlist, Icons.Filled.PlaylistPlay)
+    object Playlist : AppTab(ROUTE_PLAYLIST, R.string.tab_playlist,
+        Icons.AutoMirrored.Filled.QueueMusic
+    )
     object History : AppTab(ROUTE_HISTORY, R.string.tab_history, Icons.Filled.CalendarMonth)
     object Settings : AppTab(ROUTE_SETTINGS, R.string.tab_settings, Icons.Filled.Settings)
 
@@ -146,6 +150,7 @@ fun BeatClikrApp(
     var showNewPlaylistDialog by remember { mutableStateOf(false) }
     var showSongPickerForPlaylist by remember { mutableStateOf(false) }
     var showFocusView by remember { mutableStateOf(false) }
+    var showHistoryShareSheet by remember { mutableStateOf(false) }
 
     LaunchedEffect(showSongDetail) {
         if (showSongDetail) songLibraryViewModel.initDraft(uiState.selectedSong)
@@ -208,6 +213,15 @@ fun BeatClikrApp(
                                 TextButton(onClick = { playlistListEditMode = !playlistListEditMode }) {
                                     Text(if (playlistListEditMode) stringResource(R.string.done) else stringResource(R.string.edit))
                                 }
+                            }
+                        }
+                        if (currentRoute == ROUTE_HISTORY) {
+                            IconButton(onClick = { showHistoryShareSheet = true }) {
+                                Icon(
+                                    imageVector = Icons.Default.Share,
+                                    contentDescription = stringResource(R.string.share_streak),
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
                             }
                         }
                         if (currentRoute == ROUTE_PLAYLIST_DETAIL) {
@@ -338,7 +352,11 @@ fun BeatClikrApp(
                 )
             }
             composable(ROUTE_HISTORY) {
-                PracticeHistoryView(viewModel = practiceHistoryViewModel)
+                PracticeHistoryView(
+                    viewModel = practiceHistoryViewModel,
+                    showShareSheet = showHistoryShareSheet,
+                    onShareSheetDismiss = { showHistoryShareSheet = false }
+                )
             }
             composable(ROUTE_SETTINGS) {
                 SettingsView(

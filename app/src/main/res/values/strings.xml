@@ -95,4 +95,6 @@
     <string name="keep_streak_reminder">Practice today to keep your streak going!</string>
     <string name="no_practice_recorded">No practice recorded</string>
     <string name="practice_history_for">Practice History for %1$s</string>
+    <string name="share_streak">Share Streak</string>
+    <string name="share_image">Share Image</string>
 </resources>

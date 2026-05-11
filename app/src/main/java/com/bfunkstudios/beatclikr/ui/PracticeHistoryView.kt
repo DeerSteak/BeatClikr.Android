@@ -1,5 +1,7 @@
 package com.bfunkstudios.beatclikr.ui
 
+import android.content.Intent
+import android.graphics.Bitmap
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -17,26 +19,41 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.LocalFireDepartment
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.asAndroidBitmap
+import androidx.compose.ui.graphics.layer.drawLayer
+import androidx.compose.ui.graphics.rememberGraphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.core.content.FileProvider
 import com.bfunkstudios.beatclikr.R
 import com.bfunkstudios.beatclikr.data.PracticedSong
 import com.bfunkstudios.beatclikr.ui.components.CalendarView
+import com.bfunkstudios.beatclikr.ui.components.SharableStreakCard
+import kotlinx.coroutines.launch
+import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Locale
 
@@ -44,7 +61,9 @@ import java.util.Locale
 @Composable
 fun PracticeHistoryView(
     viewModel: PracticeHistoryViewModel,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    showShareSheet: Boolean = false,
+    onShareSheetDismiss: () -> Unit = {}
 ) {
     val practiceDates by viewModel.practiceDates.collectAsState()
     val selectedDate by viewModel.selectedDate.collectAsState()
@@ -57,10 +76,8 @@ fun PracticeHistoryView(
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.surfaceVariant)
     ) {
-        // Streak stats
         StreakStatsRow(dates = allDates, viewModel = viewModel)
 
-        // Reminder banner
         if (viewModel.reminderNeeded(allDates)) {
             Row(
                 modifier = Modifier
@@ -87,7 +104,6 @@ fun PracticeHistoryView(
             }
         }
 
-        // Calendar
         CalendarView(
             markedDates = allDates,
             selectedDate = selectedDate,
@@ -98,8 +114,78 @@ fun PracticeHistoryView(
                 .padding(bottom = 12.dp)
         )
 
-        // Selected day song list
         SelectedDaySongs(selectedDate = selectedDate, songs = selectedDateSongs)
+    }
+
+    if (showShareSheet) {
+        ShareStreakSheet(
+            streakDays = viewModel.currentStreak(allDates).toString(),
+            onDismiss = onShareSheetDismiss
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ShareStreakSheet(
+    streakDays: String,
+    onDismiss: () -> Unit
+) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val graphicsLayer = rememberGraphicsLayer()
+    val coroutineScope = rememberCoroutineScope()
+    val context = LocalContext.current
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp)
+                .padding(bottom = 32.dp)
+        ) {
+            SharableStreakCard(
+                streakDays = streakDays,
+                modifier = Modifier.drawWithContent {
+                    graphicsLayer.record {
+                        this@drawWithContent.drawContent()
+                    }
+                    drawLayer(graphicsLayer)
+                }
+            )
+            Spacer(modifier = Modifier.height(24.dp))
+            Button(
+                onClick = {
+                    coroutineScope.launch {
+                        val bitmap = graphicsLayer.toImageBitmap().asAndroidBitmap()
+                        val file = File(context.cacheDir, "images/streak_card.png")
+                        file.parentFile?.mkdirs()
+                        file.outputStream().use {
+                            bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)
+                        }
+                        val uri = FileProvider.getUriForFile(
+                            context,
+                            "${context.packageName}.fileprovider",
+                            file
+                        )
+                        val intent = Intent(Intent.ACTION_SEND).apply {
+                            type = "image/png"
+                            putExtra(Intent.EXTRA_STREAM, uri)
+                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                        }
+                        context.startActivity(Intent.createChooser(intent, null))
+                    }
+                },
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.primary
+                )
+            ) {
+                Text(stringResource(R.string.share_image))
+            }
+        }
     }
 }
 
