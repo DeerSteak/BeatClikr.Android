@@ -17,6 +17,8 @@ import com.bfunkstudios.beatclikr.services.HapticFeedbackService
 import com.bfunkstudios.beatclikr.services.IAudioPlayerService
 import com.bfunkstudios.beatclikr.services.IFlashlightService
 import com.bfunkstudios.beatclikr.services.IHapticFeedbackService
+import com.bfunkstudios.beatclikr.services.IPracticeReminderScheduler
+import com.bfunkstudios.beatclikr.services.PracticeReminderScheduler
 import dagger.Binds
 import dagger.Module
 import dagger.Provides
@@ -40,6 +42,9 @@ abstract class AppModule {
 
     @Binds @Singleton
     abstract fun bindPracticeHistoryRepository(impl: PracticeHistoryRepositoryImpl): PracticeHistoryRepository
+
+    @Binds @Singleton
+    abstract fun bindPracticeReminderScheduler(impl: PracticeReminderScheduler): IPracticeReminderScheduler
 
     companion object {
 

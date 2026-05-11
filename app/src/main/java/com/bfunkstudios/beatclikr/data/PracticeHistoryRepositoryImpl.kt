@@ -1,11 +1,13 @@
 package com.bfunkstudios.beatclikr.data
 
 import com.bfunkstudios.beatclikr.data.db.PracticeHistoryDao
+import com.bfunkstudios.beatclikr.services.IPracticeReminderScheduler
 import java.util.Calendar
 import javax.inject.Inject
 
 class PracticeHistoryRepositoryImpl @Inject constructor(
-    private val dao: PracticeHistoryDao
+    private val dao: PracticeHistoryDao,
+    private val reminderScheduler: IPracticeReminderScheduler
 ) : PracticeHistoryRepository {
 
     override fun getAllSessions() = dao.getAllSessions()
@@ -30,6 +32,7 @@ class PracticeHistoryRepositoryImpl @Inject constructor(
             existing == null ->
                 dao.insertPracticedSong(withSession)
         }
+        reminderScheduler.rescheduleIfEnabled()
     }
 
     private suspend fun getOrCreateTodaysSession(): PracticeSession {

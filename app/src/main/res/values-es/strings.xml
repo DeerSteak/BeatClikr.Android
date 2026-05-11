@@ -26,6 +26,12 @@
     <string name="allow_notifications">Permitir notificaciones</string>
     <string name="not_now">Ahora no</string>
     <string name="enable">Activar</string>
+    <string name="practice_reminder_notification_channel_name">Recordatorios de práctica</string>
+    <string name="practice_reminder_notification_title">¡Es hora de practicar!</string>
+    <string name="practice_reminder_notification_body">¡Es hora de practicar! Toca cada día para acumular una racha de práctica.</string>
+    <string name="practice_reminder_notification_body_practiced_today">Has practicado un poco hoy, pero este es tu recordatorio para tocar.</string>
+    <string name="practice_reminder_notification_body_keep_streak">¡Mantén tu racha de %1$d días viva! Es hora de practicar.</string>
+    <string name="practice_reminder_notification_body_streak_broken">Tu racha de práctica de %1$d días se rompió. ¡Hora de empezar de nuevo!</string>
     <string name="copyright">Copyright</string>
     <string name="copyright_value">© 2026 Benjamin Funk</string>
     <string name="previous">Anterior</string>

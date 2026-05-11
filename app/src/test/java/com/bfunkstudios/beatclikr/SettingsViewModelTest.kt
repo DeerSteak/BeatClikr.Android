@@ -3,6 +3,7 @@ package com.bfunkstudios.beatclikr
 import com.bfunkstudios.beatclikr.data.IAppPreferences
 import com.bfunkstudios.beatclikr.data.SoundFile
 import com.bfunkstudios.beatclikr.services.IFlashlightService
+import com.bfunkstudios.beatclikr.services.IPracticeReminderScheduler
 import com.bfunkstudios.beatclikr.ui.FlashlightSettingsAction
 import com.bfunkstudios.beatclikr.ui.FlashlightSettingsDialog
 import com.bfunkstudios.beatclikr.ui.ReminderPermissionStatus
@@ -22,12 +23,14 @@ class SettingsViewModelTest {
 
     private lateinit var prefs: IAppPreferences
     private lateinit var flashlight: IFlashlightService
+    private lateinit var reminderScheduler: IPracticeReminderScheduler
     private lateinit var viewModel: SettingsViewModel
 
     @Before
     fun setUp() {
         prefs = mockk(relaxed = true)
         flashlight = mockk(relaxed = true)
+        reminderScheduler = mockk(relaxed = true)
         every { flashlight.hasFlashlight } returns true
         every { prefs.useFlashlight } returns false
         every { prefs.useVibration } returns false
@@ -46,7 +49,7 @@ class SettingsViewModelTest {
         every { prefs.playlistRhythmSound } returns SoundFile.CLICK_LO
         every { prefs.polyrhythmBeatSound } returns SoundFile.CLICK_HI
         every { prefs.polyrhythmRhythmSound } returns SoundFile.CLICK_LO
-        viewModel = SettingsViewModel(prefs, flashlight)
+        viewModel = SettingsViewModel(prefs, flashlight, reminderScheduler)
     }
 
     @Test
@@ -116,7 +119,7 @@ class SettingsViewModelTest {
     fun `turning reminders off clears local notification warnings`() {
         every { prefs.practiceReminderEnabled } returns true
         every { prefs.practiceReminderNotificationsDeferred } returns true
-        viewModel = SettingsViewModel(prefs, flashlight)
+        viewModel = SettingsViewModel(prefs, flashlight, reminderScheduler)
         viewModel.syncReminderPermissionState(ReminderPermissionStatus.Blocked)
 
         val action = viewModel.onPracticeReminderToggleRequested(
@@ -135,7 +138,7 @@ class SettingsViewModelTest {
     @Test
     fun `syncReminderPermissionState shows cross device prompt for restored reminders without local permission`() {
         every { prefs.practiceReminderEnabled } returns true
-        viewModel = SettingsViewModel(prefs, flashlight)
+        viewModel = SettingsViewModel(prefs, flashlight, reminderScheduler)
 
         viewModel.syncReminderPermissionState(ReminderPermissionStatus.NotDetermined)
 
@@ -147,7 +150,7 @@ class SettingsViewModelTest {
     fun `syncReminderPermissionState keeps deferred warning without re-prompting`() {
         every { prefs.practiceReminderEnabled } returns true
         every { prefs.practiceReminderNotificationsDeferred } returns true
-        viewModel = SettingsViewModel(prefs, flashlight)
+        viewModel = SettingsViewModel(prefs, flashlight, reminderScheduler)
 
         viewModel.syncReminderPermissionState(ReminderPermissionStatus.NotDetermined)
 
@@ -158,7 +161,7 @@ class SettingsViewModelTest {
     @Test
     fun `declineRemindersFromOtherDevice stores deferred warning state`() {
         every { prefs.practiceReminderEnabled } returns true
-        viewModel = SettingsViewModel(prefs, flashlight)
+        viewModel = SettingsViewModel(prefs, flashlight, reminderScheduler)
         viewModel.syncReminderPermissionState(ReminderPermissionStatus.NotDetermined)
 
         viewModel.declineRemindersFromOtherDevice()
@@ -214,7 +217,7 @@ class SettingsViewModelTest {
     @Test
     fun `syncFlashlightStateOnEnter disables saved flashlight when permission is missing`() {
         every { prefs.useFlashlight } returns true
-        viewModel = SettingsViewModel(prefs, flashlight)
+        viewModel = SettingsViewModel(prefs, flashlight, reminderScheduler)
 
         val changed = viewModel.syncFlashlightStateOnEnter(hasCameraPermission = false)
 
@@ -227,7 +230,7 @@ class SettingsViewModelTest {
     fun `syncFlashlightStateOnEnter disables saved flashlight and shows dialog when flash is unavailable`() {
         every { prefs.useFlashlight } returns true
         every { flashlight.hasFlashlight } returns false
-        viewModel = SettingsViewModel(prefs, flashlight)
+        viewModel = SettingsViewModel(prefs, flashlight, reminderScheduler)
 
         val changed = viewModel.syncFlashlightStateOnEnter(hasCameraPermission = true)
 

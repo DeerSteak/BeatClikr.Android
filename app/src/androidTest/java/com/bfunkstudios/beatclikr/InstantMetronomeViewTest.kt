@@ -24,6 +24,7 @@ import com.bfunkstudios.beatclikr.di.ApplicationScope
 import com.bfunkstudios.beatclikr.services.IAudioPlayerService
 import com.bfunkstudios.beatclikr.services.IFlashlightService
 import com.bfunkstudios.beatclikr.services.IHapticFeedbackService
+import com.bfunkstudios.beatclikr.services.IPracticeReminderScheduler
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -66,6 +67,9 @@ class InstantMetronomeViewTest {
 
         @Provides @Singleton
         fun provideHaptics(): IHapticFeedbackService = FakeHapticFeedbackService()
+
+        @Provides @Singleton
+        fun providePracticeReminderScheduler(): IPracticeReminderScheduler = FakePracticeReminderScheduler()
 
         @Provides @Singleton
         fun providePrefs(): IAppPreferences = FakeAppPreferences()
