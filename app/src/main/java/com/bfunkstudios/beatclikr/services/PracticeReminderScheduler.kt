@@ -11,11 +11,8 @@ import androidx.core.content.ContextCompat
 import com.bfunkstudios.beatclikr.R
 import com.bfunkstudios.beatclikr.data.IAppPreferences
 import com.bfunkstudios.beatclikr.data.db.PracticeHistoryDao
-import com.bfunkstudios.beatclikr.di.ApplicationScope
 import dagger.hilt.android.qualifiers.ApplicationContext
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.launch
 import java.util.Calendar
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -24,28 +21,25 @@ import javax.inject.Singleton
 class PracticeReminderScheduler @Inject constructor(
     @param:ApplicationContext private val context: Context,
     private val prefs: IAppPreferences,
-    private val practiceHistoryDao: PracticeHistoryDao,
-    @param:ApplicationScope private val applicationScope: CoroutineScope
+    private val practiceHistoryDao: PracticeHistoryDao
 ) : IPracticeReminderScheduler {
 
     private val alarmManager = context.getSystemService(AlarmManager::class.java)
 
-    override fun reschedule() {
-        applicationScope.launch {
-            cancel()
-            if (!hasNotificationPermission()) return@launch
+    override suspend fun reschedule() {
+        cancel()
+        if (!hasNotificationPermission()) return
 
-            val dates = practiceHistoryDao.getAllSessions()
-                .first()
-                .map { PracticeReminderBodyCalculator.startOfDay(it.session.date) }
-                .toSet()
-            val bodies = PracticeReminderBodyCalculator.scheduledNotificationBodies(
-                dates = dates,
-                days = REMINDER_DAYS
-            )
-            bodies.forEachIndexed { index, bodySpec ->
-                scheduleReminder(index = index, body = bodySpec.localizedBody())
-            }
+        val dates = practiceHistoryDao.getAllSessions()
+            .first()
+            .map { PracticeReminderBodyCalculator.startOfDay(it.session.date) }
+            .toSet()
+        val bodies = PracticeReminderBodyCalculator.scheduledNotificationBodies(
+            dates = dates,
+            days = REMINDER_DAYS
+        )
+        bodies.forEachIndexed { index, bodySpec ->
+            scheduleReminder(index = index, body = bodySpec.localizedBody())
         }
     }
 
@@ -55,7 +49,7 @@ class PracticeReminderScheduler @Inject constructor(
         }
     }
 
-    override fun rescheduleIfEnabled() {
+    override suspend fun rescheduleIfEnabled() {
         if (prefs.practiceReminderEnabled) {
             reschedule()
         } else {

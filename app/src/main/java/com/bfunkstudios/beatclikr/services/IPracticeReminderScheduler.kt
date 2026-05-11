@@ -1,8 +1,8 @@
 package com.bfunkstudios.beatclikr.services
 
 interface IPracticeReminderScheduler {
-    fun reschedule()
+    suspend fun reschedule()
     fun cancel()
-    fun rescheduleIfEnabled()
+    suspend fun rescheduleIfEnabled()
     fun canScheduleExactAlarms(): Boolean
 }

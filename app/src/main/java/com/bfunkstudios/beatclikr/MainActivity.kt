@@ -5,6 +5,8 @@ import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -30,7 +32,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
-        reminderScheduler.rescheduleIfEnabled()
+        lifecycleScope.launch { reminderScheduler.rescheduleIfEnabled() }
     }
 
     // BeatClikr is foreground-only: stop playback when the activity leaves the foreground.

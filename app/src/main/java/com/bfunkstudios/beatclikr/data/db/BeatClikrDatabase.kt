@@ -14,7 +14,7 @@ import com.bfunkstudios.beatclikr.data.Song
 @Database(
     entities = [Song::class, Playlist::class, PlaylistEntry::class, PracticeSession::class, PracticedSong::class],
     version = 4,
-    exportSchema = false
+    exportSchema = true
 )
 @TypeConverters(Converters::class)
 abstract class BeatClikrDatabase : RoomDatabase() {

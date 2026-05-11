@@ -7,7 +7,7 @@ class FakePracticeReminderScheduler : IPracticeReminderScheduler {
     var cancelCount = 0
     var rescheduleIfEnabledCount = 0
 
-    override fun reschedule() {
+    override suspend fun reschedule() {
         rescheduleCount += 1
     }
 
@@ -15,7 +15,7 @@ class FakePracticeReminderScheduler : IPracticeReminderScheduler {
         cancelCount += 1
     }
 
-    override fun rescheduleIfEnabled() {
+    override suspend fun rescheduleIfEnabled() {
         rescheduleIfEnabledCount += 1
     }
 

@@ -4,7 +4,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import com.bfunkstudios.beatclikr.data.IAppPreferences
+import kotlinx.coroutines.launch
 import com.bfunkstudios.beatclikr.data.SoundFile
 import com.bfunkstudios.beatclikr.services.IFlashlightService
 import com.bfunkstudios.beatclikr.services.IPracticeReminderScheduler
@@ -203,7 +205,7 @@ class SettingsViewModel @Inject constructor(
         when (status) {
             ReminderPermissionStatus.Granted -> {
                 clearReminderPermissionWarnings()
-                reminderScheduler.reschedule()
+                viewModelScope.launch { reminderScheduler.reschedule() }
             }
             ReminderPermissionStatus.NotDetermined -> {
                 notificationsBlockedLocally = false
@@ -235,7 +237,7 @@ class SettingsViewModel @Inject constructor(
                 updatePracticeReminderEnabled(true)
                 clearReminderPermissionWarnings()
                 exactAlarmsUnavailable = !reminderScheduler.canScheduleExactAlarms()
-                reminderScheduler.reschedule()
+                viewModelScope.launch { reminderScheduler.reschedule() }
                 ReminderSettingsAction.None
             }
             ReminderPermissionStatus.NotDetermined,
@@ -258,7 +260,7 @@ class SettingsViewModel @Inject constructor(
             updatePracticeReminderEnabled(true)
             clearReminderPermissionWarnings()
             exactAlarmsUnavailable = !reminderScheduler.canScheduleExactAlarms()
-            reminderScheduler.reschedule()
+            viewModelScope.launch { reminderScheduler.reschedule() }
         } else {
             updatePracticeReminderEnabled(false)
             clearReminderDeferral()
@@ -273,7 +275,7 @@ class SettingsViewModel @Inject constructor(
         return when (status) {
             ReminderPermissionStatus.Granted -> {
                 clearReminderPermissionWarnings()
-                reminderScheduler.reschedule()
+                viewModelScope.launch { reminderScheduler.reschedule() }
                 ReminderSettingsAction.None
             }
             ReminderPermissionStatus.NotDetermined,
@@ -305,7 +307,7 @@ class SettingsViewModel @Inject constructor(
         practiceReminderMinute = safeMinute
         prefs.practiceReminderHour = safeHour
         prefs.practiceReminderMinute = safeMinute
-        reminderScheduler.rescheduleIfEnabled()
+        viewModelScope.launch { reminderScheduler.rescheduleIfEnabled() }
     }
 
     fun updateMetronomeBeatSound(value: SoundFile) {

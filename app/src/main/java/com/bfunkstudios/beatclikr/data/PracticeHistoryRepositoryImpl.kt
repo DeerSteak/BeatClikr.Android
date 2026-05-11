@@ -12,25 +12,29 @@ class PracticeHistoryRepositoryImpl @Inject constructor(
 
     override fun getAllSessions() = dao.getAllSessions()
 
-    override suspend fun recordSongPlayed(song: Song) =
-        record(PracticedSong.fromSong(song, PLACEHOLDER_SESSION_ID), incrementsExisting = true)
-
-    override suspend fun recordMetronomePractice() =
-        record(PracticedSong.metronome(PLACEHOLDER_SESSION_ID), incrementsExisting = false)
-
-    override suspend fun recordPolyrhythmPractice() =
-        record(PracticedSong.polyrhythm(PLACEHOLDER_SESSION_ID), incrementsExisting = false)
-
-    private suspend fun record(template: PracticedSong, incrementsExisting: Boolean) {
+    override suspend fun recordSongPlayed(song: Song) {
         val session = getOrCreateTodaysSession()
-        val withSession = template.copy(sessionId = session.id)
+        record(PracticedSong.fromSong(song, session.id), incrementsExisting = true)
+    }
+
+    override suspend fun recordMetronomePractice() {
+        val session = getOrCreateTodaysSession()
+        record(PracticedSong.metronome(session.id), incrementsExisting = false)
+    }
+
+    override suspend fun recordPolyrhythmPractice() {
+        val session = getOrCreateTodaysSession()
+        record(PracticedSong.polyrhythm(session.id), incrementsExisting = false)
+    }
+
+    private suspend fun record(song: PracticedSong, incrementsExisting: Boolean) {
         val existing = dao.getSessionWithSongsForDay(todayStart(), todayEnd())
-            ?.songs?.firstOrNull { it.songId == template.songId }
+            ?.songs?.firstOrNull { it.songId == song.songId }
         when {
             existing != null && incrementsExisting ->
                 dao.updatePracticedSong(existing.copy(timesPracticed = existing.timesPracticed + 1))
             existing == null ->
-                dao.insertPracticedSong(withSession)
+                dao.insertPracticedSong(song)
         }
         reminderScheduler.rescheduleIfEnabled()
     }
@@ -43,6 +47,8 @@ class PracticeHistoryRepositoryImpl @Inject constructor(
         return session
     }
 
+    // Uses device local time deliberately — sessions are grouped by the day the user practiced,
+    // which should match their local clock, not UTC.
     private fun todayStart(): Long {
         return Calendar.getInstance().apply {
             set(Calendar.HOUR_OF_DAY, 0)
@@ -60,10 +66,5 @@ class PracticeHistoryRepositoryImpl @Inject constructor(
             set(Calendar.MILLISECOND, 0)
             add(Calendar.DAY_OF_YEAR, 1)
         }.timeInMillis
-    }
-
-    companion object {
-        // Placeholder replaced by getOrCreateTodaysSession before any DB write
-        private val PLACEHOLDER_SESSION_ID = java.util.UUID.randomUUID()
     }
 }
