@@ -1,0 +1,152 @@
+package com.bfunkstudios.beatclikr.ui
+
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.bfunkstudios.beatclikr.data.PracticedSong
+import com.bfunkstudios.beatclikr.data.PracticeHistoryRepository
+import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
+import java.text.SimpleDateFormat
+import java.util.Calendar
+import java.util.Locale
+import javax.inject.Inject
+
+@HiltViewModel
+class PracticeHistoryViewModel @Inject constructor(
+    private val repository: PracticeHistoryRepository
+) : ViewModel() {
+
+    private val sessions = repository.getAllSessions()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    private val _selectedDate = MutableStateFlow(startOfDay(System.currentTimeMillis()))
+
+    val selectedDate: StateFlow<Long> = _selectedDate
+
+    val practiceDates: StateFlow<Set<Long>> = sessions
+        .map { list -> list.map { startOfDay(it.session.date) }.toSet() }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptySet())
+
+    val selectedDateSongs: StateFlow<List<PracticedSong>> = combine(sessions, _selectedDate) { list, date ->
+        val songs = list.firstOrNull { startOfDay(it.session.date) == date }?.songs ?: emptyList()
+        songs.sortedWith(
+            compareBy<PracticedSong> { song ->
+                when (song.songId) {
+                    PracticedSong.METRONOME_SONG_ID -> 0
+                    PracticedSong.POLYRHYTHM_SONG_ID -> 1
+                    else -> 2
+                }
+            }
+            .thenByDescending { it.timesPracticed }
+            .thenBy { it.title }
+        )
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    // --- Date selection ---
+
+    fun selectDate(dateMs: Long) {
+        _selectedDate.value = startOfDay(dateMs)
+    }
+
+    // --- Streak computations ---
+
+    fun currentStreak(dates: Set<Long>): Int = currentStreakInfo(dates).first
+
+    fun currentStreakSubtitle(dates: Set<Long>): String {
+        val start = currentStreakInfo(dates).second ?: return "Let's go!"
+        return "Since ${formatDate(start)}"
+    }
+
+    fun longestStreak(dates: Set<Long>): Int = longestStreakInfo(dates)?.first ?: 0
+
+    fun longestStreakSubtitle(dates: Set<Long>): String {
+        val info = longestStreakInfo(dates) ?: return "Let's go!"
+        val (_, start, end) = info
+        val fmt = SimpleDateFormat("M/d/yy", Locale.getDefault())
+        return if (start == end) fmt.format(start) else "${fmt.format(start)} – ${fmt.format(end)}"
+    }
+
+    fun reminderNeeded(dates: Set<Long>): Boolean {
+        val today = startOfDay(System.currentTimeMillis())
+        return currentStreak(dates) > 0 && !dates.contains(today)
+    }
+
+    fun shareText(dates: Set<Long>): String {
+        val current = currentStreak(dates)
+        val longest = longestStreak(dates)
+        return when {
+            current > 0 -> "I'm on a $current-day practice streak with BeatClikr! 🎵"
+            longest > 0 -> "My longest BeatClikr practice streak is $longest days! 🎶"
+            else -> "I've been practicing with BeatClikr! 🎼"
+        }
+    }
+
+    // --- Private helpers ---
+
+    private fun currentStreakInfo(dates: Set<Long>): Pair<Int, Long?> {
+        val today = startOfDay(System.currentTimeMillis())
+        val yesterday = previousDay(today)
+        var check = if (dates.contains(today)) today else yesterday
+        if (!dates.contains(check)) return Pair(0, null)
+        var streak = 0
+        while (dates.contains(check)) {
+            streak++
+            check = previousDay(check)
+        }
+        val start = nextDay(check)
+        return Pair(streak, start)
+    }
+
+    private fun longestStreakInfo(dates: Set<Long>): Triple<Int, Long, Long>? {
+        if (dates.isEmpty()) return null
+        val sorted = dates.sorted()
+        var bestStart = sorted[0]; var bestEnd = sorted[0]; var bestLen = 1
+        var curStart = sorted[0]; var curLen = 1
+        for (i in 1 until sorted.size) {
+            if (nextDay(sorted[i - 1]) == sorted[i]) {
+                curLen++
+                if (curLen > bestLen) {
+                    bestLen = curLen
+                    bestStart = curStart
+                    bestEnd = sorted[i]
+                }
+            } else {
+                curStart = sorted[i]
+                curLen = 1
+            }
+        }
+        return Triple(bestLen, bestStart, bestEnd)
+    }
+
+    private fun previousDay(epochMs: Long): Long = Calendar.getInstance().run {
+        timeInMillis = epochMs
+        add(Calendar.DAY_OF_YEAR, -1)
+        startOfDay(timeInMillis)
+    }
+
+    private fun nextDay(epochMs: Long): Long = Calendar.getInstance().run {
+        timeInMillis = epochMs
+        add(Calendar.DAY_OF_YEAR, 1)
+        startOfDay(timeInMillis)
+    }
+
+    private fun formatDate(epochMs: Long): String =
+        SimpleDateFormat("MMMM d, yyyy", Locale.getDefault()).format(epochMs)
+
+    companion object {
+        fun startOfDay(epochMs: Long): Long = Calendar.getInstance().run {
+            timeInMillis = epochMs
+            set(Calendar.HOUR_OF_DAY, 0)
+            set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+            timeInMillis
+        }
+    }
+}

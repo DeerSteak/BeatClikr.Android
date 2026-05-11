@@ -11,6 +11,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.FeaturedPlayList
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Fullscreen
 import androidx.compose.material.icons.filled.PlaylistPlay
 import androidx.compose.material.icons.filled.Settings
@@ -61,6 +62,7 @@ private const val ROUTE_INSTANT = "instant"
 private const val ROUTE_LIBRARY = "library"
 private const val ROUTE_PLAYLIST = "playlist"
 private const val ROUTE_PLAYLIST_DETAIL = "playlist_detail/{playlistId}"
+private const val ROUTE_HISTORY = "history"
 private const val ROUTE_SETTINGS = "settings"
 private const val ARG_PLAYLIST_ID = "playlistId"
 
@@ -73,10 +75,11 @@ private sealed class AppTab(
     object Instant : AppTab(ROUTE_INSTANT, R.string.tab_instant, iconRes = R.drawable.metronome_tab_icon)
     object Library : AppTab(ROUTE_LIBRARY, R.string.tab_library, Icons.AutoMirrored.Filled.FeaturedPlayList)
     object Playlist : AppTab(ROUTE_PLAYLIST, R.string.tab_playlist, Icons.Filled.PlaylistPlay)
+    object History : AppTab(ROUTE_HISTORY, R.string.tab_history, Icons.Filled.CalendarMonth)
     object Settings : AppTab(ROUTE_SETTINGS, R.string.tab_settings, Icons.Filled.Settings)
 
     companion object {
-        val all = listOf(Instant, Library, Playlist, Settings)
+        val all = listOf(Instant, Library, Playlist, History, Settings)
     }
 }
 
@@ -121,6 +124,7 @@ fun BeatClikrApp(
     songLibraryViewModel: SongLibraryViewModel = hiltViewModel(),
     metronomeViewModel: MetronomeViewModel = hiltViewModel(),
     playlistViewModel: PlaylistViewModel = hiltViewModel(),
+    practiceHistoryViewModel: PracticeHistoryViewModel = hiltViewModel(),
     onAlwaysUseDarkThemeChange: (Boolean) -> Unit = {}
 ) {
     val backStackEntry by navController.currentBackStackEntryAsState()
@@ -162,6 +166,7 @@ fun BeatClikrApp(
         ROUTE_LIBRARY -> stringResource(R.string.song_library)
         ROUTE_PLAYLIST -> stringResource(R.string.tab_playlist)
         ROUTE_PLAYLIST_DETAIL -> selectedPlaylist?.playlist?.name ?: stringResource(R.string.tab_playlist)
+        ROUTE_HISTORY -> stringResource(R.string.practice_history)
         ROUTE_SETTINGS -> stringResource(R.string.settings)
         else -> stringResource(R.string.app_name)
     }
@@ -331,6 +336,9 @@ fun BeatClikrApp(
                         showSongDetail = true
                     }
                 )
+            }
+            composable(ROUTE_HISTORY) {
+                PracticeHistoryView(viewModel = practiceHistoryViewModel)
             }
             composable(ROUTE_SETTINGS) {
                 SettingsView(
