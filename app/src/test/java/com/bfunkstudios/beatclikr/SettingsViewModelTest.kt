@@ -25,6 +25,9 @@ class SettingsViewModelTest {
         every { prefs.muteMetronome } returns false
         every { prefs.keepScreenAwake } returns false
         every { prefs.sixteenthAlternate } returns false
+        every { prefs.practiceReminderEnabled } returns false
+        every { prefs.practiceReminderHour } returns 9
+        every { prefs.practiceReminderMinute } returns 0
         every { prefs.instantBeatSound } returns SoundFile.CLICK_HI
         every { prefs.instantRhythmSound } returns SoundFile.CLICK_LO
         every { prefs.playlistBeatSound } returns SoundFile.CLICK_HI
@@ -45,5 +48,28 @@ class SettingsViewModelTest {
 
         assertTrue(viewModel.alwaysUseDarkTheme)
         verify { prefs.alwaysUseDarkTheme = true }
+    }
+
+    @Test
+    fun `practice reminder settings load from prefs`() {
+        assertFalse(viewModel.practiceReminderEnabled)
+    }
+
+    @Test
+    fun `updatePracticeReminderEnabled saves to prefs`() {
+        viewModel.updatePracticeReminderEnabled(true)
+
+        assertTrue(viewModel.practiceReminderEnabled)
+        verify { prefs.practiceReminderEnabled = true }
+    }
+
+    @Test
+    fun `updatePracticeReminderTime saves clamped values to prefs`() {
+        viewModel.updatePracticeReminderTime(25, -1)
+
+        org.junit.Assert.assertEquals(23, viewModel.practiceReminderHour)
+        org.junit.Assert.assertEquals(0, viewModel.practiceReminderMinute)
+        verify { prefs.practiceReminderHour = 23 }
+        verify { prefs.practiceReminderMinute = 0 }
     }
 }

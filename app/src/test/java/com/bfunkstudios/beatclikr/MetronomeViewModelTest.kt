@@ -5,6 +5,7 @@ import com.bfunkstudios.beatclikr.data.BeatPattern
 import com.bfunkstudios.beatclikr.data.ClickerType
 import com.bfunkstudios.beatclikr.data.Groove
 import com.bfunkstudios.beatclikr.data.IAppPreferences
+import com.bfunkstudios.beatclikr.data.PracticeHistoryRepository
 import com.bfunkstudios.beatclikr.data.Song
 import com.bfunkstudios.beatclikr.data.SoundFile
 import com.bfunkstudios.beatclikr.services.IAudioPlayerService
@@ -30,6 +31,7 @@ class MetronomeViewModelTest {
 
     private lateinit var audio: IAudioPlayerService
     private lateinit var prefs: IAppPreferences
+    private lateinit var practiceHistory: PracticeHistoryRepository
     private lateinit var viewModel: MetronomeViewModel
 
     @Before
@@ -37,6 +39,7 @@ class MetronomeViewModelTest {
         Dispatchers.setMain(UnconfinedTestDispatcher())
         audio = mockk(relaxed = true)
         prefs = mockk(relaxed = true)
+        practiceHistory = mockk(relaxed = true)
         every { prefs.instantBpm } returns 120f
         every { prefs.instantGroove } returns Groove.Quarter
         every { prefs.instantBeatPattern } returns null
@@ -46,7 +49,7 @@ class MetronomeViewModelTest {
         every { prefs.rampIncrement } returns 2
         every { prefs.rampInterval } returns 8
         every { prefs.muteMetronome } returns false
-        viewModel = MetronomeViewModel(audio, prefs)
+        viewModel = MetronomeViewModel(audio, prefs, practiceHistory)
     }
 
     @After

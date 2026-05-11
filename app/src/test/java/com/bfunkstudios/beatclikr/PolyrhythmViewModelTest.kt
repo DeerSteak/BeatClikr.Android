@@ -1,6 +1,7 @@
 package com.bfunkstudios.beatclikr
 
 import com.bfunkstudios.beatclikr.data.IAppPreferences
+import com.bfunkstudios.beatclikr.data.PracticeHistoryRepository
 import com.bfunkstudios.beatclikr.data.SoundFile
 import com.bfunkstudios.beatclikr.services.IAudioPlayerService
 import com.bfunkstudios.beatclikr.constants.MetronomeConstants
@@ -25,6 +26,7 @@ class PolyrhythmViewModelTest {
 
     private lateinit var audio: IAudioPlayerService
     private lateinit var prefs: IAppPreferences
+    private lateinit var practiceHistory: PracticeHistoryRepository
     private lateinit var viewModel: PolyrhythmViewModel
 
     @Before
@@ -32,13 +34,14 @@ class PolyrhythmViewModelTest {
         Dispatchers.setMain(UnconfinedTestDispatcher())
         audio = mockk(relaxed = true)
         prefs = mockk(relaxed = true)
+        practiceHistory = mockk(relaxed = true)
         every { prefs.polyrhythmBpm } returns 120f
         every { prefs.polyrhythmBeats } returns 3
         every { prefs.polyrhythmAgainst } returns 2
         every { prefs.polyrhythmBeatSound } returns SoundFile.CLICK_HI
         every { prefs.polyrhythmRhythmSound } returns SoundFile.CLICK_LO
         every { prefs.muteMetronome } returns false
-        viewModel = PolyrhythmViewModel(audio, prefs)
+        viewModel = PolyrhythmViewModel(audio, prefs, practiceHistory)
     }
 
     @After
