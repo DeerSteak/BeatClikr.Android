@@ -10,6 +10,7 @@ import com.bfunkstudios.beatclikr.data.Song
 import com.bfunkstudios.beatclikr.data.SoundFile
 import com.bfunkstudios.beatclikr.services.IAudioPlayerService
 import com.bfunkstudios.beatclikr.services.IFlashlightService
+import com.bfunkstudios.beatclikr.services.IHapticFeedbackService
 import com.bfunkstudios.beatclikr.ui.MetronomeViewModel
 import io.mockk.every
 import io.mockk.mockk
@@ -34,6 +35,7 @@ class MetronomeViewModelTest {
     private lateinit var prefs: IAppPreferences
     private lateinit var practiceHistory: PracticeHistoryRepository
     private lateinit var flashlight: IFlashlightService
+    private lateinit var haptics: IHapticFeedbackService
     private lateinit var viewModel: MetronomeViewModel
 
     @Before
@@ -43,6 +45,7 @@ class MetronomeViewModelTest {
         prefs = mockk(relaxed = true)
         practiceHistory = mockk(relaxed = true)
         flashlight = mockk(relaxed = true)
+        haptics = mockk(relaxed = true)
         every { prefs.instantBpm } returns 120f
         every { prefs.instantGroove } returns Groove.Quarter
         every { prefs.instantBeatPattern } returns null
@@ -53,7 +56,8 @@ class MetronomeViewModelTest {
         every { prefs.rampInterval } returns 8
         every { prefs.muteMetronome } returns false
         every { prefs.useFlashlight } returns false
-        viewModel = MetronomeViewModel(audio, prefs, practiceHistory, flashlight)
+        every { prefs.useVibration } returns false
+        viewModel = MetronomeViewModel(audio, prefs, practiceHistory, flashlight, haptics)
     }
 
     @After
@@ -110,6 +114,33 @@ class MetronomeViewModelTest {
         viewModel.stop()
 
         verify(exactly = 2) { flashlight.turnFlashlightOff() }
+    }
+
+    @Test
+    fun `beat plays strong haptic when vibration is enabled`() {
+        every { prefs.useVibration } returns true
+
+        viewModel.metronomeBeatFired(isBeat = true, beatInterval = 0.5f)
+
+        verify { haptics.playBeatHaptic() }
+    }
+
+    @Test
+    fun `rhythm plays light haptic when vibration is enabled`() {
+        every { prefs.useVibration } returns true
+
+        viewModel.metronomeBeatFired(isBeat = false, beatInterval = 0.5f)
+
+        verify { haptics.playRhythmHaptic() }
+    }
+
+    @Test
+    fun `beat and rhythm do not play haptics when vibration is disabled`() {
+        viewModel.metronomeBeatFired(isBeat = true, beatInterval = 0.5f)
+        viewModel.metronomeBeatFired(isBeat = false, beatInterval = 0.5f)
+
+        verify(exactly = 0) { haptics.playBeatHaptic() }
+        verify(exactly = 0) { haptics.playRhythmHaptic() }
     }
 
     // --- BPM ---

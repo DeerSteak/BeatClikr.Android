@@ -13,8 +13,10 @@ import com.bfunkstudios.beatclikr.data.SongRepositoryImpl
 import com.bfunkstudios.beatclikr.data.db.BeatClikrDatabase
 import com.bfunkstudios.beatclikr.services.AudioPlayerService
 import com.bfunkstudios.beatclikr.services.FlashlightService
+import com.bfunkstudios.beatclikr.services.HapticFeedbackService
 import com.bfunkstudios.beatclikr.services.IAudioPlayerService
 import com.bfunkstudios.beatclikr.services.IFlashlightService
+import com.bfunkstudios.beatclikr.services.IHapticFeedbackService
 import dagger.Binds
 import dagger.Module
 import dagger.Provides
@@ -48,6 +50,10 @@ abstract class AppModule {
         @Provides @Singleton
         fun provideFlashlightService(@ApplicationContext context: Context): IFlashlightService =
             FlashlightService(context)
+
+        @Provides @Singleton
+        fun provideHapticFeedbackService(@ApplicationContext context: Context): IHapticFeedbackService =
+            HapticFeedbackService(context)
 
         @Provides @Singleton
         fun provideAppPreferences(@ApplicationContext context: Context): IAppPreferences =

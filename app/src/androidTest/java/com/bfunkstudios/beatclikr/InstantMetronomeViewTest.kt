@@ -17,6 +17,7 @@ import com.bfunkstudios.beatclikr.di.AppModule
 import com.bfunkstudios.beatclikr.di.ApplicationScope
 import com.bfunkstudios.beatclikr.services.IAudioPlayerService
 import com.bfunkstudios.beatclikr.services.IFlashlightService
+import com.bfunkstudios.beatclikr.services.IHapticFeedbackService
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -56,6 +57,9 @@ class InstantMetronomeViewTest {
 
         @Provides @Singleton
         fun provideFlashlight(): IFlashlightService = FakeFlashlightService()
+
+        @Provides @Singleton
+        fun provideHaptics(): IHapticFeedbackService = FakeHapticFeedbackService()
 
         @Provides @Singleton
         fun providePrefs(): IAppPreferences = FakeAppPreferences()

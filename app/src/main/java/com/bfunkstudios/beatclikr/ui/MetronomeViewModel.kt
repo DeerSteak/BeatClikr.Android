@@ -16,6 +16,7 @@ import com.bfunkstudios.beatclikr.data.Song
 import com.bfunkstudios.beatclikr.data.SoundFile
 import com.bfunkstudios.beatclikr.services.IAudioPlayerService
 import com.bfunkstudios.beatclikr.services.IFlashlightService
+import com.bfunkstudios.beatclikr.services.IHapticFeedbackService
 import com.bfunkstudios.beatclikr.services.MetronomeAudioEngineDelegate
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
@@ -31,7 +32,8 @@ class MetronomeViewModel @Inject constructor(
     private val audio: IAudioPlayerService,
     private val prefs: IAppPreferences,
     private val practiceHistory: PracticeHistoryRepository,
-    private val flashlight: IFlashlightService
+    private val flashlight: IFlashlightService,
+    private val haptics: IHapticFeedbackService
 ) : ViewModel(), MetronomeAudioEngineDelegate {
 
     var iconScale by mutableFloatStateOf(MetronomeConstants.ICON_SCALE_MIN)
@@ -289,6 +291,9 @@ class MetronomeViewModel @Inject constructor(
         if (prefs.useFlashlight) {
             flashlight.turnFlashlightOn()
         }
+        if (prefs.useVibration) {
+            haptics.playBeatHaptic()
+        }
 
         if (!rampEnabled || clickerType != ClickerType.INSTANT) return
 
@@ -306,6 +311,9 @@ class MetronomeViewModel @Inject constructor(
     private fun handleRhythm() {
         if (prefs.useFlashlight) {
             flashlight.turnFlashlightOff()
+        }
+        if (prefs.useVibration) {
+            haptics.playRhythmHaptic()
         }
     }
 
