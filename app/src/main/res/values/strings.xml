@@ -15,6 +15,12 @@
     <string name="settings">Settings</string>
     <string name="appearance">Appearance</string>
     <string name="settings_always_use_dark_theme">Always Use Dark Theme</string>
+    <string name="settings_practice_reminders">Practice Reminders</string>
+    <string name="settings_practice_reminders_label">Send Practice Reminders</string>
+    <string name="settings_practice_reminder_time">Reminder Time</string>
+    <string name="settings_practice_reminders_description">Get a daily reminder to practice and keep your streak alive.</string>
+    <string name="copyright">Copyright</string>
+    <string name="copyright_value">© 2026 Benjamin Funk</string>
     <string name="previous">Previous</string>
     <string name="next">Next</string>
     <string name="previous_song">Previous Song</string>

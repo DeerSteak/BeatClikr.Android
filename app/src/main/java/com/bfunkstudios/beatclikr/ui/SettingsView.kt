@@ -1,6 +1,9 @@
 package com.bfunkstudios.beatclikr.ui
 
+import android.app.TimePickerDialog
+import android.text.format.DateFormat
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -16,6 +19,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -24,6 +28,7 @@ import com.bfunkstudios.beatclikr.R
 import com.bfunkstudios.beatclikr.data.SoundFile
 import com.bfunkstudios.beatclikr.ui.components.SectionCard
 import com.bfunkstudios.beatclikr.ui.components.SoundPickerRow
+import java.util.Calendar
 
 @Composable
 fun SettingsView(
@@ -32,6 +37,7 @@ fun SettingsView(
     onAlwaysUseDarkThemeChange: (Boolean) -> Unit = {},
     viewModel: SettingsViewModel = hiltViewModel()
 ) {
+    val context = LocalContext.current
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -51,6 +57,38 @@ fun SettingsView(
                 }
             )
         }
+
+        SettingsSectionTitle(stringResource(R.string.settings_practice_reminders))
+        SectionCard {
+            SettingsToggleRow(
+                label = stringResource(R.string.settings_practice_reminders_label),
+                checked = viewModel.practiceReminderEnabled,
+                onCheckedChange = { viewModel.updatePracticeReminderEnabled(it) }
+            )
+            if (viewModel.practiceReminderEnabled) {
+                SettingsDivider()
+                SettingsValueRow(
+                    label = stringResource(R.string.settings_practice_reminder_time),
+                    value = formatReminderTime(
+                        context = context,
+                        hour = viewModel.practiceReminderHour,
+                        minute = viewModel.practiceReminderMinute
+                    ),
+                    modifier = Modifier.clickable {
+                        TimePickerDialog(
+                            context,
+                            { _, hour, minute ->
+                                viewModel.updatePracticeReminderTime(hour, minute)
+                            },
+                            viewModel.practiceReminderHour,
+                            viewModel.practiceReminderMinute,
+                            DateFormat.is24HourFormat(context)
+                        ).show()
+                    }
+                )
+            }
+        }
+        SettingsFooter(stringResource(R.string.settings_practice_reminders_description))
 
         SettingsSectionTitle(stringResource(R.string.settings_metronome_playback))
         SectionCard {
@@ -162,6 +200,11 @@ fun SettingsView(
                 label = stringResource(R.string.version),
                 value = stringResource(R.string.version_value)
             )
+            SettingsDivider()
+            SettingsValueRow(
+                label = stringResource(R.string.copyright),
+                value = stringResource(R.string.copyright_value)
+            )
         }
         Spacer(modifier = Modifier.padding(bottom = 8.dp))
     }
@@ -206,10 +249,11 @@ private fun SettingsToggleRow(
 @Composable
 private fun SettingsValueRow(
     label: String,
-    value: String
+    value: String,
+    modifier: Modifier = Modifier
 ) {
     Row(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .padding(horizontal = 12.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
@@ -240,4 +284,12 @@ private fun SettingsFooter(text: String) {
 @Composable
 private fun SettingsDivider() {
     HorizontalDivider(modifier = Modifier.padding(start = 12.dp))
+}
+
+private fun formatReminderTime(context: android.content.Context, hour: Int, minute: Int): String {
+    val calendar = Calendar.getInstance().apply {
+        set(Calendar.HOUR_OF_DAY, hour)
+        set(Calendar.MINUTE, minute)
+    }
+    return DateFormat.getTimeFormat(context).format(calendar.time)
 }

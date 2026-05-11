@@ -32,6 +32,15 @@ class SettingsViewModel @Inject constructor(
     var sixteenthAlternate by mutableStateOf(prefs.sixteenthAlternate)
         private set
 
+    var practiceReminderEnabled by mutableStateOf(prefs.practiceReminderEnabled)
+        private set
+
+    var practiceReminderHour by mutableStateOf(prefs.practiceReminderHour)
+        private set
+
+    var practiceReminderMinute by mutableStateOf(prefs.practiceReminderMinute)
+        private set
+
     var metronomeBeatSound by mutableStateOf(prefs.instantBeatSound)
         private set
 
@@ -78,6 +87,20 @@ class SettingsViewModel @Inject constructor(
     fun updateSixteenthAlternate(value: Boolean) {
         sixteenthAlternate = value
         prefs.sixteenthAlternate = value
+    }
+
+    fun updatePracticeReminderEnabled(value: Boolean) {
+        practiceReminderEnabled = value
+        prefs.practiceReminderEnabled = value
+    }
+
+    fun updatePracticeReminderTime(hour: Int, minute: Int) {
+        val safeHour = hour.coerceIn(0, 23)
+        val safeMinute = minute.coerceIn(0, 59)
+        practiceReminderHour = safeHour
+        practiceReminderMinute = safeMinute
+        prefs.practiceReminderHour = safeHour
+        prefs.practiceReminderMinute = safeMinute
     }
 
     fun updateMetronomeBeatSound(value: SoundFile) {
