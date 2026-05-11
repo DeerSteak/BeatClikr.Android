@@ -77,7 +77,7 @@ class MetronomeAudioEngine(private val context: Context) {
             AudioManager.AUDIOFOCUS_LOSS_TRANSIENT,
             AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK -> {
                 stopMetronome()
-                polyrhythmEngine.stop()
+                stopPolyrhythm()
             }
         }
     }

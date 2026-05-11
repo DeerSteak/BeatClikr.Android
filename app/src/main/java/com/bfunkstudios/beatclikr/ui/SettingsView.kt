@@ -297,7 +297,11 @@ private fun PracticeRemindersSection(
             actionText = stringResource(R.string.open_settings),
             onAction = {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                    context.startActivity(Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM))
+                    try {
+                        context.startActivity(Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM))
+                    } catch (_: android.content.ActivityNotFoundException) {
+                        context.openNotificationSettings()
+                    }
                 }
             }
         )

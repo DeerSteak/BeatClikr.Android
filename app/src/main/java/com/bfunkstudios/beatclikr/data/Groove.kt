@@ -1,8 +1,6 @@
 package com.bfunkstudios.beatclikr.data
 
-typealias Subdivisions = Int
-
-enum class Groove(val subdivisions: Subdivisions) {
+enum class Groove(val subdivisions: Int) {
     Quarter(1),
     Eighth(2),
     Triplet(3),
