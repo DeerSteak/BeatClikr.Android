@@ -14,9 +14,9 @@ import androidx.compose.material.icons.automirrored.filled.QueueMusic
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Fullscreen
+import androidx.compose.material.icons.filled.IosShare
 import androidx.compose.material.icons.filled.QueueMusic
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -218,7 +218,7 @@ fun BeatClikrApp(
                         if (currentRoute == ROUTE_HISTORY) {
                             IconButton(onClick = { showHistoryShareSheet = true }) {
                                 Icon(
-                                    imageVector = Icons.Default.Share,
+                                    imageVector = Icons.Default.IosShare,
                                     contentDescription = stringResource(R.string.share_streak),
                                     tint = MaterialTheme.colorScheme.primary
                                 )
