@@ -1,7 +1,9 @@
 package com.bfunkstudios.beatclikr.ui
 
-import androidx.lifecycle.ViewModel
+import android.app.Application
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.bfunkstudios.beatclikr.R
 import com.bfunkstudios.beatclikr.data.PracticedSong
 import com.bfunkstudios.beatclikr.data.PracticeHistoryRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -11,7 +13,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
@@ -30,8 +31,9 @@ data class StreakStatsUiState(
 
 @HiltViewModel
 class PracticeHistoryViewModel @Inject constructor(
+    application: Application,
     private val repository: PracticeHistoryRepository
-) : ViewModel() {
+) : AndroidViewModel(application) {
 
     private val sessions = repository.getAllSessions()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
@@ -70,14 +72,14 @@ class PracticeHistoryViewModel @Inject constructor(
     fun currentStreak(dates: Set<Long>): Int = currentStreakInfo(dates).first
 
     fun currentStreakSubtitle(dates: Set<Long>): String {
-        val start = currentStreakInfo(dates).second ?: return "Let's go!"
-        return "Since ${formatDate(start)}"
+        val start = currentStreakInfo(dates).second ?: return getString(R.string.lets_go)
+        return getString(R.string.streak_since, formatDate(start))
     }
 
     fun longestStreak(dates: Set<Long>): Int = longestStreakInfo(dates)?.first ?: 0
 
     fun longestStreakSubtitle(dates: Set<Long>): String {
-        val info = longestStreakInfo(dates) ?: return "Let's go!"
+        val info = longestStreakInfo(dates) ?: return getString(R.string.lets_go)
         val (_, start, end) = info
         val fmt = SimpleDateFormat("M/d/yy", Locale.getDefault())
         return if (start == end) fmt.format(start) else "${fmt.format(start)} – ${fmt.format(end)}"
@@ -109,13 +111,16 @@ class PracticeHistoryViewModel @Inject constructor(
         val current = currentStreak(dates)
         val longest = longestStreak(dates)
         return when {
-            current > 0 -> "I'm on a $current-day practice streak with BeatClikr! 🎵"
-            longest > 0 -> "My longest BeatClikr practice streak is $longest days! 🎶"
-            else -> "I've been practicing with BeatClikr! 🎼"
+            current > 0 -> getString(R.string.share_streak_current, current)
+            longest > 0 -> getString(R.string.share_streak_longest, longest)
+            else -> getString(R.string.share_streak_none)
         }
     }
 
     // --- Private helpers ---
+
+    private fun getString(resId: Int, vararg args: Any): String =
+        getApplication<Application>().getString(resId, *args)
 
     private fun currentStreakInfo(dates: Set<Long>): Pair<Int, Long?> {
         val today = startOfDay(System.currentTimeMillis())
@@ -168,7 +173,7 @@ class PracticeHistoryViewModel @Inject constructor(
         SimpleDateFormat("MMMM d, yyyy", Locale.getDefault()).format(epochMs)
 
     private fun dayCountLabel(value: Int): String =
-        "$value day${if (value == 1) "" else "s"}"
+        getApplication<Application>().resources.getQuantityString(R.plurals.day_count, value, value)
 
     companion object {
         fun startOfDay(epochMs: Long): Long = Calendar.getInstance().run {

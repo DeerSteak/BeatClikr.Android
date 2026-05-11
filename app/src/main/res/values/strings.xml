@@ -126,4 +126,21 @@
     <string name="practice_history_for">Practice History for %1$s</string>
     <string name="share_streak">Share Streak</string>
     <string name="share_image">Share Image</string>
+    <string name="share_streak_current">I\'m on a %1$d-day practice streak with BeatClikr! 🎵</string>
+    <string name="share_streak_longest">My longest BeatClikr practice streak is %1$d days! 🎶</string>
+    <string name="share_streak_none">I\'ve been practicing with BeatClikr! 🎼</string>
+    <string name="streak_since">Since %1$s</string>
+
+    <!-- Content descriptions -->
+    <string name="close">Close</string>
+    <string name="reorder">Reorder</string>
+    <string name="edit_song">Edit Song</string>
+    <string name="focus_view">Focus View</string>
+    <string name="previous_month">Previous month</string>
+    <string name="next_month">Next month</string>
+
+    <plurals name="day_count">
+        <item quantity="one">%1$d day</item>
+        <item quantity="other">%1$d days</item>
+    </plurals>
 </resources>

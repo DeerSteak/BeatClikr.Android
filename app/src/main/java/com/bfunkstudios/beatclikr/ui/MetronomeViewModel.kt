@@ -80,7 +80,11 @@ class MetronomeViewModel @Inject constructor(
         private set
 
     private var activeBpm: Float = prefs.instantBpm
-    private var rampBeatCount = -1
+    private val rampController = RampController(
+        enabled = prefs.rampEnabled,
+        increment = prefs.rampIncrement,
+        interval = prefs.rampInterval
+    )
     private val tapTimestamps = mutableListOf<Long>()
     private var beatPulseJob: Job? = null
 
@@ -163,16 +167,19 @@ class MetronomeViewModel @Inject constructor(
 
     fun updateRampEnabled(enabled: Boolean) {
         rampEnabled = enabled
+        rampController.enabled = enabled
         if (clickerType == ClickerType.INSTANT) prefs.rampEnabled = enabled
     }
 
     fun updateRampIncrement(increment: Int) {
         rampIncrement = increment.coerceAtLeast(1)
+        rampController.increment = rampIncrement
         if (clickerType == ClickerType.INSTANT) prefs.rampIncrement = rampIncrement
     }
 
     fun updateRampInterval(interval: Int) {
         rampInterval = interval.coerceAtLeast(1)
+        rampController.interval = rampInterval
         if (clickerType == ClickerType.INSTANT) prefs.rampInterval = rampInterval
     }
 
@@ -235,7 +242,7 @@ class MetronomeViewModel @Inject constructor(
         }
         audio.isMuted = prefs.muteMetronome
         activeBpm = currentSong.beatsPerMinute
-        rampBeatCount = -1
+        rampController.reset()
         audio.startMetronome(
             currentSong.beatsPerMinute,
             getSubdivisionValue(),
@@ -252,7 +259,7 @@ class MetronomeViewModel @Inject constructor(
         val shouldRestoreRampBpm = rampEnabled && clickerType == ClickerType.INSTANT
         audio.stopMetronome()
         flashlight.turnFlashlightOff()
-        rampBeatCount = -1
+        rampController.reset()
         isPlaying = false
         iconScale = MetronomeConstants.ICON_SCALE_MIN
         beatPulseJob?.cancel()
@@ -298,22 +305,10 @@ class MetronomeViewModel @Inject constructor(
     }
 
     private fun handleBeat() {
-        if (prefs.useFlashlight) {
-            flashlight.turnFlashlightOn()
-        }
-        if (prefs.useVibration) {
-            haptics.playBeatHaptic()
-        }
-
-        if (!rampEnabled || clickerType != ClickerType.INSTANT) return
-
-        rampBeatCount += 1
-        if (rampBeatCount <= 0 || rampBeatCount % rampInterval != 0) return
-
-        val newBpm = (currentSong.beatsPerMinute + rampIncrement)
-            .coerceAtMost(MetronomeConstants.MAX_BPM)
-        if (newBpm == currentSong.beatsPerMinute) return
-
+        if (prefs.useFlashlight) flashlight.turnFlashlightOn()
+        if (prefs.useVibration) haptics.playBeatHaptic()
+        if (clickerType != ClickerType.INSTANT) return
+        val newBpm = rampController.onBeat(currentSong.beatsPerMinute) ?: return
         currentSong = currentSong.copy(beatsPerMinute = newBpm)
         audio.updateTempo(newBpm, getSubdivisionValue(), computeAccentPattern(), prefs.sixteenthAlternate)
     }

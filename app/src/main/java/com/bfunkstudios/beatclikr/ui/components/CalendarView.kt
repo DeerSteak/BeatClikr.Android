@@ -35,6 +35,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.res.stringResource
+import com.bfunkstudios.beatclikr.R
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
@@ -75,7 +77,7 @@ fun CalendarView(
                 }) {
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.KeyboardArrowLeft,
-                        contentDescription = "Previous month",
+                        contentDescription = stringResource(R.string.previous_month),
                         tint = MaterialTheme.colorScheme.primary
                     )
                 }
@@ -92,7 +94,7 @@ fun CalendarView(
                 }) {
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                        contentDescription = "Next month",
+                        contentDescription = stringResource(R.string.next_month),
                         tint = MaterialTheme.colorScheme.primary
                     )
                 }

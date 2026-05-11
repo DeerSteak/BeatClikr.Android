@@ -25,6 +25,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.res.stringResource
+import com.bfunkstudios.beatclikr.R
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -86,7 +88,7 @@ fun PlaylistFocusView(
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Close,
-                                contentDescription = "Close",
+                                contentDescription = stringResource(R.string.close),
                                 tint = Color.White.copy(alpha = 0.7f),
                                 modifier = Modifier.size(18.dp)
                             )
@@ -106,7 +108,7 @@ fun PlaylistFocusView(
                     ) {
                         if (currentTitle != null) {
                             Text(
-                                text = "Now Playing",
+                                text = stringResource(R.string.now_playing),
                                 fontSize = 14.sp,
                                 color = Color.White.copy(alpha = 0.6f)
                             )
@@ -190,7 +192,7 @@ private fun FocusTransportRow(
         verticalAlignment = Alignment.CenterVertically
     ) {
         FocusNavButton(
-            label = "Previous",
+            label = stringResource(R.string.previous),
             iconLeading = true,
             enabled = canGoPrevious,
             onClick = onPrevious,
@@ -207,7 +209,7 @@ private fun FocusTransportRow(
             IconButton(onClick = onPlayPause) {
                 Icon(
                     imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
-                    contentDescription = if (isPlaying) "Pause" else "Play",
+                    contentDescription = if (isPlaying) stringResource(R.string.pause) else stringResource(R.string.play),
                     tint = Color.White,
                     modifier = Modifier.size(28.dp)
                 )
@@ -215,7 +217,7 @@ private fun FocusTransportRow(
         }
 
         FocusNavButton(
-            label = "Next",
+            label = stringResource(R.string.next),
             iconLeading = false,
             enabled = canGoNext,
             onClick = onNext,

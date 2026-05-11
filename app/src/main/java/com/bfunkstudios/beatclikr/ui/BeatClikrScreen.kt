@@ -204,7 +204,7 @@ private fun BeatClikrNavigationContent(
                                 IconButton(onClick = { showFocusView = true }) {
                                     Icon(
                                         imageVector = Icons.Default.Fullscreen,
-                                        contentDescription = "Focus View",
+                                        contentDescription = stringResource(R.string.focus_view),
                                         tint = MaterialTheme.colorScheme.primary
                                     )
                                 }

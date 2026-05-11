@@ -235,14 +235,14 @@ private fun PlaylistEntryRow(
         if (editMode) {
             Icon(
                 imageVector = Icons.Default.DragHandle,
-                contentDescription = "Reorder",
+                contentDescription = stringResource(R.string.reorder),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = dragHandleModifier.size(24.dp)
             )
             IconButton(onClick = onEdit) {
                 Icon(
                     imageVector = Icons.Default.Edit,
-                    contentDescription = "Edit song",
+                    contentDescription = stringResource(R.string.edit_song),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
