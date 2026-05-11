@@ -11,6 +11,7 @@ import com.bfunkstudios.beatclikr.data.BeatPattern
 import com.bfunkstudios.beatclikr.data.ClickerType
 import com.bfunkstudios.beatclikr.data.Groove
 import com.bfunkstudios.beatclikr.data.IAppPreferences
+import com.bfunkstudios.beatclikr.data.PracticeHistoryRepository
 import com.bfunkstudios.beatclikr.data.Song
 import com.bfunkstudios.beatclikr.data.SoundFile
 import com.bfunkstudios.beatclikr.services.IAudioPlayerService
@@ -27,7 +28,8 @@ import javax.inject.Inject
 @HiltViewModel
 class MetronomeViewModel @Inject constructor(
     private val audio: IAudioPlayerService,
-    private val prefs: IAppPreferences
+    private val prefs: IAppPreferences,
+    private val practiceHistory: PracticeHistoryRepository
 ) : ViewModel(), MetronomeAudioEngineDelegate {
 
     var iconScale by mutableFloatStateOf(MetronomeConstants.ICON_SCALE_MIN)
@@ -82,6 +84,7 @@ class MetronomeViewModel @Inject constructor(
     fun playSong(song: Song) {
         loadSong(song, ClickerType.PLAYLIST)
         start()
+        viewModelScope.launch { practiceHistory.recordSongPlayed(song) }
     }
 
     fun loadSong(song: Song, type: ClickerType = ClickerType.INSTANT) {
@@ -226,6 +229,9 @@ class MetronomeViewModel @Inject constructor(
             prefs.sixteenthAlternate
         )
         isPlaying = true
+        if (clickerType == ClickerType.INSTANT) {
+            viewModelScope.launch { practiceHistory.recordMetronomePractice() }
+        }
     }
 
     fun stop() {

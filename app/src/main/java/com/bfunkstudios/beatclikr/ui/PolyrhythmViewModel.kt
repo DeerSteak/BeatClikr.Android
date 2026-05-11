@@ -9,6 +9,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.bfunkstudios.beatclikr.constants.MetronomeConstants
 import com.bfunkstudios.beatclikr.data.IAppPreferences
+import com.bfunkstudios.beatclikr.data.PracticeHistoryRepository
 import com.bfunkstudios.beatclikr.data.SoundFile
 import com.bfunkstudios.beatclikr.services.IAudioPlayerService
 import com.bfunkstudios.beatclikr.services.PolyrhythmAudioEngineDelegate
@@ -23,7 +24,8 @@ import javax.inject.Inject
 @HiltViewModel
 class PolyrhythmViewModel @Inject constructor(
     private val audio: IAudioPlayerService,
-    private val prefs: IAppPreferences
+    private val prefs: IAppPreferences,
+    private val practiceHistory: PracticeHistoryRepository
 ) : ViewModel(), PolyrhythmAudioEngineDelegate {
 
     var beats by mutableIntStateOf(prefs.polyrhythmBeats)
@@ -119,6 +121,7 @@ class PolyrhythmViewModel @Inject constructor(
         audio.isMuted = prefs.muteMetronome
         audio.startPolyrhythm(bpm, beats, against)
         isPlaying = true
+        viewModelScope.launch { practiceHistory.recordPolyrhythmPractice() }
     }
 
     fun stop() {
