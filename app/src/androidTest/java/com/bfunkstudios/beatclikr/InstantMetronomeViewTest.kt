@@ -29,7 +29,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import org.junit.Before
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertTrue
+import org.junit.Assert.assertFalse
 import org.junit.Rule
 import org.junit.Test
 import javax.inject.Inject
@@ -177,6 +177,6 @@ class InstantMetronomeViewTest {
         composeRule.onNodeWithText(activity.getString(R.string.appearance)).assertIsDisplayed()
         composeRule.onNodeWithTag("always_use_dark_theme_switch").performClick()
 
-        assertTrue(FakeAppPreferences.instance.alwaysUseDarkTheme)
+        assertFalse(FakeAppPreferences.instance.alwaysUseDarkTheme)
     }
 }

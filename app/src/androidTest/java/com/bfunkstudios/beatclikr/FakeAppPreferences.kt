@@ -10,7 +10,7 @@ class FakeAppPreferences : IAppPreferences {
         instance = this
     }
 
-    override var instantBpm: Float = 120f
+    override var instantBpm: Float = 60f
     override var instantGroove: Groove = Groove.Quarter
     override var instantBeatPattern: BeatPattern? = null
     override var rampEnabled: Boolean = false
@@ -20,14 +20,14 @@ class FakeAppPreferences : IAppPreferences {
     override var instantRhythmSound: SoundFile = SoundFile.CLICK_LO
     override var playlistBeatSound: SoundFile = SoundFile.CLICK_HI
     override var playlistRhythmSound: SoundFile = SoundFile.CLICK_LO
-    override var polyrhythmBpm: Float = 120f
+    override var polyrhythmBpm: Float = 60f
     override var polyrhythmBeats: Int = 3
     override var polyrhythmAgainst: Int = 2
     override var polyrhythmBeatSound: SoundFile = SoundFile.CLICK_HI
     override var polyrhythmRhythmSound: SoundFile = SoundFile.CLICK_LO
     override var useVibration: Boolean = false
     override var useFlashlight: Boolean = false
-    override var alwaysUseDarkTheme: Boolean = false
+    override var alwaysUseDarkTheme: Boolean = true
     override var muteMetronome: Boolean = false
     override var keepScreenAwake: Boolean = false
     override var sixteenthAlternate: Boolean = false
