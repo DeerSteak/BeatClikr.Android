@@ -118,6 +118,9 @@ class PracticeReminderScheduler @Inject constructor(
             context.getString(R.string.practice_reminder_notification_body_streak_broken, days)
     }
 
+    override fun canScheduleExactAlarms(): Boolean =
+        Build.VERSION.SDK_INT < Build.VERSION_CODES.S || alarmManager.canScheduleExactAlarms()
+
     companion object {
         private const val REMINDER_DAYS = 7
     }

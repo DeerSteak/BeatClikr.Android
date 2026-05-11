@@ -2,12 +2,17 @@ package com.bfunkstudios.beatclikr.services
 
 import android.content.Context
 import android.media.AudioAttributes
+import android.media.AudioFocusRequest
+import android.media.AudioManager
 import android.media.SoundPool
+import android.os.Build
 import android.os.Handler
 import android.os.HandlerThread
 import android.os.SystemClock
 import com.bfunkstudios.beatclikr.constants.MetronomeConstants
 import com.bfunkstudios.beatclikr.data.PolyrhythmGrid
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 
 interface MetronomeAudioEngineDelegate {
     fun metronomeBeatFired(isBeat: Boolean, beatInterval: Float)
@@ -26,6 +31,7 @@ class MetronomeAudioEngine(private val context: Context) {
     private val soundPool: SoundPool
     private val handlerThread = HandlerThread("MetronomeThread").also { it.start() }
     private val handler = Handler(handlerThread.looper)
+    private val audioManager = context.getSystemService(AudioManager::class.java)
 
     private var beatSoundId: Int = 0
     private var rhythmSoundId: Int = 0
@@ -70,12 +76,31 @@ class MetronomeAudioEngine(private val context: Context) {
     private val firstBeatDelayMs = MetronomeConstants.FIRST_BEAT_DELAY_MS
     private val lookaheadToleranceMs = MetronomeConstants.LOOKAHEAD_TOLERANCE_MS
 
-    init {
-        val audioAttributes = AudioAttributes.Builder()
-            .setUsage(AudioAttributes.USAGE_GAME)
-            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-            .build()
+    private val audioAttributes = AudioAttributes.Builder()
+        .setUsage(AudioAttributes.USAGE_GAME)
+        .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+        .build()
 
+    private val focusListener = AudioManager.OnAudioFocusChangeListener { focusChange ->
+        when (focusChange) {
+            AudioManager.AUDIOFOCUS_LOSS,
+            AudioManager.AUDIOFOCUS_LOSS_TRANSIENT,
+            AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK -> {
+                stopMetronome()
+                stopPolyrhythm()
+            }
+        }
+    }
+
+    private val audioFocusRequest: AudioFocusRequest? =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
+                .setAudioAttributes(audioAttributes)
+                .setOnAudioFocusChangeListener(focusListener)
+                .build()
+        } else null
+
+    init {
         soundPool = SoundPool.Builder()
             .setMaxStreams(8)
             .setAudioAttributes(audioAttributes)
@@ -194,6 +219,7 @@ class MetronomeAudioEngine(private val context: Context) {
     }
 
     fun release() {
+        val latch = CountDownLatch(1)
         handler.post {
             isPlaying = false
             isPolyrhythmPlaying = false
@@ -204,8 +230,34 @@ class MetronomeAudioEngine(private val context: Context) {
             soundPool.release()
             delegate = null
             polyrhythmDelegate = null
+            latch.countDown()
         }
+        latch.await(1, TimeUnit.SECONDS)
+        abandonAudioFocus()
         handlerThread.quitSafely()
+    }
+
+    private fun requestAudioFocus(): Boolean {
+        val result = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            audioManager.requestAudioFocus(audioFocusRequest!!)
+        } else {
+            @Suppress("DEPRECATION")
+            audioManager.requestAudioFocus(
+                focusListener,
+                AudioManager.STREAM_MUSIC,
+                AudioManager.AUDIOFOCUS_GAIN
+            )
+        }
+        return result == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
+    }
+
+    private fun abandonAudioFocus() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            audioFocusRequest?.let { audioManager.abandonAudioFocusRequest(it) }
+        } else {
+            @Suppress("DEPRECATION")
+            audioManager.abandonAudioFocus(focusListener)
+        }
     }
 
     private fun doStart(
@@ -215,6 +267,8 @@ class MetronomeAudioEngine(private val context: Context) {
         alternateSixteenth: Boolean,
         delegate: MetronomeAudioEngineDelegate
     ) {
+        if (!requestAudioFocus()) return
+
         this.delegate = delegate
         this.currentBPM = bpm
         this.currentSubdivisions = subdivisions
@@ -261,7 +315,8 @@ class MetronomeAudioEngine(private val context: Context) {
             val subdivisionDurationNanos = getSubdivisionDurationNanos()
             playCurrentBeat(subdivisionDurationNanos)
 
-            nextBeatTimeNanos = nowNanos + subdivisionDurationNanos
+            // Increment from the scheduled time (not nowNanos) so late callbacks self-correct
+            nextBeatTimeNanos += subdivisionDurationNanos
 
             subdivisionCounter++
             if (subdivisionCounter >= currentStepCount()) {
@@ -311,11 +366,14 @@ class MetronomeAudioEngine(private val context: Context) {
     }
 
     private fun doStartPolyrhythm(bpm: Float, beats: Int, against: Int) {
+        if (!requestAudioFocus()) return
+
         polyrhythmBpm = bpm
         polyrhythmAgainst = against.coerceIn(1, 15)
         polyrhythmGrid = PolyrhythmGrid.create(beats = beats, against = against)
-        val stepDurationMs = polyrhythmAgainst * (60_000.0 / polyrhythmBpm) / polyrhythmGrid.lcm
-        polyrhythmStepDurationNanos = (stepDurationMs * 1_000_000L).toLong()
+        // Compute directly in nanoseconds to minimize floating-point precision loss
+        val nanosPerBeat = 60_000_000_000.0 / polyrhythmBpm
+        polyrhythmStepDurationNanos = (polyrhythmAgainst * nanosPerBeat / polyrhythmGrid.lcm).toLong()
         polyrhythmStepIndex = 0
         nextPolyrhythmStepTimeNanos = SystemClock.elapsedRealtimeNanos() + (firstBeatDelayMs * 1_000_000L)
         isPolyrhythmPlaying = true
@@ -334,7 +392,8 @@ class MetronomeAudioEngine(private val context: Context) {
 
         if (nowNanos >= nextPolyrhythmStepTimeNanos - lookaheadNanos) {
             playCurrentPolyrhythmStep()
-            nextPolyrhythmStepTimeNanos = nowNanos + polyrhythmStepDurationNanos
+            // Increment from the scheduled time (not nowNanos) so late callbacks self-correct
+            nextPolyrhythmStepTimeNanos += polyrhythmStepDurationNanos
             polyrhythmStepIndex = (polyrhythmStepIndex + 1) % polyrhythmGrid.lcm
         }
     }
@@ -348,8 +407,9 @@ class MetronomeAudioEngine(private val context: Context) {
         if (!isMuted) {
             when {
                 beatFired && rhythmFired -> {
-                    soundPool.play(rhythmSoundId, 1f, 1f, 1, 0, 1f)
+                    // Beat sound first so the more prominent hit leads; reduces perceived flam
                     soundPool.play(beatSoundId, 1f, 1f, 1, 0, 1f)
+                    soundPool.play(rhythmSoundId, 1f, 1f, 1, 0, 1f)
                 }
                 beatFired -> soundPool.play(beatSoundId, 1f, 1f, 1, 0, 1f)
                 rhythmFired -> soundPool.play(rhythmSoundId, 1f, 1f, 1, 0, 1f)

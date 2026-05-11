@@ -92,6 +92,9 @@ class SettingsViewModel @Inject constructor(
     var reminderDialog by mutableStateOf<ReminderSettingsDialog?>(null)
         private set
 
+    var exactAlarmsUnavailable by mutableStateOf(false)
+        private set
+
     var metronomeBeatSound by mutableStateOf(prefs.instantBeatSound)
         private set
 
@@ -195,6 +198,7 @@ class SettingsViewModel @Inject constructor(
     }
 
     fun syncReminderPermissionState(status: ReminderPermissionStatus) {
+        exactAlarmsUnavailable = practiceReminderEnabled && !reminderScheduler.canScheduleExactAlarms()
         if (!practiceReminderEnabled) return
         when (status) {
             ReminderPermissionStatus.Granted -> {
@@ -230,6 +234,7 @@ class SettingsViewModel @Inject constructor(
             ReminderPermissionStatus.Granted -> {
                 updatePracticeReminderEnabled(true)
                 clearReminderPermissionWarnings()
+                exactAlarmsUnavailable = !reminderScheduler.canScheduleExactAlarms()
                 reminderScheduler.reschedule()
                 ReminderSettingsAction.None
             }
@@ -252,6 +257,7 @@ class SettingsViewModel @Inject constructor(
         if (granted) {
             updatePracticeReminderEnabled(true)
             clearReminderPermissionWarnings()
+            exactAlarmsUnavailable = !reminderScheduler.canScheduleExactAlarms()
             reminderScheduler.reschedule()
         } else {
             updatePracticeReminderEnabled(false)

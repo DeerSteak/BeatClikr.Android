@@ -197,6 +197,18 @@ fun SettingsView(
                 }
             )
         }
+        if (viewModel.practiceReminderEnabled && viewModel.exactAlarmsUnavailable) {
+            ReminderWarningRow(
+                icon = Icons.Default.Warning,
+                text = stringResource(R.string.settings_practice_reminders_inexact_alarms),
+                actionText = stringResource(R.string.open_settings),
+                onAction = {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                        context.startActivity(Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM))
+                    }
+                }
+            )
+        }
 
         SettingsSectionTitle(stringResource(R.string.settings_metronome_playback))
         SectionCard {

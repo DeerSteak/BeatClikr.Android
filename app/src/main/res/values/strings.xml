@@ -21,6 +21,7 @@
     <string name="settings_practice_reminders_description">Get a daily reminder to practice and keep your streak alive.</string>
     <string name="settings_practice_reminders_blocked">Notifications are blocked on this device. You may still receive them on other devices.</string>
     <string name="settings_practice_reminders_deferred">Reminders aren\'t enabled on this device.</string>
+    <string name="settings_practice_reminders_inexact_alarms">Reminders may be delayed on this device. Tap to grant exact alarm permission.</string>
     <string name="settings_practice_reminders_cross_device_prompt">Practice reminders are enabled on another device. Allow BeatClikr to send them on this device too?</string>
     <string name="settings_practice_reminders_notifications_disabled_title">Notifications Disabled</string>
     <string name="settings_practice_reminders_notifications_disabled">Practice reminders require notification permissions. Please enable them in Settings.</string>

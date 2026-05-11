@@ -19,7 +19,7 @@ enum class SoundFile(
     RIDE_EDGE("Ride (Edge)", "rideedge_D#3", R.raw.rideedge_dsharp3),
     RIDE_BELL("Ride (Bell)", "ridebell_F3", R.raw.ridebell_f3),
     SNARE("Snare", "snare_D2", R.raw.snare_d2),
-    TAMB("Tamourine", "tamb_F#3", R.raw.tamb_fsharp3),
+    TAMB("Tambourine", "tamb_F#3", R.raw.tamb_fsharp3),
     TOM_HI("Tom (High)", "tomhi_D3", R.raw.tomhi_d3),
     TOM_LO("Tom (Low)", "tomlow_A2", R.raw.tomlow_a2),
     TOM_MID("Tom (Mid)", "tommid_B2", R.raw.tommid_b2);

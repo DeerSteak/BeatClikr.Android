@@ -57,6 +57,9 @@ class AudioPlayerService private constructor(context: Context) : IAudioPlayerSer
     override fun release() {
         audioEngine.release()
         delegate = null
+        synchronized(AudioPlayerService::class.java) {
+            INSTANCE = null
+        }
     }
 
     override fun metronomeBeatFired(isBeat: Boolean, beatInterval: Float) {

@@ -18,4 +18,6 @@ class FakePracticeReminderScheduler : IPracticeReminderScheduler {
     override fun rescheduleIfEnabled() {
         rescheduleIfEnabledCount += 1
     }
+
+    override fun canScheduleExactAlarms(): Boolean = true
 }

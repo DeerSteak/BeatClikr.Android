@@ -15,6 +15,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import com.bfunkstudios.beatclikr.data.IAppPreferences
+import com.bfunkstudios.beatclikr.services.IAudioPlayerService
 import com.bfunkstudios.beatclikr.services.IPracticeReminderScheduler
 import com.bfunkstudios.beatclikr.ui.BeatClikrApp
 import com.bfunkstudios.beatclikr.ui.theme.BeatClikrTheme
@@ -25,10 +26,18 @@ import javax.inject.Inject
 class MainActivity : ComponentActivity() {
     @Inject lateinit var prefs: IAppPreferences
     @Inject lateinit var reminderScheduler: IPracticeReminderScheduler
+    @Inject lateinit var audioPlayerService: IAudioPlayerService
 
     override fun onResume() {
         super.onResume()
         reminderScheduler.rescheduleIfEnabled()
+    }
+
+    // BeatClikr is foreground-only: stop playback when the activity leaves the foreground.
+    override fun onPause() {
+        super.onPause()
+        audioPlayerService.stopMetronome()
+        audioPlayerService.stopPolyrhythm()
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {

@@ -4,6 +4,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.lifecycle.DefaultLifecycleObserver
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.ProcessLifecycleOwner
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.bfunkstudios.beatclikr.constants.MetronomeConstants
@@ -81,8 +84,15 @@ class MetronomeViewModel @Inject constructor(
     private val tapTimestamps = mutableListOf<Long>()
     private var beatPulseJob: Job? = null
 
+    private val appLifecycleObserver = object : DefaultLifecycleObserver {
+        override fun onPause(owner: LifecycleOwner) {
+            if (isPlaying) stop()
+        }
+    }
+
     init {
         audio.delegate = this
+        ProcessLifecycleOwner.get().lifecycle.addObserver(appLifecycleObserver)
     }
 
     fun playSong(song: Song) {
@@ -343,6 +353,7 @@ class MetronomeViewModel @Inject constructor(
 
     override fun onCleared() {
         super.onCleared()
+        ProcessLifecycleOwner.get().lifecycle.removeObserver(appLifecycleObserver)
         stop()
         audio.delegate = null
     }

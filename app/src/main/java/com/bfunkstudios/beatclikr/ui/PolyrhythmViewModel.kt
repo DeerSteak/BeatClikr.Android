@@ -5,6 +5,9 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.lifecycle.DefaultLifecycleObserver
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.ProcessLifecycleOwner
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.bfunkstudios.beatclikr.constants.MetronomeConstants
@@ -16,6 +19,7 @@ import com.bfunkstudios.beatclikr.services.PolyrhythmAudioEngineDelegate
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -67,8 +71,15 @@ class PolyrhythmViewModel @Inject constructor(
     private var beatPulseJob: Job? = null
     private var rhythmPulseJob: Job? = null
 
+    private val appLifecycleObserver = object : DefaultLifecycleObserver {
+        override fun onPause(owner: LifecycleOwner) {
+            if (isPlaying) stop()
+        }
+    }
+
     init {
         audio.polyrhythmDelegate = this
+        ProcessLifecycleOwner.get().lifecycle.addObserver(appLifecycleObserver)
     }
 
     fun updateBeats(value: Int) {
@@ -181,7 +192,7 @@ class PolyrhythmViewModel @Inject constructor(
         val startedAt = System.nanoTime()
         val durationNanos = durationMillis * 1_000_000L
 
-        while (viewModelScope.isActive) {
+        while (currentCoroutineContext().isActive) {
             val elapsed = System.nanoTime() - startedAt
             if (elapsed >= durationNanos) break
 
@@ -194,6 +205,7 @@ class PolyrhythmViewModel @Inject constructor(
 
     override fun onCleared() {
         super.onCleared()
+        ProcessLifecycleOwner.get().lifecycle.removeObserver(appLifecycleObserver)
         stop()
         audio.polyrhythmDelegate = null
     }
