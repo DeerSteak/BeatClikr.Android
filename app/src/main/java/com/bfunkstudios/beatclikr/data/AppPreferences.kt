@@ -10,7 +10,7 @@ class AppPreferences(context: Context) : IAppPreferences {
     // --- Instant mode ---
 
     override var instantBpm: Float
-        get() = prefs.getFloat(Keys.INSTANT_BPM, 120f)
+        get() = prefs.getFloat(Keys.INSTANT_BPM, DEFAULT_BPM)
         set(value) = prefs.edit { putFloat(Keys.INSTANT_BPM, value) }
 
     override var instantGroove: Groove
@@ -64,7 +64,7 @@ class AppPreferences(context: Context) : IAppPreferences {
     // --- Polyrhythm mode ---
 
     override var polyrhythmBpm: Float
-        get() = prefs.getFloat(Keys.POLYRHYTHM_BPM, 120f)
+        get() = prefs.getFloat(Keys.POLYRHYTHM_BPM, DEFAULT_BPM)
         set(value) = prefs.edit { putFloat(Keys.POLYRHYTHM_BPM, value) }
 
     override var polyrhythmBeats: Int
@@ -98,7 +98,7 @@ class AppPreferences(context: Context) : IAppPreferences {
         set(value) = prefs.edit { putBoolean(Keys.USE_FLASHLIGHT, value) }
 
     override var alwaysUseDarkTheme: Boolean
-        get() = prefs.getBoolean(Keys.ALWAYS_USE_DARK_THEME, false)
+        get() = prefs.getBoolean(Keys.ALWAYS_USE_DARK_THEME, true)
         set(value) = prefs.edit { putBoolean(Keys.ALWAYS_USE_DARK_THEME, value) }
 
     override var muteMetronome: Boolean
@@ -152,5 +152,9 @@ class AppPreferences(context: Context) : IAppPreferences {
         const val REMINDER_ENABLED = "reminder_enabled"
         const val REMINDER_HOUR = "reminder_hour"
         const val REMINDER_MINUTE = "reminder_minute"
+    }
+
+    private companion object {
+        const val DEFAULT_BPM = 60f
     }
 }

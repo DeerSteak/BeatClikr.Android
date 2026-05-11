@@ -22,7 +22,7 @@ data class Song(
         fun instantSong() = Song(
             title = "Instant",
             artist = "Song",
-            beatsPerMinute = 120f,
+            beatsPerMinute = 60f,
             beatsPerMeasure = 4,
             groove = Groove.Quarter,
             liveSequence = null,
