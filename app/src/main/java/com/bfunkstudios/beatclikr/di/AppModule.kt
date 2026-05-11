@@ -6,6 +6,8 @@ import com.bfunkstudios.beatclikr.data.AppPreferences
 import com.bfunkstudios.beatclikr.data.IAppPreferences
 import com.bfunkstudios.beatclikr.data.PlaylistRepository
 import com.bfunkstudios.beatclikr.data.PlaylistRepositoryImpl
+import com.bfunkstudios.beatclikr.data.PracticeHistoryRepository
+import com.bfunkstudios.beatclikr.data.PracticeHistoryRepositoryImpl
 import com.bfunkstudios.beatclikr.data.SongRepository
 import com.bfunkstudios.beatclikr.data.SongRepositoryImpl
 import com.bfunkstudios.beatclikr.data.db.BeatClikrDatabase
@@ -32,6 +34,9 @@ abstract class AppModule {
     @Binds @Singleton
     abstract fun bindPlaylistRepository(impl: PlaylistRepositoryImpl): PlaylistRepository
 
+    @Binds @Singleton
+    abstract fun bindPracticeHistoryRepository(impl: PracticeHistoryRepositoryImpl): PracticeHistoryRepository
+
     companion object {
 
         @Provides @Singleton
@@ -45,7 +50,7 @@ abstract class AppModule {
         @Provides @Singleton
         fun provideDatabase(@ApplicationContext context: Context): BeatClikrDatabase =
             Room.databaseBuilder(context, BeatClikrDatabase::class.java, "beatclikr.db")
-                .addMigrations(BeatClikrDatabase.MIGRATION_1_2, BeatClikrDatabase.MIGRATION_2_3)
+                .addMigrations(BeatClikrDatabase.MIGRATION_1_2, BeatClikrDatabase.MIGRATION_2_3, BeatClikrDatabase.MIGRATION_3_4)
                 .build()
 
         @Provides @Singleton
@@ -53,6 +58,9 @@ abstract class AppModule {
 
         @Provides @Singleton
         fun providePlaylistDao(db: BeatClikrDatabase) = db.playlistDao()
+
+        @Provides @Singleton
+        fun providePracticeHistoryDao(db: BeatClikrDatabase) = db.practiceHistoryDao()
 
         @Provides @Singleton @ApplicationScope
         fun provideApplicationScope(): CoroutineScope =
