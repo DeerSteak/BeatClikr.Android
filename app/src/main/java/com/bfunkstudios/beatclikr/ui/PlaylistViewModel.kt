@@ -5,6 +5,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.bfunkstudios.beatclikr.data.Playlist
 import com.bfunkstudios.beatclikr.data.PlaylistEntryWithSong
 import com.bfunkstudios.beatclikr.data.PlaylistRepository
 import com.bfunkstudios.beatclikr.data.PlaylistWithEntries
@@ -44,11 +45,35 @@ class PlaylistViewModel @Inject constructor(
     var currentEntryId by mutableStateOf<UUID?>(null)
         private set
 
+    var newPlaylistName by mutableStateOf("")
+        private set
+
+    var playlistToRename by mutableStateOf<PlaylistWithEntries?>(null)
+        private set
+
+    var renamePlaylistName by mutableStateOf("")
+        private set
+
     // --- List operations ---
 
     fun selectPlaylist(id: UUID) {
         _selectedPlaylistId.value = id
         currentEntryId = null
+    }
+
+    fun updateNewPlaylistName(name: String) {
+        newPlaylistName = name
+    }
+
+    fun clearNewPlaylistDraft() {
+        newPlaylistName = ""
+    }
+
+    fun createPlaylistFromDraft(onCreated: (UUID) -> Unit = {}) {
+        val name = newPlaylistName
+        if (name.isBlank()) return
+        createPlaylist(name, onCreated)
+        clearNewPlaylistDraft()
     }
 
     fun createPlaylist(name: String, onCreated: (UUID) -> Unit = {}) {
@@ -58,7 +83,29 @@ class PlaylistViewModel @Inject constructor(
         }
     }
 
-    fun renamePlaylist(playlist: com.bfunkstudios.beatclikr.data.Playlist, name: String) {
+    fun beginRenamePlaylist(playlist: PlaylistWithEntries) {
+        playlistToRename = playlist
+        renamePlaylistName = playlist.playlist.name
+    }
+
+    fun updateRenamePlaylistName(name: String) {
+        renamePlaylistName = name
+    }
+
+    fun cancelRenamePlaylist() {
+        playlistToRename = null
+        renamePlaylistName = ""
+    }
+
+    fun confirmRenamePlaylist() {
+        val playlist = playlistToRename?.playlist ?: return
+        val name = renamePlaylistName
+        if (name.isBlank()) return
+        renamePlaylist(playlist, name)
+        cancelRenamePlaylist()
+    }
+
+    fun renamePlaylist(playlist: Playlist, name: String) {
         viewModelScope.launch { repository.renamePlaylist(playlist, name) }
     }
 

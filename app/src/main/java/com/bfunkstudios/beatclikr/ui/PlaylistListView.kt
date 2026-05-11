@@ -26,9 +26,6 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -47,8 +44,6 @@ fun PlaylistListView(
     modifier: Modifier = Modifier
 ) {
     val playlists by viewModel.playlists.collectAsState()
-    var playlistToRename by remember { mutableStateOf<PlaylistWithEntries?>(null) }
-    var renameText by remember { mutableStateOf("") }
 
     Column(
         modifier = modifier
@@ -79,10 +74,7 @@ fun PlaylistListView(
                             playlistWithEntries = playlistWithEntries,
                             editMode = editMode,
                             onClick = { onNavigateToDetail(playlistWithEntries.playlist.id) },
-                            onRename = {
-                                renameText = playlistWithEntries.playlist.name
-                                playlistToRename = playlistWithEntries
-                            },
+                            onRename = { viewModel.beginRenamePlaylist(playlistWithEntries) },
                             onDelete = { viewModel.deletePlaylist(playlistWithEntries) }
                         )
                         if (playlistWithEntries != playlists.last()) {
@@ -95,64 +87,59 @@ fun PlaylistListView(
     }
 
     if (showNewPlaylistDialog) {
-        var newName by remember { mutableStateOf("") }
         AlertDialog(
             onDismissRequest = {
-                newName = ""
+                viewModel.clearNewPlaylistDraft()
                 onNewPlaylistDialogDismiss()
             },
             title = { Text(stringResource(R.string.new_playlist)) },
             text = {
                 OutlinedTextField(
-                    value = newName,
-                    onValueChange = { newName = it },
+                    value = viewModel.newPlaylistName,
+                    onValueChange = { viewModel.updateNewPlaylistName(it) },
                     placeholder = { Text(stringResource(R.string.playlist_name_hint)) },
                     singleLine = true
                 )
             },
             confirmButton = {
                 TextButton(
-                    enabled = newName.isNotBlank(),
+                    enabled = viewModel.newPlaylistName.isNotBlank(),
                     onClick = {
-                        viewModel.createPlaylist(newName) { id ->
+                        viewModel.createPlaylistFromDraft { id ->
                             onNavigateToDetail(id)
                         }
-                        newName = ""
                         onNewPlaylistDialogDismiss()
                     }
                 ) { Text(stringResource(R.string.create)) }
             },
             dismissButton = {
                 TextButton(onClick = {
-                    newName = ""
+                    viewModel.clearNewPlaylistDraft()
                     onNewPlaylistDialogDismiss()
                 }) { Text(stringResource(R.string.cancel)) }
             }
         )
     }
 
-    playlistToRename?.let { playlist ->
+    viewModel.playlistToRename?.let {
         AlertDialog(
-            onDismissRequest = { playlistToRename = null },
+            onDismissRequest = { viewModel.cancelRenamePlaylist() },
             title = { Text(stringResource(R.string.rename_playlist)) },
             text = {
                 OutlinedTextField(
-                    value = renameText,
-                    onValueChange = { renameText = it },
+                    value = viewModel.renamePlaylistName,
+                    onValueChange = { viewModel.updateRenamePlaylistName(it) },
                     singleLine = true
                 )
             },
             confirmButton = {
                 TextButton(
-                    enabled = renameText.isNotBlank(),
-                    onClick = {
-                        viewModel.renamePlaylist(playlist.playlist, renameText)
-                        playlistToRename = null
-                    }
+                    enabled = viewModel.renamePlaylistName.isNotBlank(),
+                    onClick = { viewModel.confirmRenamePlaylist() }
                 ) { Text(stringResource(R.string.rename)) }
             },
             dismissButton = {
-                TextButton(onClick = { playlistToRename = null }) {
+                TextButton(onClick = { viewModel.cancelRenamePlaylist() }) {
                     Text(stringResource(R.string.cancel))
                 }
             }

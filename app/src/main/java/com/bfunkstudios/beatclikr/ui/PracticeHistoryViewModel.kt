@@ -17,6 +17,17 @@ import java.util.Calendar
 import java.util.Locale
 import javax.inject.Inject
 
+data class StreakStatsUiState(
+    val currentValue: Int,
+    val currentValueLabel: String,
+    val currentSubtitle: String,
+    val longestValue: Int,
+    val longestValueLabel: String,
+    val longestSubtitle: String,
+    val reminderNeeded: Boolean,
+    val shareCardStreakDays: String
+)
+
 @HiltViewModel
 class PracticeHistoryViewModel @Inject constructor(
     private val repository: PracticeHistoryRepository
@@ -76,6 +87,23 @@ class PracticeHistoryViewModel @Inject constructor(
         val today = startOfDay(System.currentTimeMillis())
         return currentStreak(dates) > 0 && !dates.contains(today)
     }
+
+    fun streakStats(dates: Set<Long>): StreakStatsUiState {
+        val current = currentStreak(dates)
+        val longest = longestStreak(dates)
+        return StreakStatsUiState(
+            currentValue = current,
+            currentValueLabel = dayCountLabel(current),
+            currentSubtitle = currentStreakSubtitle(dates),
+            longestValue = longest,
+            longestValueLabel = dayCountLabel(longest),
+            longestSubtitle = longestStreakSubtitle(dates),
+            reminderNeeded = reminderNeeded(dates),
+            shareCardStreakDays = current.toString()
+        )
+    }
+
+    fun selectedDateTitle(dateMs: Long): String = formatDate(dateMs)
 
     fun shareText(dates: Set<Long>): String {
         val current = currentStreak(dates)
@@ -138,6 +166,9 @@ class PracticeHistoryViewModel @Inject constructor(
 
     private fun formatDate(epochMs: Long): String =
         SimpleDateFormat("MMMM d, yyyy", Locale.getDefault()).format(epochMs)
+
+    private fun dayCountLabel(value: Int): String =
+        "$value day${if (value == 1) "" else "s"}"
 
     companion object {
         fun startOfDay(epochMs: Long): Long = Calendar.getInstance().run {

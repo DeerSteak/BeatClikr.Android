@@ -54,8 +54,6 @@ import com.bfunkstudios.beatclikr.ui.components.CalendarView
 import com.bfunkstudios.beatclikr.ui.components.SharableStreakCard
 import kotlinx.coroutines.launch
 import java.io.File
-import java.text.SimpleDateFormat
-import java.util.Locale
 
 
 @Composable
@@ -70,15 +68,16 @@ fun PracticeHistoryView(
     val selectedDateSongs by viewModel.selectedDateSongs.collectAsState()
 
     val allDates = practiceDates
+    val streakStats = viewModel.streakStats(allDates)
 
     Column(
         modifier = modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.surfaceVariant)
     ) {
-        StreakStatsRow(dates = allDates, viewModel = viewModel)
+        StreakStatsRow(stats = streakStats)
 
-        if (viewModel.reminderNeeded(allDates)) {
+        if (streakStats.reminderNeeded) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -114,12 +113,12 @@ fun PracticeHistoryView(
                 .padding(bottom = 12.dp)
         )
 
-        SelectedDaySongs(selectedDate = selectedDate, songs = selectedDateSongs)
+        SelectedDaySongs(selectedDate = selectedDate, songs = selectedDateSongs, viewModel = viewModel)
     }
 
     if (showShareSheet) {
         ShareStreakSheet(
-            streakDays = viewModel.currentStreak(allDates).toString(),
+            streakDays = streakStats.shareCardStreakDays,
             onDismiss = onShareSheetDismiss
         )
     }
@@ -190,7 +189,7 @@ private fun ShareStreakSheet(
 }
 
 @Composable
-private fun StreakStatsRow(dates: Set<Long>, viewModel: PracticeHistoryViewModel) {
+private fun StreakStatsRow(stats: StreakStatsUiState) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -200,9 +199,9 @@ private fun StreakStatsRow(dates: Set<Long>, viewModel: PracticeHistoryViewModel
         horizontalArrangement = Arrangement.SpaceEvenly
     ) {
         StreakStat(
-            value = viewModel.currentStreak(dates),
+            valueLabel = stats.currentValueLabel,
             label = stringResource(R.string.current_streak),
-            subtitle = viewModel.currentStreakSubtitle(dates),
+            subtitle = stats.currentSubtitle,
             icon = Icons.Default.LocalFireDepartment,
             iconTint = MaterialTheme.colorScheme.secondary,
             modifier = Modifier.weight(1f)
@@ -215,9 +214,9 @@ private fun StreakStatsRow(dates: Set<Long>, viewModel: PracticeHistoryViewModel
             color = MaterialTheme.colorScheme.outlineVariant
         )
         StreakStat(
-            value = viewModel.longestStreak(dates),
+            valueLabel = stats.longestValueLabel,
             label = stringResource(R.string.longest_streak),
-            subtitle = viewModel.longestStreakSubtitle(dates),
+            subtitle = stats.longestSubtitle,
             icon = Icons.Default.EmojiEvents,
             iconTint = MaterialTheme.colorScheme.secondary,
             modifier = Modifier.weight(1f)
@@ -227,7 +226,7 @@ private fun StreakStatsRow(dates: Set<Long>, viewModel: PracticeHistoryViewModel
 
 @Composable
 private fun StreakStat(
-    value: Int,
+    valueLabel: String,
     label: String,
     subtitle: String,
     icon: ImageVector,
@@ -249,7 +248,7 @@ private fun StreakStat(
                 modifier = Modifier.size(16.dp)
             )
             Text(
-                text = "$value day${if (value == 1) "" else "s"}",
+                text = valueLabel,
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold
             )
@@ -268,9 +267,8 @@ private fun StreakStat(
 }
 
 @Composable
-private fun SelectedDaySongs(selectedDate: Long, songs: List<PracticedSong>) {
-    val dateFormat = remember { SimpleDateFormat("MMMM d, yyyy", Locale.getDefault()) }
-    val heading = stringResource(R.string.practice_history_for, dateFormat.format(selectedDate))
+private fun SelectedDaySongs(selectedDate: Long, songs: List<PracticedSong>, viewModel: PracticeHistoryViewModel) {
+    val heading = stringResource(R.string.practice_history_for, viewModel.selectedDateTitle(selectedDate))
 
     Card(
         modifier = Modifier
@@ -340,9 +338,4 @@ private fun PracticedSongRow(song: PracticedSong) {
             )
         }
     }
-}
-
-@Composable
-private fun remember(block: () -> SimpleDateFormat): SimpleDateFormat {
-    return androidx.compose.runtime.remember { block() }
 }
