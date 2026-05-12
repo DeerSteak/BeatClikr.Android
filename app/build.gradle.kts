@@ -15,8 +15,9 @@ android {
         minSdk = 25
         //noinspection OldTargetApi
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0"
+        //noinspection HighAppVersionCode
+        versionCode = 2026051201
+        versionName = "4.0.0"
 
         testInstrumentationRunner = "com.bfunkstudios.beatclikr.HiltTestRunner"
         vectorDrawables {
