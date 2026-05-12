@@ -16,7 +16,7 @@ android {
         //noinspection OldTargetApi
         targetSdk = 35
         //noinspection HighAppVersionCode
-        versionCode = 2026051201
+        versionCode = 2026051202
         versionName = "4.0.0"
 
         testInstrumentationRunner = "com.bfunkstudios.beatclikr.HiltTestRunner"

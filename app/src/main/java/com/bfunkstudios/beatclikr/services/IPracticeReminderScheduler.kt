@@ -4,5 +4,4 @@ interface IPracticeReminderScheduler {
     suspend fun reschedule()
     fun cancel()
     suspend fun rescheduleIfEnabled()
-    fun canScheduleExactAlarms(): Boolean
 }

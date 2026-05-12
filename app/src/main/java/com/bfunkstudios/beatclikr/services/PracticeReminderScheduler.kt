@@ -59,11 +59,7 @@ class PracticeReminderScheduler @Inject constructor(
 
     private fun scheduleReminder(index: Int, body: String) {
         val triggerMs = triggerAtMillis(index)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && !alarmManager.canScheduleExactAlarms()) {
-            alarmManager.set(AlarmManager.RTC_WAKEUP, triggerMs, pendingIntent(index, body))
-        } else {
-            alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerMs, pendingIntent(index, body))
-        }
+        alarmManager.set(AlarmManager.RTC_WAKEUP, triggerMs, pendingIntent(index, body))
     }
 
     private fun pendingIntent(index: Int, body: String): PendingIntent {
@@ -111,9 +107,6 @@ class PracticeReminderScheduler @Inject constructor(
         is PracticeReminderBodySpec.StreakBroken ->
             context.getString(R.string.practice_reminder_notification_body_streak_broken, days)
     }
-
-    override fun canScheduleExactAlarms(): Boolean =
-        Build.VERSION.SDK_INT < Build.VERSION_CODES.S || alarmManager.canScheduleExactAlarms()
 
     companion object {
         private const val REMINDER_DAYS = 7
