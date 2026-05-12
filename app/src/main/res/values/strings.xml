@@ -61,10 +61,6 @@
     <string name="beat_pattern">Pattern</string>
     <string name="settings_metronome_playback">Metronome Playback</string>
     <string name="settings_flashlight">Use Flashlight</string>
-    <string name="settings_flashlight_requires_camera_permission">Requires camera permissions.</string>
-    <string name="settings_flashlight_permission_title">Flashlight Permission</string>
-    <string name="settings_flashlight_permission_denied">BeatClikr needs camera access to use your phone\'s flashlight with the metronome.</string>
-    <string name="settings_flashlight_permission_blocked">Camera access is blocked for BeatClikr. Enable it in Android Settings to use the flashlight with the metronome.</string>
     <string name="settings_flashlight_unavailable_title">Flashlight Unavailable</string>
     <string name="settings_flashlight_unavailable">This device does not have a flashlight BeatClikr can use.</string>
     <string name="open_settings">Open Settings</string>

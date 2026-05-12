@@ -4,7 +4,6 @@ import com.bfunkstudios.beatclikr.data.IAppPreferences
 import com.bfunkstudios.beatclikr.data.SoundFile
 import com.bfunkstudios.beatclikr.services.IFlashlightService
 import com.bfunkstudios.beatclikr.services.IPracticeReminderScheduler
-import com.bfunkstudios.beatclikr.ui.FlashlightSettingsAction
 import com.bfunkstudios.beatclikr.ui.FlashlightSettingsDialog
 import com.bfunkstudios.beatclikr.ui.ReminderPermissionStatus
 import com.bfunkstudios.beatclikr.ui.ReminderSettingsAction
@@ -215,24 +214,12 @@ class SettingsViewModelTest {
     }
 
     @Test
-    fun `syncFlashlightStateOnEnter disables saved flashlight when permission is missing`() {
-        every { prefs.useFlashlight } returns true
-        viewModel = SettingsViewModel(prefs, flashlight, reminderScheduler)
-
-        val changed = viewModel.syncFlashlightStateOnEnter(hasCameraPermission = false)
-
-        assertTrue(changed)
-        assertFalse(viewModel.useFlashlight)
-        verify { prefs.useFlashlight = false }
-    }
-
-    @Test
     fun `syncFlashlightStateOnEnter disables saved flashlight and shows dialog when flash is unavailable`() {
         every { prefs.useFlashlight } returns true
         every { flashlight.hasFlashlight } returns false
         viewModel = SettingsViewModel(prefs, flashlight, reminderScheduler)
 
-        val changed = viewModel.syncFlashlightStateOnEnter(hasCameraPermission = true)
+        val changed = viewModel.syncFlashlightStateOnEnter()
 
         assertTrue(changed)
         assertFalse(viewModel.useFlashlight)
@@ -241,64 +228,28 @@ class SettingsViewModelTest {
     }
 
     @Test
-    fun `onFlashlightToggleRequested enables flashlight when permission is granted`() {
-        val action = viewModel.onFlashlightToggleRequested(
-            enabled = true,
-            hasCameraPermission = true
-        )
+    fun `onFlashlightToggleRequested enables flashlight when device has flash`() {
+        viewModel.onFlashlightToggleRequested(enabled = true)
 
-        assertEquals(FlashlightSettingsAction.None, action)
         assertTrue(viewModel.useFlashlight)
         verify { prefs.useFlashlight = true }
-    }
-
-    @Test
-    fun `onFlashlightToggleRequested requests permission before enabling flashlight`() {
-        val action = viewModel.onFlashlightToggleRequested(
-            enabled = true,
-            hasCameraPermission = false
-        )
-
-        assertEquals(FlashlightSettingsAction.RequestPermission, action)
-        assertFalse(viewModel.useFlashlight)
     }
 
     @Test
     fun `onFlashlightToggleRequested shows unavailable dialog when device has no flash`() {
         every { flashlight.hasFlashlight } returns false
 
-        val action = viewModel.onFlashlightToggleRequested(
-            enabled = true,
-            hasCameraPermission = true
-        )
+        viewModel.onFlashlightToggleRequested(enabled = true)
 
-        assertEquals(FlashlightSettingsAction.None, action)
         assertFalse(viewModel.useFlashlight)
         assertEquals(FlashlightSettingsDialog.Unavailable, viewModel.flashlightDialog)
         verify { prefs.useFlashlight = false }
     }
 
     @Test
-    fun `onFlashlightPermissionResult enables flashlight when permission is granted`() {
-        viewModel.onFlashlightPermissionResult(granted = true, blocked = false)
-
-        assertTrue(viewModel.useFlashlight)
-        verify { prefs.useFlashlight = true }
-    }
-
-    @Test
-    fun `onFlashlightPermissionResult disables flashlight and shows blocked dialog when permission is blocked`() {
-        viewModel.onFlashlightPermissionResult(granted = false, blocked = true)
-
-        assertFalse(viewModel.useFlashlight)
-        assertEquals(FlashlightSettingsDialog.PermissionDenied(blocked = true), viewModel.flashlightDialog)
-        verify { prefs.useFlashlight = false }
-    }
-
-    @Test
     fun `dismissFlashlightDialog clears current dialog`() {
         every { flashlight.hasFlashlight } returns false
-        viewModel.onFlashlightToggleRequested(enabled = true, hasCameraPermission = true)
+        viewModel.onFlashlightToggleRequested(enabled = true)
 
         viewModel.dismissFlashlightDialog()
 

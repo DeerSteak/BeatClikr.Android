@@ -67,7 +67,7 @@ fun SettingsView(
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     LaunchedEffect(Unit) {
-        if (viewModel.syncFlashlightStateOnEnter(context.hasCameraPermission())) {
+        if (viewModel.syncFlashlightStateOnEnter()) {
             metronomeViewModel.refreshPlaybackSettings()
         }
         viewModel.syncReminderPermissionState(context.reminderPermissionStatus(viewModel))
@@ -81,23 +81,6 @@ fun SettingsView(
         }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
-    }
-
-    val flashlightPermissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestPermission()
-    ) { granted ->
-        val blocked = if (granted) {
-            false
-        } else {
-            context.findActivity()?.let { activity ->
-                !ActivityCompat.shouldShowRequestPermissionRationale(
-                    activity,
-                    Manifest.permission.CAMERA
-                )
-            } ?: false
-        }
-        viewModel.onFlashlightPermissionResult(granted = granted, blocked = blocked)
-        metronomeViewModel.refreshPlaybackSettings()
     }
 
     val reminderPermissionLauncher = rememberLauncherForActivityResult(
@@ -135,11 +118,7 @@ fun SettingsView(
         MetronomePlaybackSection(
             viewModel = viewModel,
             metronomeViewModel = metronomeViewModel,
-            context = context,
             onKeepScreenAwakeChange = onKeepScreenAwakeChange,
-            onRequestFlashlightPermission = {
-                flashlightPermissionLauncher.launch(Manifest.permission.CAMERA)
-            }
         )
         MetronomeInstrumentsSection(
             viewModel = viewModel,
@@ -153,16 +132,7 @@ fun SettingsView(
     viewModel.flashlightDialog?.let { dialog ->
         FlashlightSettingsDialogContent(
             dialog = dialog,
-            onDismiss = { viewModel.dismissFlashlightDialog() },
-            onOpenSettings = {
-                viewModel.dismissFlashlightDialog()
-                context.startActivity(
-                    Intent(
-                        Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
-                        Uri.fromParts("package", context.packageName, null)
-                    )
-                )
-            }
+            onDismiss = { viewModel.dismissFlashlightDialog() }
         )
     }
 
@@ -312,21 +282,16 @@ private fun PracticeRemindersSection(
 private fun MetronomePlaybackSection(
     viewModel: SettingsViewModel,
     metronomeViewModel: MetronomeViewModel,
-    context: Context,
-    onKeepScreenAwakeChange: (Boolean) -> Unit,
-    onRequestFlashlightPermission: () -> Unit
+    onKeepScreenAwakeChange: (Boolean) -> Unit
 ) {
     SettingsSectionTitle(stringResource(R.string.settings_metronome_playback))
     SectionCard {
         SettingsToggleRow(
             label = stringResource(R.string.settings_flashlight),
-            subtitle = stringResource(R.string.settings_flashlight_requires_camera_permission),
             checked = viewModel.useFlashlight,
             onCheckedChange = { enabled ->
-                when (viewModel.onFlashlightToggleRequested(enabled, context.hasCameraPermission())) {
-                    FlashlightSettingsAction.None -> metronomeViewModel.refreshPlaybackSettings()
-                    FlashlightSettingsAction.RequestPermission -> onRequestFlashlightPermission()
-                }
+                viewModel.onFlashlightToggleRequested(enabled)
+                metronomeViewModel.refreshPlaybackSettings()
             }
         )
         SettingsDivider()
@@ -469,8 +434,7 @@ private fun SettingsSectionTitle(text: String) {
 @Composable
 private fun FlashlightSettingsDialogContent(
     dialog: FlashlightSettingsDialog,
-    onDismiss: () -> Unit,
-    onOpenSettings: () -> Unit
+    onDismiss: () -> Unit
 ) {
     when (dialog) {
         FlashlightSettingsDialog.Unavailable -> {
@@ -481,41 +445,6 @@ private fun FlashlightSettingsDialogContent(
                 confirmButton = {
                     androidx.compose.material3.TextButton(onClick = onDismiss) {
                         Text(stringResource(R.string.ok))
-                    }
-                }
-            )
-        }
-        is FlashlightSettingsDialog.PermissionDenied -> {
-            AlertDialog(
-                onDismissRequest = onDismiss,
-                title = { Text(stringResource(R.string.settings_flashlight_permission_title)) },
-                text = {
-                    Text(
-                        text = stringResource(
-                            if (dialog.blocked) {
-                                R.string.settings_flashlight_permission_blocked
-                            } else {
-                                R.string.settings_flashlight_permission_denied
-                            }
-                        )
-                    )
-                },
-                confirmButton = {
-                    if (dialog.blocked) {
-                        androidx.compose.material3.TextButton(onClick = onOpenSettings) {
-                            Text(stringResource(R.string.open_settings))
-                        }
-                    } else {
-                        androidx.compose.material3.TextButton(onClick = onDismiss) {
-                            Text(stringResource(R.string.ok))
-                        }
-                    }
-                },
-                dismissButton = {
-                    if (dialog.blocked) {
-                        androidx.compose.material3.TextButton(onClick = onDismiss) {
-                            Text(stringResource(R.string.cancel))
-                        }
                     }
                 }
             )
@@ -681,9 +610,6 @@ private tailrec fun Context.findActivity(): Activity? = when (this) {
     is ContextWrapper -> baseContext.findActivity()
     else -> null
 }
-
-private fun Context.hasCameraPermission(): Boolean =
-    ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
 
 private fun Context.reminderPermissionStatus(
     viewModel: SettingsViewModel,

@@ -15,12 +15,6 @@ import javax.inject.Inject
 
 sealed interface FlashlightSettingsDialog {
     data object Unavailable : FlashlightSettingsDialog
-    data class PermissionDenied(val blocked: Boolean) : FlashlightSettingsDialog
-}
-
-sealed interface FlashlightSettingsAction {
-    data object None : FlashlightSettingsAction
-    data object RequestPermission : FlashlightSettingsAction
 }
 
 enum class ReminderPermissionStatus {
@@ -120,49 +114,28 @@ class SettingsViewModel @Inject constructor(
         prefs.useFlashlight = value
     }
 
-    fun syncFlashlightStateOnEnter(hasCameraPermission: Boolean): Boolean {
+    fun syncFlashlightStateOnEnter(): Boolean {
         if (!useFlashlight) return false
-        return when {
-            !flashlight.hasFlashlight -> {
-                updateUseFlashlight(false)
-                flashlightDialog = FlashlightSettingsDialog.Unavailable
-                true
-            }
-            !hasCameraPermission -> {
-                updateUseFlashlight(false)
-                true
-            }
-            else -> false
-        }
+        if (flashlight.hasFlashlight) return false
+
+        updateUseFlashlight(false)
+        flashlightDialog = FlashlightSettingsDialog.Unavailable
+        return true
     }
 
-    fun onFlashlightToggleRequested(enabled: Boolean, hasCameraPermission: Boolean): FlashlightSettingsAction {
+    fun onFlashlightToggleRequested(enabled: Boolean) {
         if (!enabled) {
             updateUseFlashlight(false)
-            return FlashlightSettingsAction.None
+            return
         }
 
         if (!flashlight.hasFlashlight) {
             updateUseFlashlight(false)
             flashlightDialog = FlashlightSettingsDialog.Unavailable
-            return FlashlightSettingsAction.None
+            return
         }
 
-        if (hasCameraPermission) {
-            updateUseFlashlight(true)
-            return FlashlightSettingsAction.None
-        }
-
-        return FlashlightSettingsAction.RequestPermission
-    }
-
-    fun onFlashlightPermissionResult(granted: Boolean, blocked: Boolean) {
-        if (granted) {
-            updateUseFlashlight(true)
-        } else {
-            updateUseFlashlight(false)
-            flashlightDialog = FlashlightSettingsDialog.PermissionDenied(blocked)
-        }
+        updateUseFlashlight(true)
     }
 
     fun dismissFlashlightDialog() {

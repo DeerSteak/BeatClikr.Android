@@ -1,11 +1,8 @@
 package com.bfunkstudios.beatclikr.services
 
-import android.Manifest
 import android.content.Context
-import android.content.pm.PackageManager
 import android.hardware.camera2.CameraCharacteristics
 import android.hardware.camera2.CameraManager
-import androidx.core.content.ContextCompat
 
 class FlashlightService(private val context: Context) : IFlashlightService {
     private val cameraManager = context.getSystemService(Context.CAMERA_SERVICE) as CameraManager
@@ -35,9 +32,6 @@ class FlashlightService(private val context: Context) : IFlashlightService {
 
     private fun setTorch(enabled: Boolean) {
         val cameraId = torchCameraId ?: return
-        val hasPermission = ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) ==
-            PackageManager.PERMISSION_GRANTED
-        if (!hasPermission) return
 
         runCatching {
             cameraManager.setTorchMode(cameraId, enabled)
