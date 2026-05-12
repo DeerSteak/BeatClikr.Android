@@ -1,17 +1,21 @@
 package com.bfunkstudios.beatclikr
 
 import com.bfunkstudios.beatclikr.constants.MetronomeConstants
+import com.bfunkstudios.beatclikr.data.BeatPattern
 import com.bfunkstudios.beatclikr.data.ClickerType
+import com.bfunkstudios.beatclikr.data.Groove
 import com.bfunkstudios.beatclikr.data.IAppPreferences
+import com.bfunkstudios.beatclikr.data.PracticeHistoryRepository
 import com.bfunkstudios.beatclikr.data.Song
 import com.bfunkstudios.beatclikr.data.SoundFile
-import com.bfunkstudios.beatclikr.data.Subdivisions
 import com.bfunkstudios.beatclikr.services.IAudioPlayerService
+import com.bfunkstudios.beatclikr.services.IFlashlightService
+import com.bfunkstudios.beatclikr.services.IHapticFeedbackService
 import com.bfunkstudios.beatclikr.ui.MetronomeViewModel
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
-import io.mockk.verifySequence
+import io.mockk.verifyOrder
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
@@ -29,6 +33,9 @@ class MetronomeViewModelTest {
 
     private lateinit var audio: IAudioPlayerService
     private lateinit var prefs: IAppPreferences
+    private lateinit var practiceHistory: PracticeHistoryRepository
+    private lateinit var flashlight: IFlashlightService
+    private lateinit var haptics: IHapticFeedbackService
     private lateinit var viewModel: MetronomeViewModel
 
     @Before
@@ -36,12 +43,21 @@ class MetronomeViewModelTest {
         Dispatchers.setMain(UnconfinedTestDispatcher())
         audio = mockk(relaxed = true)
         prefs = mockk(relaxed = true)
+        practiceHistory = mockk(relaxed = true)
+        flashlight = mockk(relaxed = true)
+        haptics = mockk(relaxed = true)
         every { prefs.instantBpm } returns 120f
-        every { prefs.instantSubdivisions } returns Subdivisions.Quarter
+        every { prefs.instantGroove } returns Groove.Quarter
+        every { prefs.instantBeatPattern } returns null
         every { prefs.instantBeatSound } returns SoundFile.CLICK_HI
         every { prefs.instantRhythmSound } returns SoundFile.CLICK_LO
+        every { prefs.rampEnabled } returns false
+        every { prefs.rampIncrement } returns 2
+        every { prefs.rampInterval } returns 8
         every { prefs.muteMetronome } returns false
-        viewModel = MetronomeViewModel(audio, prefs)
+        every { prefs.useFlashlight } returns false
+        every { prefs.useVibration } returns false
+        viewModel = MetronomeViewModel(audio, prefs, practiceHistory, flashlight, haptics)
     }
 
     @After
@@ -58,7 +74,7 @@ class MetronomeViewModelTest {
 
     @Test
     fun `initial subdivisions loaded from prefs`() {
-        assertEquals(Subdivisions.Quarter, viewModel.selectedSubdivisions)
+        assertEquals(Groove.Quarter, viewModel.selectedGroove)
     }
 
     @Test
@@ -79,6 +95,52 @@ class MetronomeViewModelTest {
     @Test
     fun `init sets audio delegate to viewModel`() {
         verify { audio.delegate = viewModel }
+    }
+
+    @Test
+    fun `beat turns flashlight on when enabled`() {
+        every { prefs.useFlashlight } returns true
+
+        viewModel.metronomeBeatFired(isBeat = true, beatInterval = 0.5f)
+
+        verify { flashlight.turnFlashlightOn() }
+    }
+
+    @Test
+    fun `rhythm and stop turn flashlight off`() {
+        every { prefs.useFlashlight } returns true
+
+        viewModel.metronomeBeatFired(isBeat = false, beatInterval = 0.5f)
+        viewModel.stop()
+
+        verify(exactly = 2) { flashlight.turnFlashlightOff() }
+    }
+
+    @Test
+    fun `beat plays strong haptic when vibration is enabled`() {
+        every { prefs.useVibration } returns true
+
+        viewModel.metronomeBeatFired(isBeat = true, beatInterval = 0.5f)
+
+        verify { haptics.playBeatHaptic() }
+    }
+
+    @Test
+    fun `rhythm plays light haptic when vibration is enabled`() {
+        every { prefs.useVibration } returns true
+
+        viewModel.metronomeBeatFired(isBeat = false, beatInterval = 0.5f)
+
+        verify { haptics.playRhythmHaptic() }
+    }
+
+    @Test
+    fun `beat and rhythm do not play haptics when vibration is disabled`() {
+        viewModel.metronomeBeatFired(isBeat = true, beatInterval = 0.5f)
+        viewModel.metronomeBeatFired(isBeat = false, beatInterval = 0.5f)
+
+        verify(exactly = 0) { haptics.playBeatHaptic() }
+        verify(exactly = 0) { haptics.playRhythmHaptic() }
     }
 
     // --- BPM ---
@@ -120,31 +182,134 @@ class MetronomeViewModelTest {
         verify { prefs.instantBpm = 140f }
     }
 
-    // --- Subdivisions ---
+    // --- Tempo ramp ---
 
     @Test
-    fun `updateSubdivisions updates current song`() {
-        viewModel.updateSubdivisions(Subdivisions.Eighth)
-        assertEquals(Subdivisions.Eighth, viewModel.selectedSubdivisions)
+    fun `ramp defaults are loaded from prefs`() {
+        assertFalse(viewModel.rampEnabled)
+        assertEquals(2, viewModel.rampIncrement)
+        assertEquals(8, viewModel.rampInterval)
     }
 
     @Test
-    fun `updateSubdivisions while playing calls updateTempo`() {
+    fun `updateRampEnabled saves to prefs`() {
+        viewModel.updateRampEnabled(true)
+        assertTrue(viewModel.rampEnabled)
+        verify { prefs.rampEnabled = true }
+    }
+
+    @Test
+    fun `updateRampIncrement saves to prefs`() {
+        viewModel.updateRampIncrement(5)
+        assertEquals(5, viewModel.rampIncrement)
+        verify { prefs.rampIncrement = 5 }
+    }
+
+    @Test
+    fun `updateRampInterval saves to prefs`() {
+        viewModel.updateRampInterval(16)
+        assertEquals(16, viewModel.rampInterval)
+        verify { prefs.rampInterval = 16 }
+    }
+
+    @Test
+    fun `ramp does not fire when disabled`() {
+        viewModel.updateBPM(100f)
+        viewModel.updateRampEnabled(false)
+        viewModel.updateRampInterval(4)
+        viewModel.updateRampIncrement(5)
+        repeat(10) { viewModel.metronomeBeatFired(isBeat = true, beatInterval = 0.5f) }
+        assertEquals(100f, viewModel.beatsPerMinute)
+    }
+
+    @Test
+    fun `ramp only counts beats not subdivisions`() {
+        viewModel.updateBPM(100f)
+        viewModel.updateRampEnabled(true)
+        viewModel.updateRampInterval(4)
+        viewModel.updateRampIncrement(5)
+        repeat(20) { viewModel.metronomeBeatFired(isBeat = false, beatInterval = 0.5f) }
+        assertEquals(100f, viewModel.beatsPerMinute)
+    }
+
+    @Test
+    fun `ramp fires after interval beats`() {
+        viewModel.updateBPM(100f)
+        viewModel.updateRampEnabled(true)
+        viewModel.updateRampInterval(4)
+        viewModel.updateRampIncrement(5)
+        repeat(5) { viewModel.metronomeBeatFired(isBeat = true, beatInterval = 0.5f) }
+        assertEquals(105f, viewModel.beatsPerMinute)
+    }
+
+    @Test
+    fun `ramp caps at max BPM`() {
+        viewModel.updateBPM(MetronomeConstants.MAX_BPM - 5f)
+        viewModel.updateRampEnabled(true)
+        viewModel.updateRampInterval(4)
+        viewModel.updateRampIncrement(10)
+        repeat(5) { viewModel.metronomeBeatFired(isBeat = true, beatInterval = 0.5f) }
+        assertEquals(MetronomeConstants.MAX_BPM, viewModel.beatsPerMinute)
+    }
+
+    @Test
+    fun `stop restores starting BPM when ramp enabled`() {
+        viewModel.updateBPM(100f)
+        viewModel.updateRampEnabled(true)
+        viewModel.updateRampInterval(4)
+        viewModel.updateRampIncrement(5)
         viewModel.start()
-        viewModel.updateSubdivisions(Subdivisions.Sixteenth)
+        repeat(5) { viewModel.metronomeBeatFired(isBeat = true, beatInterval = 0.5f) }
+        assertEquals(105f, viewModel.beatsPerMinute)
+        viewModel.stop()
+        assertEquals(100f, viewModel.beatsPerMinute)
+    }
+
+    // --- Grooves ---
+
+    @Test
+    fun `updateGroove updates current song`() {
+        viewModel.updateGroove(Groove.Eighth)
+        assertEquals(Groove.Eighth, viewModel.selectedGroove)
+    }
+
+    @Test
+    fun `updateGroove while playing calls updateTempo`() {
+        viewModel.start()
+        viewModel.updateGroove(Groove.Sixteenth)
         verify { audio.updateTempo(any(), 4) }
     }
 
     @Test
-    fun `updateSubdivisions while stopped does not call updateTempo`() {
-        viewModel.updateSubdivisions(Subdivisions.Eighth)
+    fun `updateGroove while stopped does not call updateTempo`() {
+        viewModel.updateGroove(Groove.Eighth)
         verify(exactly = 0) { audio.updateTempo(any(), any()) }
     }
 
     @Test
-    fun `updateSubdivisions in instant mode saves to prefs`() {
-        viewModel.updateSubdivisions(Subdivisions.Triplet)
-        verify { prefs.instantSubdivisions = Subdivisions.Triplet }
+    fun `updateGroove in instant mode saves to prefs`() {
+        viewModel.updateGroove(Groove.Triplet)
+        verify { prefs.instantGroove = Groove.Triplet }
+    }
+
+    @Test
+    fun `odd meter grooves expose iOS subdivision values`() {
+        viewModel.updateGroove(Groove.OddMeterQuarter)
+        viewModel.start()
+        verify { audio.startMetronome(any(), 1, BeatPattern.default.accentArray) }
+
+        viewModel.updateGroove(Groove.OddMeterEighth)
+        verify { audio.updateTempo(any(), 2, BeatPattern.default.accentArray) }
+    }
+
+    @Test
+    fun `updateBeatPattern saves to prefs and updates tempo while playing`() {
+        viewModel.updateGroove(Groove.OddMeterEighth)
+        viewModel.start()
+        viewModel.updateBeatPattern(BeatPattern.FiveEightA)
+        assertEquals(BeatPattern.FiveEightA, viewModel.selectedBeatPattern)
+        verify { prefs.instantBeatPattern = BeatPattern.FiveEightA }
+        verify { audio.updateTempo(any(), 2, BeatPattern.FiveEightA.accentArray) }
     }
 
     // --- Play / Stop ---
@@ -182,7 +347,7 @@ class MetronomeViewModelTest {
     fun `start propagates mute false to audio`() {
         every { prefs.muteMetronome } returns false
         viewModel.start()
-        verifySequence {
+        verifyOrder {
             audio.isMuted = false
             audio.startMetronome(any(), any())
         }
@@ -192,7 +357,7 @@ class MetronomeViewModelTest {
     fun `start propagates mute true to audio`() {
         every { prefs.muteMetronome } returns true
         viewModel.start()
-        verifySequence {
+        verifyOrder {
             audio.isMuted = true
             audio.startMetronome(any(), any())
         }
@@ -228,16 +393,16 @@ class MetronomeViewModelTest {
 
     @Test
     fun `loadSong updates currentSong`() {
-        val song = Song(title = "Test", artist = "Artist", beatsPerMinute = 140f, beatsPerMeasure = 4, subdivisions = Subdivisions.Eighth, liveSequence = null, rehearsalSequence = null)
+        val song = Song(title = "Test", artist = "Artist", beatsPerMinute = 140f, beatsPerMeasure = 4, groove = Groove.Eighth, liveSequence = null, rehearsalSequence = null)
         viewModel.loadSong(song, ClickerType.INSTANT)
         assertEquals(140f, viewModel.beatsPerMinute)
-        assertEquals(Subdivisions.Eighth, viewModel.selectedSubdivisions)
+        assertEquals(Groove.Eighth, viewModel.selectedGroove)
     }
 
     @Test
     fun `loadSong while playing calls updateTempo`() {
         viewModel.start()
-        val song = Song(title = "Test", artist = "Artist", beatsPerMinute = 140f, beatsPerMeasure = 4, subdivisions = Subdivisions.Eighth, liveSequence = null, rehearsalSequence = null)
+        val song = Song(title = "Test", artist = "Artist", beatsPerMinute = 140f, beatsPerMeasure = 4, groove = Groove.Eighth, liveSequence = null, rehearsalSequence = null)
         viewModel.loadSong(song, ClickerType.INSTANT)
         verify { audio.updateTempo(140f, 2) }
     }
@@ -246,14 +411,27 @@ class MetronomeViewModelTest {
 
     @Test
     fun `metronomeBeatFired on beat sets iconScale to max`() {
-        viewModel.metronomeBeatFired(isBeat = true)
+        viewModel.metronomeBeatFired(isBeat = true, beatInterval = 0.5f)
         assertEquals(MetronomeConstants.ICON_SCALE_MAX, viewModel.iconScale)
     }
 
     @Test
+    fun `metronomeBeatFired on beat starts beat pulse`() {
+        viewModel.metronomeBeatFired(isBeat = true, beatInterval = 0.5f)
+        assertEquals(1f, viewModel.beatPulse)
+    }
+
+    @Test
     fun `metronomeBeatFired on subdivision does not set iconScale to max`() {
-        viewModel.metronomeBeatFired(isBeat = false)
+        viewModel.metronomeBeatFired(isBeat = false, beatInterval = 0.5f)
         assertEquals(MetronomeConstants.ICON_SCALE_MIN, viewModel.iconScale)
+    }
+
+    @Test
+    fun `stop resets beat pulse`() {
+        viewModel.metronomeBeatFired(isBeat = true, beatInterval = 0.5f)
+        viewModel.stop()
+        assertEquals(0f, viewModel.beatPulse)
     }
 
     // --- Tap tempo ---

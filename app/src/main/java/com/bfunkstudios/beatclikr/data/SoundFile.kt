@@ -51,7 +51,10 @@ enum class SoundFile(
             RIDE_BELL,
             RIDE_EDGE,
             SNARE,
-            TAMB
+            TAMB,
+            TOM_HI,
+            TOM_MID,
+            TOM_LO
         )
     }
 }

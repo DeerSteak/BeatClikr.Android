@@ -19,6 +19,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -31,13 +32,15 @@ fun SongListItem(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     editMode: Boolean = false,
-    onDelete: () -> Unit = {}
+    isCurrent: Boolean = false,
+    onDelete: () -> Unit = {},
+    onEdit: () -> Unit = {}
 ) {
     Row(
         modifier = modifier
             .fillMaxWidth()
             .background(MaterialTheme.colorScheme.surface)
-            .clickable(onClick = onClick)
+            .clickable(enabled = !editMode, onClick = onClick)
             .padding(vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -52,10 +55,19 @@ fun SongListItem(
             }
         }
 
+        Text(
+            text = "▶",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier
+                .padding(start = if (editMode) 0.dp else 12.dp)
+                .alpha(if (isCurrent && !editMode) 1f else 0f)
+        )
+
         Column(
             modifier = Modifier
                 .weight(1f)
-                .padding(horizontal = if (editMode) 0.dp else 16.dp, vertical = 8.dp),
+                .padding(horizontal = 12.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(2.dp)
         ) {
             Text(
@@ -75,7 +87,7 @@ fun SongListItem(
         }
 
         AnimatedVisibility(visible = editMode) {
-            IconButton(onClick = onClick) {
+            IconButton(onClick = onEdit) {
                 Icon(
                     imageVector = Icons.Outlined.Edit,
                     contentDescription = null,

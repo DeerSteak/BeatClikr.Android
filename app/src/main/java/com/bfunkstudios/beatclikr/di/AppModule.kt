@@ -4,11 +4,21 @@ import android.content.Context
 import androidx.room.Room
 import com.bfunkstudios.beatclikr.data.AppPreferences
 import com.bfunkstudios.beatclikr.data.IAppPreferences
+import com.bfunkstudios.beatclikr.data.PlaylistRepository
+import com.bfunkstudios.beatclikr.data.PlaylistRepositoryImpl
+import com.bfunkstudios.beatclikr.data.PracticeHistoryRepository
+import com.bfunkstudios.beatclikr.data.PracticeHistoryRepositoryImpl
 import com.bfunkstudios.beatclikr.data.SongRepository
 import com.bfunkstudios.beatclikr.data.SongRepositoryImpl
 import com.bfunkstudios.beatclikr.data.db.BeatClikrDatabase
 import com.bfunkstudios.beatclikr.services.AudioPlayerService
+import com.bfunkstudios.beatclikr.services.FlashlightService
+import com.bfunkstudios.beatclikr.services.HapticFeedbackService
 import com.bfunkstudios.beatclikr.services.IAudioPlayerService
+import com.bfunkstudios.beatclikr.services.IFlashlightService
+import com.bfunkstudios.beatclikr.services.IHapticFeedbackService
+import com.bfunkstudios.beatclikr.services.IPracticeReminderScheduler
+import com.bfunkstudios.beatclikr.services.PracticeReminderScheduler
 import dagger.Binds
 import dagger.Module
 import dagger.Provides
@@ -27,6 +37,15 @@ abstract class AppModule {
     @Binds @Singleton
     abstract fun bindSongRepository(impl: SongRepositoryImpl): SongRepository
 
+    @Binds @Singleton
+    abstract fun bindPlaylistRepository(impl: PlaylistRepositoryImpl): PlaylistRepository
+
+    @Binds @Singleton
+    abstract fun bindPracticeHistoryRepository(impl: PracticeHistoryRepositoryImpl): PracticeHistoryRepository
+
+    @Binds @Singleton
+    abstract fun bindPracticeReminderScheduler(impl: PracticeReminderScheduler): IPracticeReminderScheduler
+
     companion object {
 
         @Provides @Singleton
@@ -34,15 +53,31 @@ abstract class AppModule {
             AudioPlayerService.getInstance(context)
 
         @Provides @Singleton
+        fun provideFlashlightService(@ApplicationContext context: Context): IFlashlightService =
+            FlashlightService(context)
+
+        @Provides @Singleton
+        fun provideHapticFeedbackService(@ApplicationContext context: Context): IHapticFeedbackService =
+            HapticFeedbackService(context)
+
+        @Provides @Singleton
         fun provideAppPreferences(@ApplicationContext context: Context): IAppPreferences =
             AppPreferences(context)
 
         @Provides @Singleton
         fun provideDatabase(@ApplicationContext context: Context): BeatClikrDatabase =
-            Room.databaseBuilder(context, BeatClikrDatabase::class.java, "beatclikr.db").build()
+            Room.databaseBuilder(context, BeatClikrDatabase::class.java, "beatclikr.db")
+                .addMigrations(BeatClikrDatabase.MIGRATION_1_2, BeatClikrDatabase.MIGRATION_2_3, BeatClikrDatabase.MIGRATION_3_4)
+                .build()
 
         @Provides @Singleton
         fun provideSongDao(db: BeatClikrDatabase) = db.songDao()
+
+        @Provides @Singleton
+        fun providePlaylistDao(db: BeatClikrDatabase) = db.playlistDao()
+
+        @Provides @Singleton
+        fun providePracticeHistoryDao(db: BeatClikrDatabase) = db.practiceHistoryDao()
 
         @Provides @Singleton @ApplicationScope
         fun provideApplicationScope(): CoroutineScope =

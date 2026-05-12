@@ -8,23 +8,14 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.SwipeToDismissBox
-import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
-import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.bfunkstudios.beatclikr.R
@@ -32,13 +23,15 @@ import com.bfunkstudios.beatclikr.data.Song
 import com.bfunkstudios.beatclikr.ui.SongLibraryUiState
 import com.bfunkstudios.beatclikr.ui.SongLibraryViewModel
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SongLibraryView(
     uiState: SongLibraryUiState,
     viewModel: SongLibraryViewModel,
     modifier: Modifier = Modifier,
     editMode: Boolean = false,
+    isPlaying: Boolean = false,
+    beatPulse: Float = 0f,
+    onPlayPause: () -> Unit = {},
     onPlaySong: (Song) -> Unit = {},
     navigateToDetail: () -> Unit = {}
 ) {
@@ -66,60 +59,49 @@ fun SongLibraryView(
             Card(
                 modifier = Modifier
                     .padding(horizontal = 16.dp)
-                    .fillMaxWidth(),
+                    .padding(top = 16.dp)
+                    .fillMaxWidth()
+                    .weight(1f),
                 colors = CardDefaults.cardColors(
                     containerColor = MaterialTheme.colorScheme.surface
                 )
             ) {
                 LazyColumn {
                     items(songs, key = { it.id }) { song ->
-                        val dismissState = rememberSwipeToDismissBoxState()
-                        LaunchedEffect(dismissState.currentValue) {
-                            if (dismissState.currentValue == SwipeToDismissBoxValue.EndToStart) {
-                                viewModel.deleteSong(song)
+                        SongListItem(
+                            song = song,
+                            editMode = editMode,
+                            isCurrent = viewModel.currentSongId == song.id,
+                            onClick = {
+                                viewModel.markSongPlaying(song)
+                                onPlaySong(song)
+                            },
+                            onDelete = { viewModel.deleteSong(song) },
+                            onEdit = {
+                                viewModel.setSelectedSong(song.id)
+                                navigateToDetail()
                             }
-                        }
-                        SwipeToDismissBox(
-                            state = dismissState,
-                            enableDismissFromStartToEnd = false,
-                            enableDismissFromEndToStart = editMode,
-                            backgroundContent = {
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxSize()
-                                        .background(MaterialTheme.colorScheme.error),
-                                    contentAlignment = Alignment.CenterEnd
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Delete,
-                                        contentDescription = null,
-                                        tint = Color.White,
-                                        modifier = Modifier.padding(end = 20.dp)
-                                    )
-                                }
-                            }
-                        ) {
-                            SongListItem(
-                                song = song,
-                                editMode = editMode,
-                                onClick = {
-                                    if (editMode) {
-                                        viewModel.setSelectedSong(song.id)
-                                        navigateToDetail()
-                                    } else {
-                                        onPlaySong(song)
-                                    }
-                                },
-                                onDelete = { viewModel.deleteSong(song) }
-                            )
-                        }
+                        )
                         if (song != songs.last()) {
                             HorizontalDivider(modifier = Modifier.padding(start = 16.dp))
                         }
                     }
                 }
             }
+
+            if (!editMode) {
+                PlaylistTransportView(
+                    currentTitle = viewModel.currentSongTitle(songs),
+                    isPlaying = isPlaying,
+                    beatPulse = beatPulse,
+                    canGoPrevious = viewModel.canGoPrevious(songs),
+                    canGoNext = viewModel.canGoNext(songs),
+                    onPlayPause = onPlayPause,
+                    onPlay = { viewModel.playOrResume(songs, onPlaySong) },
+                    onPrevious = { viewModel.playPrevious(songs, onPlaySong) },
+                    onNext = { viewModel.playNext(songs, onPlaySong) }
+                )
+            }
         }
     }
 }
-

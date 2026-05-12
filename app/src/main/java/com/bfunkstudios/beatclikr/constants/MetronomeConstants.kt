@@ -13,6 +13,9 @@ object MetronomeConstants {
     const val ICON_SCALE_MIN: Float = 0.5f
     const val ICON_SCALE_MAX: Float = 1.0f
 
+    // Audio
+    const val MAX_SOUND_STREAMS: Int = 8
+
     // Timing (in milliseconds)
     const val TIMER_CHECK_INTERVAL_MS: Long = 1L // 1ms for high-precision checks
     const val FIRST_BEAT_DELAY_MS: Long = 67L // 67ms delay to ensure timer starts before first beat

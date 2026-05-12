@@ -126,10 +126,18 @@ fun SongDetail(
         SectionLabel(stringResource(R.string.groove))
         SectionCard {
             GrooveSelector(
-                selected = viewModel.draftSubdivisions,
-                onSelect = { viewModel.updateDraftSubdivisions(it) },
+                selected = viewModel.draftGroove,
+                onSelect = { viewModel.updateDraftGroove(it) },
                 modifier = Modifier.padding(12.dp)
             )
+            if (viewModel.draftGroove.isOddMeter) {
+                HorizontalDivider(modifier = Modifier.padding(start = 12.dp))
+                BeatPatternSelector(
+                    selected = viewModel.draftBeatPattern,
+                    onSelect = { viewModel.updateDraftBeatPattern(it) },
+                    modifier = Modifier.padding(12.dp)
+                )
+            }
         }
     }
 }

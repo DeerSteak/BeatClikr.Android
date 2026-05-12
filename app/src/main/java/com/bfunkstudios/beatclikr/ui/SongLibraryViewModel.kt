@@ -8,9 +8,10 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.bfunkstudios.beatclikr.constants.MetronomeConstants
+import com.bfunkstudios.beatclikr.data.BeatPattern
+import com.bfunkstudios.beatclikr.data.Groove
 import com.bfunkstudios.beatclikr.data.Song
 import com.bfunkstudios.beatclikr.data.SongRepository
-import com.bfunkstudios.beatclikr.data.Subdivisions
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -39,9 +40,48 @@ class SongLibraryViewModel @Inject constructor(
         initialValue = SongLibraryUiState()
     )
 
+    var currentSongId by mutableStateOf<UUID?>(null)
+        private set
+
     fun setSelectedSong(uuid: UUID?) {
         _selectedSong.value = if (uuid == null) null
         else uiState.value.songList.find { it.id == uuid }
+    }
+
+    fun markSongPlaying(song: Song) {
+        currentSongId = song.id
+    }
+
+    fun currentIndex(songs: List<Song> = uiState.value.songList): Int? =
+        currentSongId?.let { id -> songs.indexOfFirst { it.id == id }.takeIf { it >= 0 } }
+
+    fun currentSongTitle(songs: List<Song> = uiState.value.songList): String? =
+        currentIndex(songs)?.let { songs[it].title }
+
+    fun canGoPrevious(songs: List<Song> = uiState.value.songList): Boolean =
+        currentIndex(songs)?.let { it > 0 } ?: false
+
+    fun canGoNext(songs: List<Song> = uiState.value.songList): Boolean =
+        currentIndex(songs)?.let { it < songs.lastIndex } ?: false
+
+    fun playOrResume(songs: List<Song> = uiState.value.songList, onPlaySong: (Song) -> Unit) {
+        val song = currentIndex(songs)?.let { songs[it] } ?: songs.firstOrNull() ?: return
+        markSongPlaying(song)
+        onPlaySong(song)
+    }
+
+    fun playPrevious(songs: List<Song> = uiState.value.songList, onPlaySong: (Song) -> Unit) {
+        val index = currentIndex(songs) ?: return
+        val song = songs.getOrNull(index - 1) ?: return
+        markSongPlaying(song)
+        onPlaySong(song)
+    }
+
+    fun playNext(songs: List<Song> = uiState.value.songList, onPlaySong: (Song) -> Unit) {
+        val index = currentIndex(songs) ?: return
+        val song = songs.getOrNull(index + 1) ?: return
+        markSongPlaying(song)
+        onPlaySong(song)
     }
 
     // --- Draft state for song detail form ---
@@ -58,7 +98,9 @@ class SongLibraryViewModel @Inject constructor(
         private set
     var draftBeatsPerMeasure by mutableIntStateOf(4)
         private set
-    var draftSubdivisions by mutableStateOf(Subdivisions.Eighth)
+    var draftGroove by mutableStateOf(Groove.Eighth)
+        private set
+    var draftBeatPattern by mutableStateOf(BeatPattern.default)
         private set
 
     val isDraftValid: Boolean get() = draftTitle.isNotBlank() && draftArtist.isNotBlank()
@@ -69,7 +111,8 @@ class SongLibraryViewModel @Inject constructor(
         draftArtist = song?.artist ?: ""
         draftBpm = song?.beatsPerMinute ?: 120f
         draftBeatsPerMeasure = song?.beatsPerMeasure ?: 4
-        draftSubdivisions = song?.subdivisions ?: Subdivisions.Eighth
+        draftGroove = song?.groove ?: Groove.Eighth
+        draftBeatPattern = song?.beatPattern ?: BeatPattern.default
         draftLiveSequence = song?.liveSequence
         draftRehearsalSequence = song?.rehearsalSequence
     }
@@ -78,7 +121,8 @@ class SongLibraryViewModel @Inject constructor(
     fun updateDraftArtist(value: String) { draftArtist = value }
     fun updateDraftBpm(value: Float) { draftBpm = value.coerceIn(MetronomeConstants.MIN_BPM, MetronomeConstants.MAX_BPM) }
     fun updateDraftBeatsPerMeasure(value: Int) { draftBeatsPerMeasure = value.coerceIn(1, 16) }
-    fun updateDraftSubdivisions(value: Subdivisions) { draftSubdivisions = value }
+    fun updateDraftGroove(value: Groove) { draftGroove = value }
+    fun updateDraftBeatPattern(value: BeatPattern) { draftBeatPattern = value }
 
     fun saveDraft() {
         saveSong(Song(
@@ -87,9 +131,10 @@ class SongLibraryViewModel @Inject constructor(
             artist = draftArtist,
             beatsPerMinute = draftBpm,
             beatsPerMeasure = draftBeatsPerMeasure,
-            subdivisions = draftSubdivisions,
+            groove = draftGroove,
             liveSequence = draftLiveSequence,
-            rehearsalSequence = draftRehearsalSequence
+            rehearsalSequence = draftRehearsalSequence,
+            beatPattern = if (draftGroove.isOddMeter) draftBeatPattern else null
         ))
     }
 
