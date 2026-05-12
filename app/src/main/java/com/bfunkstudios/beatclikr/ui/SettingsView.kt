@@ -1,6 +1,7 @@
 package com.bfunkstudios.beatclikr.ui
 
 import android.Manifest
+import com.bfunkstudios.beatclikr.BuildConfig
 import android.annotation.SuppressLint
 import android.app.Activity
 import android.app.TimePickerDialog
@@ -394,7 +395,7 @@ private fun AboutSection() {
     SectionCard {
         SettingsValueRow(
             label = stringResource(R.string.version),
-            value = stringResource(R.string.version_value)
+            value = BuildConfig.VERSION_NAME + " (" + BuildConfig.VERSION_CODE + ")"
         )
         SettingsDivider()
         SettingsValueRow(

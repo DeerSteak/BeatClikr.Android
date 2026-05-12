@@ -75,7 +75,6 @@
     <string name="settings_instruments_description">In each area, select the main sound played on each beat and rhythm/groove sound that plays on subdivisions.</string>
     <string name="about">About</string>
     <string name="version">Version</string>
-    <string name="version_value">1.0</string>
 
     <!-- Subdivisions -->
     <string name="subdivision_quarter">Quarter Note</string>
