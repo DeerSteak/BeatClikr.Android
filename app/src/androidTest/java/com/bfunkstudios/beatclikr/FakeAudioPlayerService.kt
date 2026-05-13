@@ -8,6 +8,7 @@ class FakeAudioPlayerService : IAudioPlayerService {
     override var delegate: MetronomeAudioEngineDelegate? = null
     override var polyrhythmDelegate: PolyrhythmAudioEngineDelegate? = null
     override var isMuted: Boolean = false
+    override var useAudioTrack: Boolean = false
 
     var startCount = 0
     var stopCount = 0

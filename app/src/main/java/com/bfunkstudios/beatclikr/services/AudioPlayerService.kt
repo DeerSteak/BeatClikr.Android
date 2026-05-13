@@ -18,6 +18,10 @@ class AudioPlayerService private constructor(context: Context) : IAudioPlayerSer
         get() = audioEngine.isMuted
         set(value) { audioEngine.isMuted = value }
 
+    override var useAudioTrack: Boolean
+        get() = audioEngine.useAudioTrack
+        set(value) { audioEngine.useAudioTrack = value }
+
     override fun setupAudioPlayer(beatResourceId: Int, rhythmResourceId: Int) {
         audioEngine.loadSounds(beatResourceId, rhythmResourceId)
     }

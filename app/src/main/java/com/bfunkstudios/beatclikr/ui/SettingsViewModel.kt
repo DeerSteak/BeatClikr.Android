@@ -64,6 +64,9 @@ class SettingsViewModel @Inject constructor(
     var sixteenthAlternate by mutableStateOf(prefs.sixteenthAlternate)
         private set
 
+    var useAudioTrack by mutableStateOf(prefs.useAudioTrack)
+        private set
+
     var practiceReminderEnabled by mutableStateOf(prefs.practiceReminderEnabled)
         private set
 
@@ -162,6 +165,11 @@ class SettingsViewModel @Inject constructor(
     fun updateSixteenthAlternate(value: Boolean) {
         sixteenthAlternate = value
         prefs.sixteenthAlternate = value
+    }
+
+    fun updateUseAudioTrack(value: Boolean) {
+        useAudioTrack = value
+        prefs.useAudioTrack = value
     }
 
     fun updatePracticeReminderEnabled(value: Boolean) {

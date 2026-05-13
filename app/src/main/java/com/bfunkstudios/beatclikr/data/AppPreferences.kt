@@ -113,6 +113,10 @@ class AppPreferences(context: Context) : IAppPreferences {
         get() = prefs.getBoolean(Keys.SIXTEENTH_ALTERNATE, false)
         set(value) = prefs.edit { putBoolean(Keys.SIXTEENTH_ALTERNATE, value) }
 
+    override var useAudioTrack: Boolean
+        get() = prefs.getBoolean(Keys.USE_AUDIO_TRACK, false)
+        set(value) = prefs.edit { putBoolean(Keys.USE_AUDIO_TRACK, value) }
+
     // --- Practice reminders ---
 
     override var practiceReminderEnabled: Boolean
@@ -157,6 +161,7 @@ class AppPreferences(context: Context) : IAppPreferences {
         const val MUTE_METRONOME = "mute_metronome"
         const val KEEP_SCREEN_AWAKE = "keep_screen_awake"
         const val SIXTEENTH_ALTERNATE = "sixteenth_alternate"
+        const val USE_AUDIO_TRACK = "use_audio_track"
         const val REMINDER_ENABLED = "reminder_enabled"
         const val REMINDER_HOUR = "reminder_hour"
         const val REMINDER_MINUTE = "reminder_minute"

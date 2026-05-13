@@ -31,6 +31,7 @@ interface PolyrhythmAudioEngineDelegate {
 
 class MetronomeAudioEngine(private val context: Context) {
     private val soundPool: SoundPool
+    private var audioTrackEngine: AudioTrackEngine? = null
     private val handlerThread = HandlerThread("MetronomeThread").also { it.start() }
     private val handler = Handler(handlerThread.looper)
     private val audioManager = context.getSystemService(AudioManager::class.java)
@@ -57,6 +58,20 @@ class MetronomeAudioEngine(private val context: Context) {
         set(value) { polyrhythmEngine.delegate = value }
 
     @Volatile var isMuted: Boolean = false
+    @Volatile
+    var useAudioTrack: Boolean = false
+        set(value) {
+            field = value
+            handler.post {
+                // isPlaying tracks metronome playback only; polyrhythm does not set it.
+                if (!isPlaying) return@post
+                if (value) {
+                    getOrCreateAudioTrackEngine().start()
+                } else {
+                    audioTrackEngine?.stop()
+                }
+            }
+        }
 
     private var pendingBpm: Float = 60f
     private var pendingSubdivisions: Int = 1
@@ -149,6 +164,7 @@ class MetronomeAudioEngine(private val context: Context) {
             rhythmSoundId = soundPool.load(context, rhythmResourceId, 1)
             polyrhythmEngine.beatSoundId = beatSoundId
             polyrhythmEngine.rhythmSoundId = rhythmSoundId
+            audioTrackEngine?.setSounds(beatResourceId, rhythmResourceId)
         }
     }
 
@@ -161,7 +177,7 @@ class MetronomeAudioEngine(private val context: Context) {
     ) {
         handler.post {
             handler.removeCallbacks(timerRunnable)
-            if (!beatLoaded || !rhythmLoaded) {
+            if (!useAudioTrack && (!beatLoaded || !rhythmLoaded)) {
                 pendingBpm = bpm
                 pendingSubdivisions = subdivisions
                 pendingAccentPattern = accentPattern
@@ -179,12 +195,16 @@ class MetronomeAudioEngine(private val context: Context) {
             isPlaying = false
             hasPendingStart = false
             handler.removeCallbacks(timerRunnable)
+            audioTrackEngine?.stop()
             subdivisionCounter = 0
         }
     }
 
     fun startPolyrhythm(bpm: Float, beats: Int, against: Int) {
-        handler.post { polyrhythmEngine.start(bpm, beats, against) }
+        handler.post {
+            audioTrackEngine?.stop()
+            polyrhythmEngine.start(bpm, beats, against)
+        }
     }
 
     fun stopPolyrhythm() {
@@ -214,6 +234,8 @@ class MetronomeAudioEngine(private val context: Context) {
             isPlaying = false
             hasPendingStart = false
             handler.removeCallbacks(timerRunnable)
+            audioTrackEngine?.release()
+            audioTrackEngine = null
             polyrhythmEngine.stop()
             polyrhythmEngine.delegate = null
             soundPool.release()
@@ -268,6 +290,9 @@ class MetronomeAudioEngine(private val context: Context) {
         this.nextBeatTimeNanos = currentTimeNanos + (firstBeatDelayMs * 1_000_000L)
 
         this.isPlaying = true
+        if (useAudioTrack) {
+            getOrCreateAudioTrackEngine().start()
+        }
         startTimer()
     }
 
@@ -323,14 +348,38 @@ class MetronomeAudioEngine(private val context: Context) {
             (accentPattern == null && currentAlternateSixteenth && currentSubdivisions == 4 && subdivisionCounter == 2)
 
         if (!isMuted) {
-            if (shouldPlayBeatSound) {
-                soundPool.play(beatSoundId, 1f, 1f, 1, 0, 1f)
+            if (useAudioTrack) {
+                if (shouldPlayBeatSound) {
+                    audioTrackEngine?.playBeat()
+                } else {
+                    audioTrackEngine?.playRhythm()
+                }
             } else {
-                soundPool.play(rhythmSoundId, 1f, 1f, 1, 0, 1f)
+                if (shouldPlayBeatSound) {
+                    soundPool.play(beatSoundId, 1f, 1f, 1, 0, 1f)
+                } else {
+                    soundPool.play(rhythmSoundId, 1f, 1f, 1, 0, 1f)
+                }
             }
         }
 
-        delegate?.metronomeBeatFired(isBeat, beatInterval, scheduledTimeNanos)
+        val visualBeatTimeNanos = if (useAudioTrack && !isMuted) {
+            scheduledTimeNanos + (audioTrackEngine?.estimatedOutputLatencyNanos ?: 0L)
+        } else {
+            scheduledTimeNanos
+        }
+        delegate?.metronomeBeatFired(isBeat, beatInterval, visualBeatTimeNanos)
+    }
+
+    private fun getOrCreateAudioTrackEngine(): AudioTrackEngine {
+        return audioTrackEngine ?: AudioTrackEngine().also { engine ->
+            audioTrackEngine = engine
+            val beatResource = beatResourceId
+            val rhythmResource = rhythmResourceId
+            if (beatResource != null && rhythmResource != null) {
+                engine.setSounds(beatResource, rhythmResource)
+            }
+        }
     }
 
     private fun currentStepCount(): Int = currentAccentPattern?.size ?: currentSubdivisions

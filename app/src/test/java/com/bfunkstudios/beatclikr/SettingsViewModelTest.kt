@@ -37,6 +37,7 @@ class SettingsViewModelTest {
         every { prefs.muteMetronome } returns false
         every { prefs.keepScreenAwake } returns false
         every { prefs.sixteenthAlternate } returns false
+        every { prefs.useAudioTrack } returns false
         every { prefs.practiceReminderEnabled } returns false
         every { prefs.practiceReminderHour } returns 9
         every { prefs.practiceReminderMinute } returns 0
@@ -49,6 +50,14 @@ class SettingsViewModelTest {
         every { prefs.polyrhythmBeatSound } returns SoundFile.CLICK_HI
         every { prefs.polyrhythmRhythmSound } returns SoundFile.CLICK_LO
         viewModel = SettingsViewModel(prefs, flashlight, reminderScheduler)
+    }
+
+    @Test
+    fun `updateUseAudioTrack saves to prefs`() {
+        viewModel.updateUseAudioTrack(true)
+
+        assertTrue(viewModel.useAudioTrack)
+        verify { prefs.useAudioTrack = true }
     }
 
     @Test

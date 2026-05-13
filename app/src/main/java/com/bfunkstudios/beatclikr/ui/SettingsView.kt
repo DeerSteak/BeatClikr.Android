@@ -315,6 +315,16 @@ private fun MetronomePlaybackSection(
                 metronomeViewModel.refreshPlaybackSettings()
             }
         )
+        SettingsDivider()
+        SettingsToggleRow(
+            label = stringResource(R.string.settings_low_latency_audio),
+            subtitle = stringResource(R.string.settings_low_latency_audio_description),
+            checked = viewModel.useAudioTrack,
+            onCheckedChange = {
+                viewModel.updateUseAudioTrack(it)
+                metronomeViewModel.refreshPlaybackSettings()
+            }
+        )
     }
     SettingsFooter(stringResource(R.string.settings_metronome_playback_description))
 }

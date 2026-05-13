@@ -4,6 +4,7 @@ interface IAudioPlayerService {
     var delegate: MetronomeAudioEngineDelegate?
     var polyrhythmDelegate: PolyrhythmAudioEngineDelegate?
     var isMuted: Boolean
+    var useAudioTrack: Boolean
     fun setupAudioPlayer(beatResourceId: Int, rhythmResourceId: Int)
     fun startMetronome(
         bpm: Float,

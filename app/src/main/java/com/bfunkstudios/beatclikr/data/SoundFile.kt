@@ -25,6 +25,9 @@ enum class SoundFile(
     TOM_MID("Tom (Mid)", "tommid_B2", R.raw.tommid_b2);
 
     companion object {
+        fun fromResourceId(resourceId: Int): SoundFile? =
+            entries.firstOrNull { it.resourceId == resourceId }
+
         val beatSounds = listOf(
             CLICK_HI,
             CLICK_LO,
