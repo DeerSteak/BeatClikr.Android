@@ -3,6 +3,7 @@ package com.bfunkstudios.beatclikr
 import com.bfunkstudios.beatclikr.data.IAppPreferences
 import com.bfunkstudios.beatclikr.data.SoundFile
 import com.bfunkstudios.beatclikr.services.IFlashlightService
+import com.bfunkstudios.beatclikr.services.IAudioPlayerService
 import com.bfunkstudios.beatclikr.services.IPracticeReminderScheduler
 import com.bfunkstudios.beatclikr.ui.FlashlightSettingsDialog
 import com.bfunkstudios.beatclikr.ui.ReminderPermissionStatus
@@ -22,6 +23,7 @@ class SettingsViewModelTest {
 
     private lateinit var prefs: IAppPreferences
     private lateinit var flashlight: IFlashlightService
+    private lateinit var audioPlayerService: IAudioPlayerService
     private lateinit var reminderScheduler: IPracticeReminderScheduler
     private lateinit var viewModel: SettingsViewModel
 
@@ -29,6 +31,7 @@ class SettingsViewModelTest {
     fun setUp() {
         prefs = mockk(relaxed = true)
         flashlight = mockk(relaxed = true)
+        audioPlayerService = mockk(relaxed = true)
         reminderScheduler = mockk(relaxed = true)
         every { flashlight.hasFlashlight } returns true
         every { prefs.useFlashlight } returns false
@@ -37,6 +40,8 @@ class SettingsViewModelTest {
         every { prefs.muteMetronome } returns false
         every { prefs.keepScreenAwake } returns false
         every { prefs.sixteenthAlternate } returns false
+        every { prefs.useAudioTrack } returns false
+        every { prefs.useSyntheticAudioTrackSounds } returns true
         every { prefs.practiceReminderEnabled } returns false
         every { prefs.practiceReminderHour } returns 9
         every { prefs.practiceReminderMinute } returns 0
@@ -48,7 +53,61 @@ class SettingsViewModelTest {
         every { prefs.playlistRhythmSound } returns SoundFile.CLICK_LO
         every { prefs.polyrhythmBeatSound } returns SoundFile.CLICK_HI
         every { prefs.polyrhythmRhythmSound } returns SoundFile.CLICK_LO
-        viewModel = SettingsViewModel(prefs, flashlight, reminderScheduler)
+        viewModel = SettingsViewModel(prefs, flashlight, audioPlayerService, reminderScheduler)
+    }
+
+    @Test
+    fun `updateUseAudioTrack saves to prefs`() {
+        viewModel.updateUseAudioTrack(true)
+
+        assertTrue(viewModel.useAudioTrack)
+        verify { prefs.useAudioTrack = true }
+        verify { audioPlayerService.useAudioTrack = true }
+    }
+
+    @Test
+    fun `updateUseAudioTrack prepares selected files when cached sounds are enabled`() {
+        every { prefs.useSyntheticAudioTrackSounds } returns false
+        viewModel = SettingsViewModel(prefs, flashlight, audioPlayerService, reminderScheduler)
+
+        viewModel.updateUseAudioTrack(true)
+
+        verify {
+            audioPlayerService.prepareAudioTrackSounds(
+                listOf(
+                    SoundFile.CLICK_HI,
+                    SoundFile.CLICK_LO,
+                    SoundFile.CLICK_HI,
+                    SoundFile.CLICK_LO,
+                    SoundFile.CLICK_HI,
+                    SoundFile.CLICK_LO
+                )
+            )
+        }
+    }
+
+    @Test
+    fun `updateUseSyntheticAudioTrackSounds saves to prefs and skips cache when enabled`() {
+        every { prefs.useAudioTrack } returns true
+        every { prefs.useSyntheticAudioTrackSounds } returns false
+        viewModel = SettingsViewModel(prefs, flashlight, audioPlayerService, reminderScheduler)
+
+        viewModel.updateUseSyntheticAudioTrackSounds(true)
+
+        assertTrue(viewModel.useSyntheticAudioTrackSounds)
+        verify { prefs.useSyntheticAudioTrackSounds = true }
+        verify { audioPlayerService.useSyntheticAudioTrackSounds = true }
+        verify(exactly = 0) { audioPlayerService.prepareAudioTrackSounds(any()) }
+    }
+
+    @Test
+    fun `sound changes prepare one file when cached sounds are enabled`() {
+        every { prefs.useSyntheticAudioTrackSounds } returns false
+        viewModel = SettingsViewModel(prefs, flashlight, audioPlayerService, reminderScheduler)
+
+        viewModel.updateMetronomeBeatSound(SoundFile.SNARE)
+
+        verify { audioPlayerService.prepareAudioTrackSounds(listOf(SoundFile.SNARE)) }
     }
 
     @Test
@@ -118,7 +177,7 @@ class SettingsViewModelTest {
     fun `turning reminders off clears local notification warnings`() {
         every { prefs.practiceReminderEnabled } returns true
         every { prefs.practiceReminderNotificationsDeferred } returns true
-        viewModel = SettingsViewModel(prefs, flashlight, reminderScheduler)
+        viewModel = SettingsViewModel(prefs, flashlight, audioPlayerService, reminderScheduler)
         viewModel.syncReminderPermissionState(ReminderPermissionStatus.Blocked)
 
         val action = viewModel.onPracticeReminderToggleRequested(
@@ -137,7 +196,7 @@ class SettingsViewModelTest {
     @Test
     fun `syncReminderPermissionState shows cross device prompt for restored reminders without local permission`() {
         every { prefs.practiceReminderEnabled } returns true
-        viewModel = SettingsViewModel(prefs, flashlight, reminderScheduler)
+        viewModel = SettingsViewModel(prefs, flashlight, audioPlayerService, reminderScheduler)
 
         viewModel.syncReminderPermissionState(ReminderPermissionStatus.NotDetermined)
 
@@ -149,7 +208,7 @@ class SettingsViewModelTest {
     fun `syncReminderPermissionState keeps deferred warning without re-prompting`() {
         every { prefs.practiceReminderEnabled } returns true
         every { prefs.practiceReminderNotificationsDeferred } returns true
-        viewModel = SettingsViewModel(prefs, flashlight, reminderScheduler)
+        viewModel = SettingsViewModel(prefs, flashlight, audioPlayerService, reminderScheduler)
 
         viewModel.syncReminderPermissionState(ReminderPermissionStatus.NotDetermined)
 
@@ -160,7 +219,7 @@ class SettingsViewModelTest {
     @Test
     fun `declineRemindersFromOtherDevice stores deferred warning state`() {
         every { prefs.practiceReminderEnabled } returns true
-        viewModel = SettingsViewModel(prefs, flashlight, reminderScheduler)
+        viewModel = SettingsViewModel(prefs, flashlight, audioPlayerService, reminderScheduler)
         viewModel.syncReminderPermissionState(ReminderPermissionStatus.NotDetermined)
 
         viewModel.declineRemindersFromOtherDevice()
@@ -217,7 +276,7 @@ class SettingsViewModelTest {
     fun `syncFlashlightStateOnEnter disables saved flashlight and shows dialog when flash is unavailable`() {
         every { prefs.useFlashlight } returns true
         every { flashlight.hasFlashlight } returns false
-        viewModel = SettingsViewModel(prefs, flashlight, reminderScheduler)
+        viewModel = SettingsViewModel(prefs, flashlight, audioPlayerService, reminderScheduler)
 
         val changed = viewModel.syncFlashlightStateOnEnter()
 

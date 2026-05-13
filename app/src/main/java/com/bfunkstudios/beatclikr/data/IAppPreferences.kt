@@ -22,6 +22,8 @@ interface IAppPreferences {
     var muteMetronome: Boolean
     var keepScreenAwake: Boolean
     var sixteenthAlternate: Boolean
+    var useAudioTrack: Boolean
+    var useSyntheticAudioTrackSounds: Boolean
     var practiceReminderEnabled: Boolean
     var practiceReminderHour: Int
     var practiceReminderMinute: Int

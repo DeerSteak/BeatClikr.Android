@@ -31,6 +31,8 @@ class FakeAppPreferences : IAppPreferences {
     override var muteMetronome: Boolean = false
     override var keepScreenAwake: Boolean = false
     override var sixteenthAlternate: Boolean = false
+    override var useAudioTrack: Boolean = false
+    override var useSyntheticAudioTrackSounds: Boolean = true
     override var practiceReminderEnabled: Boolean = false
     override var practiceReminderHour: Int = 9
     override var practiceReminderMinute: Int = 0

@@ -1,5 +1,7 @@
 package com.bfunkstudios.beatclikr.ui
 
+import android.os.SystemClock
+import android.view.Choreographer
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
@@ -18,10 +20,6 @@ import com.bfunkstudios.beatclikr.services.IAudioPlayerService
 import com.bfunkstudios.beatclikr.services.PolyrhythmAudioEngineDelegate
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.currentCoroutineContext
-import kotlinx.coroutines.isActive
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -68,8 +66,12 @@ class PolyrhythmViewModel @Inject constructor(
     val cycleDurationMillis: Int
         get() = (against * (60_000f / bpm)).toInt().coerceAtLeast(1)
 
-    private var beatPulseJob: Job? = null
-    private var rhythmPulseJob: Job? = null
+    private var choreographer: Choreographer? = null
+    private var choreographerCallback: Choreographer.FrameCallback? = null
+    private var lastBeatTimeNanos: Long = 0L
+    private var currentBeatDurationNanos: Long = 0L
+    private var lastRhythmTimeNanos: Long = 0L
+    private var currentRhythmDurationNanos: Long = 0L
 
     private val appLifecycleObserver = object : DefaultLifecycleObserver {
         override fun onPause(owner: LifecycleOwner) {
@@ -130,6 +132,8 @@ class PolyrhythmViewModel @Inject constructor(
         beatPulse = 0f
         rhythmPulse = 0f
         audio.isMuted = prefs.muteMetronome
+        audio.useAudioTrack = prefs.useAudioTrack
+        audio.useSyntheticAudioTrackSounds = prefs.useSyntheticAudioTrackSounds
         audio.startPolyrhythm(bpm, beats, against)
         isPlaying = true
         viewModelScope.launch { practiceHistory.recordPolyrhythmPractice() }
@@ -138,10 +142,13 @@ class PolyrhythmViewModel @Inject constructor(
     fun stop() {
         audio.stopPolyrhythm()
         isPlaying = false
-        beatPulseJob?.cancel()
-        rhythmPulseJob?.cancel()
+        stopChoreographerLoop()
         beatPulse = 0f
         rhythmPulse = 0f
+        lastBeatTimeNanos = 0L
+        currentBeatDurationNanos = 0L
+        lastRhythmTimeNanos = 0L
+        currentRhythmDurationNanos = 0L
         playheadResetID += 1
     }
 
@@ -149,19 +156,20 @@ class PolyrhythmViewModel @Inject constructor(
         beatFired: Boolean,
         rhythmFired: Boolean,
         beatIndex: Int,
-        rhythmIndex: Int
+        rhythmIndex: Int,
+        stepTimeNanos: Long,
+        beatDurationNanos: Long,
+        rhythmDurationNanos: Long
     ) {
         viewModelScope.launch(Dispatchers.Main) {
-            val quarterDurationMillis = (60_000f / bpm).toLong().coerceAtLeast(1L)
-
             if (beatFired) {
                 activeBeatIndex = beatIndex
-                beatPulseJob?.cancel()
-                beatPulseJob = launch {
-                    fadePulse(
-                        durationMillis = quarterDurationMillis,
-                        onPulseChanged = { beatPulse = it }
-                    )
+                // Show the hit immediately; Choreographer owns the frame-synced decay.
+                beatPulse = 1f
+                if (stepTimeNanos > 0L && beatDurationNanos > 0L) {
+                    lastBeatTimeNanos = toChoreographerTimeNanos(stepTimeNanos)
+                    currentBeatDurationNanos = beatDurationNanos
+                    startChoreographerLoop()
                 }
                 if (beatIndex == 0) {
                     playheadResetID += 1
@@ -170,37 +178,61 @@ class PolyrhythmViewModel @Inject constructor(
 
             if (rhythmFired) {
                 activeRhythmIndex = rhythmIndex
-                val rhythmDurationMillis = (against * (60_000f / bpm) / beats)
-                    .toLong()
-                    .coerceAtLeast(1L)
-                rhythmPulseJob?.cancel()
-                rhythmPulseJob = launch {
-                    fadePulse(
-                        durationMillis = rhythmDurationMillis,
-                        onPulseChanged = { rhythmPulse = it }
-                    )
+                // Show the hit immediately; Choreographer owns the frame-synced decay.
+                rhythmPulse = 1f
+                if (stepTimeNanos > 0L && rhythmDurationNanos > 0L) {
+                    lastRhythmTimeNanos = toChoreographerTimeNanos(stepTimeNanos)
+                    currentRhythmDurationNanos = rhythmDurationNanos
+                    startChoreographerLoop()
                 }
             }
         }
     }
 
-    private suspend fun fadePulse(
-        durationMillis: Long,
-        onPulseChanged: (Float) -> Unit
-    ) {
-        onPulseChanged(1f)
-        val startedAt = System.nanoTime()
-        val durationNanos = durationMillis * 1_000_000L
+    private fun startChoreographerLoop() {
+        if (choreographerCallback != null) return
 
-        while (currentCoroutineContext().isActive) {
-            val elapsed = System.nanoTime() - startedAt
-            if (elapsed >= durationNanos) break
+        val frameChoreographer = choreographer ?: Choreographer.getInstance().also { choreographer = it }
+        val callback = object : Choreographer.FrameCallback {
+            override fun doFrame(frameTimeNanos: Long) {
+                if (!isPlaying || (lastBeatTimeNanos == 0L && lastRhythmTimeNanos == 0L)) {
+                    choreographerCallback = null
+                    return
+                }
 
-            val progress = elapsed.toFloat() / durationNanos.toFloat()
-            onPulseChanged(1f - progress.coerceIn(0f, 1f))
-            delay(16L)
+                updatePulseStates(frameTimeNanos)
+                frameChoreographer.postFrameCallback(this)
+            }
         }
-        onPulseChanged(0f)
+        choreographerCallback = callback
+        frameChoreographer.postFrameCallback(callback)
+    }
+
+    private fun stopChoreographerLoop() {
+        choreographerCallback?.let { callback ->
+            choreographer?.removeFrameCallback(callback)
+        }
+        choreographerCallback = null
+    }
+
+    private fun updatePulseStates(frameTimeNanos: Long) {
+        if (lastBeatTimeNanos > 0L && currentBeatDurationNanos > 0L) {
+            beatPulse = pulseAlpha(frameTimeNanos, lastBeatTimeNanos, currentBeatDurationNanos)
+        }
+        if (lastRhythmTimeNanos > 0L && currentRhythmDurationNanos > 0L) {
+            rhythmPulse = pulseAlpha(frameTimeNanos, lastRhythmTimeNanos, currentRhythmDurationNanos)
+        }
+    }
+
+    private fun pulseAlpha(frameTimeNanos: Long, startedAtNanos: Long, durationNanos: Long): Float {
+        val progress = ((frameTimeNanos - startedAtNanos).toDouble() / durationNanos).coerceIn(0.0, 1.0)
+        val remaining = 1.0 - progress
+        return (remaining * remaining).toFloat()
+    }
+
+    private fun toChoreographerTimeNanos(elapsedRealtimeNanos: Long): Long {
+        // Audio is scheduled with elapsedRealtimeNanos, while Choreographer frame times use nanoTime.
+        return elapsedRealtimeNanos - SystemClock.elapsedRealtimeNanos() + System.nanoTime()
     }
 
     override fun onCleared() {

@@ -68,6 +68,11 @@
     <string name="settings_mute_metronome">Always mute metronome</string>
     <string name="settings_keep_awake">Keep Screen On (Prevent Sleep)</string>
     <string name="settings_sixteenth_alternate">Alternate Sixteenth Notes</string>
+    <string name="settings_low_latency_audio">Low-Latency Audio Engine (Experimental)</string>
+    <string name="settings_low_latency_audio_description">Uses AudioTrack playback for metronome and polyrhythm timing.</string>
+    <string name="settings_low_latency_sounds">Low-Latency Sounds</string>
+    <string name="settings_low_latency_sounds_acoustic">Acoustic</string>
+    <string name="settings_low_latency_sounds_synth">Synth</string>
     <string name="settings_metronome_playback_description">BeatClikr will always animate the metronome, and it plays audio by default. Choose other playback settings here.</string>
     <string name="settings_metronome_instruments">Metronome</string>
     <string name="settings_playlist_instruments">Playlist Mode</string>
