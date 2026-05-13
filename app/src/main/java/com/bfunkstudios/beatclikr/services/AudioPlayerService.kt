@@ -1,6 +1,7 @@
 package com.bfunkstudios.beatclikr.services
 
 import android.content.Context
+import com.bfunkstudios.beatclikr.data.SoundBank
 import com.bfunkstudios.beatclikr.data.SoundFile
 
 /**
@@ -19,13 +20,9 @@ class AudioPlayerService private constructor(context: Context) : IAudioPlayerSer
         get() = audioEngine.isMuted
         set(value) { audioEngine.isMuted = value }
 
-    override var useAudioTrack: Boolean
-        get() = audioEngine.useAudioTrack
-        set(value) { audioEngine.useAudioTrack = value }
-
-    override var useSyntheticAudioTrackSounds: Boolean
-        get() = audioEngine.useSyntheticAudioTrackSounds
-        set(value) { audioEngine.useSyntheticAudioTrackSounds = value }
+    override var soundBank: SoundBank
+        get() = audioEngine.soundBank
+        set(value) { audioEngine.soundBank = value }
 
     override fun setupAudioPlayer(beatResourceId: Int, rhythmResourceId: Int) {
         audioEngine.loadSounds(beatResourceId, rhythmResourceId)

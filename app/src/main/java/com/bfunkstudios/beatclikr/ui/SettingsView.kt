@@ -61,6 +61,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.bfunkstudios.beatclikr.R
+import com.bfunkstudios.beatclikr.data.SoundBank
 import com.bfunkstudios.beatclikr.data.SoundFile
 import com.bfunkstudios.beatclikr.ui.components.SectionCard
 import com.bfunkstudios.beatclikr.ui.components.SoundPickerRow
@@ -325,34 +326,21 @@ private fun MetronomePlaybackSection(
             }
         )
         SettingsDivider()
-        SettingsToggleRow(
-            label = stringResource(R.string.settings_low_latency_audio),
-            subtitle = stringResource(R.string.settings_low_latency_audio_description),
-            checked = viewModel.useAudioTrack,
-            onCheckedChange = {
-                viewModel.updateUseAudioTrack(it)
+        SettingsDropdownRow(
+            label = stringResource(R.string.settings_sound_bank),
+            selected = when (viewModel.soundBank) {
+                SoundBank.ACOUSTIC -> stringResource(R.string.settings_sound_bank_acoustic)
+                SoundBank.SYNTH -> stringResource(R.string.settings_sound_bank_synth)
+            },
+            options = listOf(
+                stringResource(R.string.settings_sound_bank_acoustic) to SoundBank.ACOUSTIC,
+                stringResource(R.string.settings_sound_bank_synth) to SoundBank.SYNTH
+            ),
+            onSelect = { soundBank ->
+                viewModel.updateSoundBank(soundBank)
                 metronomeViewModel.refreshPlaybackSettings()
             }
         )
-        if (viewModel.useAudioTrack) {
-            SettingsDivider()
-            SettingsDropdownRow(
-                label = stringResource(R.string.settings_low_latency_sounds),
-                selected = if (viewModel.useSyntheticAudioTrackSounds) {
-                    stringResource(R.string.settings_low_latency_sounds_synth)
-                } else {
-                    stringResource(R.string.settings_low_latency_sounds_acoustic)
-                },
-                options = listOf(
-                    stringResource(R.string.settings_low_latency_sounds_acoustic) to false,
-                    stringResource(R.string.settings_low_latency_sounds_synth) to true
-                ),
-                onSelect = { useSynthetic ->
-                    viewModel.updateUseSyntheticAudioTrackSounds(useSynthetic)
-                    metronomeViewModel.refreshPlaybackSettings()
-                }
-            )
-        }
     }
     SettingsFooter(stringResource(R.string.settings_metronome_playback_description))
 }
@@ -606,11 +594,11 @@ private fun SettingsValueRow(
 }
 
 @Composable
-private fun SettingsDropdownRow(
+private fun <T> SettingsDropdownRow(
     label: String,
     selected: String,
-    options: List<Pair<String, Boolean>>,
-    onSelect: (Boolean) -> Unit,
+    options: List<Pair<String, T>>,
+    onSelect: (T) -> Unit,
     modifier: Modifier = Modifier
 ) {
     var expanded by remember { mutableStateOf(false) }
