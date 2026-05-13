@@ -1,26 +1,29 @@
 package com.bfunkstudios.beatclikr.services
 
-import android.media.SoundPool
 import android.os.Handler
 import android.os.SystemClock
 import com.bfunkstudios.beatclikr.data.PolyrhythmGrid
 
 internal class PolyrhythmTimingEngine(
     private val handler: Handler,
-    private val soundPool: SoundPool,
     private val isMuted: () -> Boolean,
     private val isLoaded: () -> Boolean,
+    private val playBeatSound: () -> Unit,
+    private val playRhythmSound: () -> Unit,
+    private val playBeatAndRhythmSounds: () -> Unit,
+    private val outputLatencyNanos: () -> Long,
     private val checkIntervalMs: Long,
     private val firstBeatDelayMs: Long,
     private val lookaheadToleranceMs: Long,
     private val requestAudioFocus: () -> Boolean
 ) {
     var delegate: PolyrhythmAudioEngineDelegate? = null
-    var beatSoundId: Int = 0
-    var rhythmSoundId: Int = 0
 
     var hasPendingStart: Boolean = false
         private set
+
+    val isRunning: Boolean
+        get() = isPlaying
 
     private var isPlaying = false
     private var pendingBpm = 120f
@@ -112,22 +115,19 @@ internal class PolyrhythmTimingEngine(
 
         if (!isMuted()) {
             when {
-                beatFired && rhythmFired -> {
-                    // Beat sound first so the more prominent hit leads; reduces perceived flam
-                    soundPool.play(beatSoundId, 1f, 1f, 1, 0, 1f)
-                    soundPool.play(rhythmSoundId, 1f, 1f, 1, 0, 1f)
-                }
-                beatFired -> soundPool.play(beatSoundId, 1f, 1f, 1, 0, 1f)
-                rhythmFired -> soundPool.play(rhythmSoundId, 1f, 1f, 1, 0, 1f)
+                beatFired && rhythmFired -> playBeatAndRhythmSounds()
+                beatFired -> playBeatSound()
+                rhythmFired -> playRhythmSound()
             }
         }
 
+        val visualStepTimeNanos = scheduledTimeNanos + outputLatencyNanos()
         delegate?.polyrhythmBeatFired(
             beatFired = beatFired,
             rhythmFired = rhythmFired,
             beatIndex = step.beatIndex,
             rhythmIndex = step.rhythmIndex,
-            stepTimeNanos = scheduledTimeNanos,
+            stepTimeNanos = visualStepTimeNanos,
             beatDurationNanos = (60_000_000_000.0 / bpm).toLong().coerceAtLeast(1L),
             rhythmDurationNanos = (against * (60_000_000_000.0 / bpm) / beats).toLong().coerceAtLeast(1L)
         )

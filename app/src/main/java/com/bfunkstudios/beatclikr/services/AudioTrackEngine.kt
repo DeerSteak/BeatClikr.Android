@@ -67,6 +67,15 @@ class AudioTrackEngine {
         enqueueWaveform(ensureWaveform(rhythmSound))
     }
 
+    fun playBeatAndRhythm() {
+        val beatWaveform = ensureWaveform(beatSound)
+        val rhythmWaveform = ensureWaveform(rhythmSound)
+        synchronized(pendingClicksLock) {
+            pendingClicks.addLast(beatWaveform)
+            pendingClicks.addLast(rhythmWaveform)
+        }
+    }
+
     fun stop() {
         renderHandler.post {
             renderRunning = false

@@ -63,8 +63,7 @@ class MetronomeAudioEngine(private val context: Context) {
         set(value) {
             field = value
             handler.post {
-                // isPlaying tracks metronome playback only; polyrhythm does not set it.
-                if (!isPlaying) return@post
+                if (!isPlaying && !polyrhythmEngine.isRunning) return@post
                 if (value) {
                     getOrCreateAudioTrackEngine().start()
                 } else {
@@ -118,9 +117,12 @@ class MetronomeAudioEngine(private val context: Context) {
 
         polyrhythmEngine = PolyrhythmTimingEngine(
             handler = handler,
-            soundPool = soundPool,
             isMuted = { isMuted },
-            isLoaded = { beatLoaded && rhythmLoaded },
+            isLoaded = { useAudioTrack || beatLoaded && rhythmLoaded },
+            playBeatSound = ::playPolyrhythmBeatSound,
+            playRhythmSound = ::playPolyrhythmRhythmSound,
+            playBeatAndRhythmSounds = ::playPolyrhythmBeatAndRhythmSounds,
+            outputLatencyNanos = ::getAudioTrackOutputLatencyNanos,
             checkIntervalMs = checkInterval,
             firstBeatDelayMs = firstBeatDelayMs,
             lookaheadToleranceMs = lookaheadToleranceMs,
@@ -162,9 +164,11 @@ class MetronomeAudioEngine(private val context: Context) {
             this.rhythmResourceId = rhythmResourceId
             beatSoundId = soundPool.load(context, beatResourceId, 1)
             rhythmSoundId = soundPool.load(context, rhythmResourceId, 1)
-            polyrhythmEngine.beatSoundId = beatSoundId
-            polyrhythmEngine.rhythmSoundId = rhythmSoundId
-            audioTrackEngine?.setSounds(beatResourceId, rhythmResourceId)
+            if (useAudioTrack) {
+                getOrCreateAudioTrackEngine().setSounds(beatResourceId, rhythmResourceId)
+            } else {
+                audioTrackEngine?.setSounds(beatResourceId, rhythmResourceId)
+            }
         }
     }
 
@@ -202,13 +206,22 @@ class MetronomeAudioEngine(private val context: Context) {
 
     fun startPolyrhythm(bpm: Float, beats: Int, against: Int) {
         handler.post {
-            audioTrackEngine?.stop()
+            if (useAudioTrack) {
+                getOrCreateAudioTrackEngine().start()
+            } else {
+                audioTrackEngine?.stop()
+            }
             polyrhythmEngine.start(bpm, beats, against)
         }
     }
 
     fun stopPolyrhythm() {
-        handler.post { polyrhythmEngine.stop() }
+        handler.post {
+            polyrhythmEngine.stop()
+            if (useAudioTrack) {
+                audioTrackEngine?.stop()
+            }
+        }
     }
 
     fun updateTempo(
@@ -379,6 +392,40 @@ class MetronomeAudioEngine(private val context: Context) {
             if (beatResource != null && rhythmResource != null) {
                 engine.setSounds(beatResource, rhythmResource)
             }
+        }
+    }
+
+    private fun playPolyrhythmBeatSound() {
+        if (useAudioTrack) {
+            audioTrackEngine?.playBeat()
+        } else {
+            soundPool.play(beatSoundId, 1f, 1f, 1, 0, 1f)
+        }
+    }
+
+    private fun playPolyrhythmRhythmSound() {
+        if (useAudioTrack) {
+            audioTrackEngine?.playRhythm()
+        } else {
+            soundPool.play(rhythmSoundId, 1f, 1f, 1, 0, 1f)
+        }
+    }
+
+    private fun playPolyrhythmBeatAndRhythmSounds() {
+        if (useAudioTrack) {
+            audioTrackEngine?.playBeatAndRhythm()
+        } else {
+            // SoundPool has no atomic multi-sound trigger; keep the stronger beat first.
+            soundPool.play(beatSoundId, 1f, 1f, 1, 0, 1f)
+            soundPool.play(rhythmSoundId, 1f, 1f, 1, 0, 1f)
+        }
+    }
+
+    private fun getAudioTrackOutputLatencyNanos(): Long {
+        return if (useAudioTrack && !isMuted) {
+            audioTrackEngine?.estimatedOutputLatencyNanos ?: 0L
+        } else {
+            0L
         }
     }
 
