@@ -7,6 +7,7 @@ import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ProcessLifecycleOwner
 import com.bfunkstudios.beatclikr.data.IAppPreferences
+import com.bfunkstudios.beatclikr.data.SoundBank
 import com.bfunkstudios.beatclikr.services.IAudioPlayerService
 import com.bfunkstudios.beatclikr.services.IFlashlightService
 import dagger.hilt.android.HiltAndroidApp
@@ -21,13 +22,11 @@ class BeatClikrApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
-        audioPlayerService.useSyntheticAudioTrackSounds = prefs.useSyntheticAudioTrackSounds
-        if (!prefs.useSyntheticAudioTrackSounds) {
+        audioPlayerService.soundBank = prefs.soundBank
+        if (prefs.soundBank == SoundBank.ACOUSTIC) {
             audioPlayerService.prepareAudioTrackSounds(prefs.audioTrackSoundCacheSet())
         }
-        if (prefs.useAudioTrack) {
-            audioPlayerService.prewarmAudioTrack()
-        }
+        audioPlayerService.prewarmAudioTrack()
         // BeatClikr is foreground-only: no foreground service is used, so playback
         // stops when the app leaves the foreground. This is intentional.
         ProcessLifecycleOwner.get().lifecycle.addObserver(object : DefaultLifecycleObserver {

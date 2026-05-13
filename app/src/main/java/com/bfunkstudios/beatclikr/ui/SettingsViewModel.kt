@@ -6,6 +6,7 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.bfunkstudios.beatclikr.data.IAppPreferences
+import com.bfunkstudios.beatclikr.data.SoundBank
 import kotlinx.coroutines.launch
 import com.bfunkstudios.beatclikr.data.SoundFile
 import com.bfunkstudios.beatclikr.services.IAudioPlayerService
@@ -66,10 +67,7 @@ class SettingsViewModel @Inject constructor(
     var sixteenthAlternate by mutableStateOf(prefs.sixteenthAlternate)
         private set
 
-    var useAudioTrack by mutableStateOf(prefs.useAudioTrack)
-        private set
-
-    var useSyntheticAudioTrackSounds by mutableStateOf(prefs.useSyntheticAudioTrackSounds)
+    var soundBank by mutableStateOf(prefs.soundBank)
         private set
 
     var practiceReminderEnabled by mutableStateOf(prefs.practiceReminderEnabled)
@@ -172,21 +170,11 @@ class SettingsViewModel @Inject constructor(
         prefs.sixteenthAlternate = value
     }
 
-    fun updateUseAudioTrack(value: Boolean) {
-        useAudioTrack = value
-        prefs.useAudioTrack = value
-        audioPlayerService.useAudioTrack = value
-        audioPlayerService.useSyntheticAudioTrackSounds = useSyntheticAudioTrackSounds
-        if (value) {
-            prepareAudioTrackSoundsIfNeeded()
-        }
-    }
-
-    fun updateUseSyntheticAudioTrackSounds(value: Boolean) {
-        useSyntheticAudioTrackSounds = value
-        prefs.useSyntheticAudioTrackSounds = value
-        audioPlayerService.useSyntheticAudioTrackSounds = value
-        if (!value) {
+    fun updateSoundBank(value: SoundBank) {
+        soundBank = value
+        prefs.soundBank = value
+        audioPlayerService.soundBank = value
+        if (value == SoundBank.ACOUSTIC) {
             prepareAudioTrackSoundsIfNeeded()
         }
     }
@@ -341,12 +329,12 @@ class SettingsViewModel @Inject constructor(
     }
 
     private fun prepareAudioTrackSoundIfNeeded(soundFile: SoundFile) {
-        if (useSyntheticAudioTrackSounds) return
+        if (soundBank == SoundBank.SYNTH) return
         audioPlayerService.prepareAudioTrackSounds(listOf(soundFile))
     }
 
     private fun prepareAudioTrackSoundsIfNeeded() {
-        if (useSyntheticAudioTrackSounds) return
+        if (soundBank == SoundBank.SYNTH) return
         audioPlayerService.prepareAudioTrackSounds(
             listOf(
                 metronomeBeatSound,
