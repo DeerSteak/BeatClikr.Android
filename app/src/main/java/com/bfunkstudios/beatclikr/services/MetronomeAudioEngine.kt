@@ -31,6 +31,7 @@ interface PolyrhythmAudioEngineDelegate {
 
 class MetronomeAudioEngine(private val context: Context) {
     private val soundPool: SoundPool
+    @Volatile
     private var audioTrackEngine: AudioTrackEngine? = null
     private val handlerThread = HandlerThread("MetronomeThread").also { it.start() }
     private val handler = Handler(handlerThread.looper)
@@ -224,6 +225,16 @@ class MetronomeAudioEngine(private val context: Context) {
         }
     }
 
+    fun prewarmAudioTrack() {
+        handler.post {
+            getOrCreateAudioTrackEngine().prewarm()
+        }
+    }
+
+    fun getAudioTrackMetricsSnapshot(): AudioTrackMetricsSnapshot? {
+        return audioTrackEngine?.metricsSnapshot()
+    }
+
     fun updateTempo(
         bpm: Float,
         subdivisions: Int,
@@ -385,7 +396,7 @@ class MetronomeAudioEngine(private val context: Context) {
     }
 
     private fun getOrCreateAudioTrackEngine(): AudioTrackEngine {
-        return audioTrackEngine ?: AudioTrackEngine().also { engine ->
+        return audioTrackEngine ?: AudioTrackEngine(audioManager).also { engine ->
             audioTrackEngine = engine
             val beatResource = beatResourceId
             val rhythmResource = rhythmResourceId

@@ -2,6 +2,7 @@ package com.bfunkstudios.beatclikr.services
 
 import android.media.AudioAttributes
 import android.media.AudioFormat
+import android.media.AudioManager
 import android.media.AudioTrack
 import android.os.Build
 import android.os.Handler
@@ -21,22 +22,63 @@ import kotlin.math.sin
  * output primitive. Raw resource decoding can be added later if matching the
  * SoundPool samples exactly becomes more important than startup simplicity.
  */
-class AudioTrackEngine {
+data class AudioTrackMetricsSnapshot(
+    val sampleRate: Int,
+    val outputFramesPerBuffer: Int,
+    val bufferSizeInBytes: Int,
+    val renderChunkFrames: Int,
+    val estimatedOutputLatencyNanos: Long,
+    val queuedClicks: Long,
+    val renderedChunks: Long,
+    val writtenFrames: Long,
+    val maxActiveClicks: Int
+)
+
+class AudioTrackEngine(private val audioManager: AudioManager? = null) {
     private val renderThread = HandlerThread("AudioTrackRenderThread").also { it.start() }
     private val renderHandler = Handler(renderThread.looper)
     private val pendingClicks = ArrayDeque<ShortArray>()
     private val pendingClicksLock = Any()
     private val activeClicks = mutableListOf<ActiveClick>()
-    private val renderBuffer = ShortArray(RENDER_CHUNK_FRAMES)
 
     private var audioTrack: AudioTrack? = null
+    private var sampleRate = resolveOutputSampleRate()
+    private var outputFramesPerBuffer = resolveOutputFramesPerBuffer()
+    private var bufferSizeInBytes = 0
+    private var renderChunkFrames = defaultRenderChunkFrames()
+    private var renderBuffer = ShortArray(renderChunkFrames)
     private val waveforms = mutableMapOf<SoundFile, ShortArray>()
     private var beatSound: SoundFile = SoundFile.CLICK_HI
     private var rhythmSound: SoundFile = SoundFile.CLICK_LO
     private var renderRunning = false
+
+    @Volatile
+    private var queuedClicks = 0L
+
+    @Volatile
+    private var renderedChunks = 0L
+
+    @Volatile
+    private var writtenFrames = 0L
+
+    @Volatile
+    private var maxActiveClicks = 0
+
     @Volatile
     var estimatedOutputLatencyNanos: Long = 0L
         private set
+
+    fun metricsSnapshot(): AudioTrackMetricsSnapshot = AudioTrackMetricsSnapshot(
+        sampleRate = sampleRate,
+        outputFramesPerBuffer = outputFramesPerBuffer,
+        bufferSizeInBytes = bufferSizeInBytes,
+        renderChunkFrames = renderChunkFrames,
+        estimatedOutputLatencyNanos = estimatedOutputLatencyNanos,
+        queuedClicks = queuedClicks,
+        renderedChunks = renderedChunks,
+        writtenFrames = writtenFrames,
+        maxActiveClicks = maxActiveClicks
+    )
 
     fun setSounds(beatResourceId: Int, rhythmResourceId: Int) {
         beatSound = SoundFile.fromResourceId(beatResourceId) ?: SoundFile.CLICK_HI
@@ -59,6 +101,12 @@ class AudioTrackEngine {
         }
     }
 
+    fun prewarm() {
+        renderHandler.post {
+            ensureAudioTrack()
+        }
+    }
+
     fun playBeat() {
         enqueueWaveform(ensureWaveform(beatSound))
     }
@@ -73,6 +121,7 @@ class AudioTrackEngine {
         synchronized(pendingClicksLock) {
             pendingClicks.addLast(beatWaveform)
             pendingClicks.addLast(rhythmWaveform)
+            queuedClicks += 2L
         }
     }
 
@@ -110,6 +159,7 @@ class AudioTrackEngine {
     private fun enqueueWaveform(waveform: ShortArray) {
         synchronized(pendingClicksLock) {
             pendingClicks.addLast(waveform)
+            queuedClicks += 1L
         }
     }
 
@@ -121,6 +171,8 @@ class AudioTrackEngine {
             renderBuffer.fill(0)
             mixActiveClicks()
             audioTrack?.write(renderBuffer, 0, renderBuffer.size, AudioTrack.WRITE_BLOCKING)
+            renderedChunks++
+            writtenFrames += renderBuffer.size
 
             if (renderRunning) {
                 renderHandler.post(this)
@@ -133,6 +185,7 @@ class AudioTrackEngine {
             while (pendingClicks.isNotEmpty()) {
                 activeClicks += ActiveClick(pendingClicks.removeFirst())
             }
+            maxActiveClicks = maxOf(maxActiveClicks, activeClicks.size)
         }
     }
 
@@ -157,18 +210,19 @@ class AudioTrackEngine {
         audioTrack?.let { return it }
 
         val minimumBufferSize = AudioTrack.getMinBufferSize(
-            SAMPLE_RATE,
+            sampleRate,
             CHANNEL_CONFIG,
             AUDIO_FORMAT
         )
         val fallbackBufferSize = BYTES_PER_SAMPLE * DEFAULT_BUFFER_FRAMES
-        val bufferSize = if (minimumBufferSize > 0) {
+        bufferSizeInBytes = if (minimumBufferSize > 0) {
             minimumBufferSize
         } else {
             fallbackBufferSize
         }
+        configureRenderBuffer(bytesToFrames(bufferSizeInBytes).toInt())
         // Buffer drain time is a lower-bound latency estimate; device HAL latency is not exposed here.
-        estimatedOutputLatencyNanos = bytesToFrames(bufferSize) * NANOS_PER_SECOND / SAMPLE_RATE
+        estimatedOutputLatencyNanos = estimateLatencyNanos(bytesToFrames(bufferSizeInBytes))
         val attributesBuilder = AudioAttributes.Builder()
             .setUsage(AudioAttributes.USAGE_GAME)
             .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
@@ -179,13 +233,13 @@ class AudioTrackEngine {
         val attributes = attributesBuilder.build()
         val format = AudioFormat.Builder()
             .setEncoding(AUDIO_FORMAT)
-            .setSampleRate(SAMPLE_RATE)
+            .setSampleRate(sampleRate)
             .setChannelMask(CHANNEL_CONFIG)
             .build()
         val builder = AudioTrack.Builder()
             .setAudioAttributes(attributes)
             .setAudioFormat(format)
-            .setBufferSizeInBytes(bufferSize)
+            .setBufferSizeInBytes(bufferSizeInBytes)
             .setTransferMode(AudioTrack.MODE_STREAM)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             builder.setPerformanceMode(AudioTrack.PERFORMANCE_MODE_LOW_LATENCY)
@@ -212,11 +266,11 @@ class AudioTrackEngine {
             SoundFile.TOM_LO -> 70
             else -> 45
         }
-        val waveform = ShortArray(SAMPLE_RATE * durationMs / 1000)
+        val waveform = ShortArray(sampleRate * durationMs / 1000)
         val profile = WaveformProfile.forSound(soundFile)
 
         for (i in waveform.indices) {
-            val t = i.toDouble() / SAMPLE_RATE
+            val t = i.toDouble() / sampleRate
             val envelope = exp(-profile.decay * t)
             val primary = sin(2.0 * PI * profile.frequencyHz * t)
             val harmonic = sin(2.0 * PI * profile.frequencyHz * 1.7 * t) * profile.harmonicMix
@@ -271,15 +325,54 @@ class AudioTrackEngine {
         var position: Int = 0
     )
 
+    private fun resolveOutputSampleRate(): Int {
+        val value = audioManager
+            ?.getProperty(AudioManager.PROPERTY_OUTPUT_SAMPLE_RATE)
+            ?.toIntOrNull()
+            ?.takeIf { it > 0 }
+        return value ?: DEFAULT_SAMPLE_RATE
+    }
+
+    private fun resolveOutputFramesPerBuffer(): Int {
+        val value = audioManager
+            ?.getProperty(AudioManager.PROPERTY_OUTPUT_FRAMES_PER_BUFFER)
+            ?.toIntOrNull()
+            ?.takeIf { it > 0 }
+        return value ?: DEFAULT_OUTPUT_FRAMES_PER_BUFFER
+    }
+
+    private fun defaultRenderChunkFrames(): Int {
+        return (outputFramesPerBuffer / 2)
+            .coerceIn(MIN_RENDER_CHUNK_FRAMES, MAX_RENDER_CHUNK_FRAMES)
+    }
+
+    private fun configureRenderBuffer(bufferFrames: Int) {
+        val targetFrames = when {
+            outputFramesPerBuffer > 0 -> outputFramesPerBuffer / 2
+            else -> bufferFrames / 4
+        }.coerceIn(MIN_RENDER_CHUNK_FRAMES, MAX_RENDER_CHUNK_FRAMES)
+
+        if (targetFrames != renderChunkFrames) {
+            renderChunkFrames = targetFrames
+            renderBuffer = ShortArray(renderChunkFrames)
+        }
+    }
+
+    private fun estimateLatencyNanos(bufferFrames: Long): Long {
+        val outputBurstFrames = outputFramesPerBuffer.toLong().coerceAtLeast(0L)
+        return (bufferFrames + outputBurstFrames) * NANOS_PER_SECOND / sampleRate
+    }
+
     private companion object {
-        const val SAMPLE_RATE = 44_100
+        const val DEFAULT_SAMPLE_RATE = 44_100
         const val CHANNEL_CONFIG = AudioFormat.CHANNEL_OUT_MONO
         const val AUDIO_FORMAT = AudioFormat.ENCODING_PCM_16BIT
         const val BYTES_PER_SAMPLE = 2
         const val DEFAULT_BUFFER_FRAMES = 1_024
+        const val DEFAULT_OUTPUT_FRAMES_PER_BUFFER = 192
+        const val MIN_RENDER_CHUNK_FRAMES = 64
+        const val MAX_RENDER_CHUNK_FRAMES = 512
         const val NANOS_PER_SECOND = 1_000_000_000L
-        // Small chunks keep click enqueue-to-render delay low; AudioTrack handles the larger device buffer.
-        const val RENDER_CHUNK_FRAMES = 128
 
         fun bytesToFrames(bytes: Int): Long = (bytes / BYTES_PER_SAMPLE).toLong().coerceAtLeast(1L)
     }

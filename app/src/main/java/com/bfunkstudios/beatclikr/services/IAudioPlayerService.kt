@@ -21,5 +21,7 @@ interface IAudioPlayerService {
     )
     fun startPolyrhythm(bpm: Float, beats: Int, against: Int)
     fun stopPolyrhythm()
+    fun prewarmAudioTrack()
+    fun getAudioTrackMetricsSnapshot(): AudioTrackMetricsSnapshot?
     fun release()
 }

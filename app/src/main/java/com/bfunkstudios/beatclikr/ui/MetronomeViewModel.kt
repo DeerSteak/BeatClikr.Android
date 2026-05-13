@@ -211,6 +211,9 @@ class MetronomeViewModel @Inject constructor(
 
     fun refreshPlaybackSettings() {
         audio.useAudioTrack = prefs.useAudioTrack
+        if (prefs.useAudioTrack) {
+            audio.prewarmAudioTrack()
+        }
         if (isPlaying) {
             audio.updateTempo(
                 currentSong.beatsPerMinute,

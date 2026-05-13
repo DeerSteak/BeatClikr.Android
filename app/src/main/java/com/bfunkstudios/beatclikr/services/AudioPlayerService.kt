@@ -58,6 +58,14 @@ class AudioPlayerService private constructor(context: Context) : IAudioPlayerSer
         audioEngine.stopPolyrhythm()
     }
 
+    override fun prewarmAudioTrack() {
+        audioEngine.prewarmAudioTrack()
+    }
+
+    override fun getAudioTrackMetricsSnapshot(): AudioTrackMetricsSnapshot? {
+        return audioEngine.getAudioTrackMetricsSnapshot()
+    }
+
     override fun release() {
         audioEngine.release()
         delegate = null

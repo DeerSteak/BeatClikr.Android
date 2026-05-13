@@ -1,6 +1,7 @@
 package com.bfunkstudios.beatclikr
 
 import com.bfunkstudios.beatclikr.services.IAudioPlayerService
+import com.bfunkstudios.beatclikr.services.AudioTrackMetricsSnapshot
 import com.bfunkstudios.beatclikr.services.MetronomeAudioEngineDelegate
 import com.bfunkstudios.beatclikr.services.PolyrhythmAudioEngineDelegate
 
@@ -31,5 +32,7 @@ class FakeAudioPlayerService : IAudioPlayerService {
     ) {}
     override fun startPolyrhythm(bpm: Float, beats: Int, against: Int) { polyrhythmStartCount++ }
     override fun stopPolyrhythm() { polyrhythmStopCount++ }
+    override fun prewarmAudioTrack() {}
+    override fun getAudioTrackMetricsSnapshot(): AudioTrackMetricsSnapshot? = null
     override fun release() {}
 }
