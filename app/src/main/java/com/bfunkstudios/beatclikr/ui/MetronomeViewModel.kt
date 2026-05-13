@@ -1,5 +1,7 @@
 package com.bfunkstudios.beatclikr.ui
 
+import android.os.SystemClock
+import android.view.Choreographer
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -23,10 +25,7 @@ import com.bfunkstudios.beatclikr.services.IHapticFeedbackService
 import com.bfunkstudios.beatclikr.services.MetronomeAudioEngineDelegate
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -86,7 +85,10 @@ class MetronomeViewModel @Inject constructor(
         interval = prefs.rampInterval
     )
     private val tapTimestamps = mutableListOf<Long>()
-    private var beatPulseJob: Job? = null
+    private var choreographer: Choreographer? = null
+    private var choreographerCallback: Choreographer.FrameCallback? = null
+    private var lastBeatTimeNanos: Long = 0L
+    private var currentBeatDurationNanos: Long = 0L
 
     private val appLifecycleObserver = object : DefaultLifecycleObserver {
         override fun onPause(owner: LifecycleOwner) {
@@ -262,8 +264,10 @@ class MetronomeViewModel @Inject constructor(
         rampController.reset()
         isPlaying = false
         iconScale = MetronomeConstants.ICON_SCALE_MIN
-        beatPulseJob?.cancel()
+        stopChoreographerLoop()
         beatPulse = 0f
+        lastBeatTimeNanos = 0L
+        currentBeatDurationNanos = 0L
         if (shouldRestoreRampBpm) {
             currentSong = currentSong.copy(beatsPerMinute = activeBpm)
         }
@@ -287,15 +291,19 @@ class MetronomeViewModel @Inject constructor(
         updateBPM((60_000.0 / avgIntervalMs).toFloat())
     }
 
-    override fun metronomeBeatFired(isBeat: Boolean, beatInterval: Float) {
+    override fun metronomeBeatFired(isBeat: Boolean, beatInterval: Float, beatTimeNanos: Long) {
         viewModelScope.launch(Dispatchers.Main) {
             if (isBeat) {
                 iconScale = MetronomeConstants.ICON_SCALE_MAX
-                beatPulseJob?.cancel()
-                beatPulseJob = launch {
-                    fadeBeatPulse((beatInterval * 1000).toLong().coerceAtLeast(1L))
+                // Show the hit immediately; Choreographer owns the frame-synced decay.
+                beatPulse = 1f
+                if (beatTimeNanos > 0L) {
+                    lastBeatTimeNanos = toChoreographerTimeNanos(beatTimeNanos)
+                    currentBeatDurationNanos = (beatInterval * 1_000_000_000L).toLong().coerceAtLeast(1L)
+                    startChoreographerLoop()
                 }
                 handleBeat()
+                // Icon scale is a one-frame snap; the pulse fade above is the smooth visual.
                 delay(16)
                 iconScale = MetronomeConstants.ICON_SCALE_MIN
             } else {
@@ -322,17 +330,42 @@ class MetronomeViewModel @Inject constructor(
         }
     }
 
-    private suspend fun fadeBeatPulse(durationMillis: Long) {
-        beatPulse = 1f
-        val frameMillis = 16L
-        var elapsedMillis = 0L
-        while (currentCoroutineContext().isActive && elapsedMillis < durationMillis) {
-            delay(frameMillis)
-            elapsedMillis += frameMillis
-            val progress = (elapsedMillis.toFloat() / durationMillis).coerceIn(0f, 1f)
-            beatPulse = 1f - progress
+    private fun startChoreographerLoop() {
+        if (choreographerCallback != null) return
+
+        val frameChoreographer = choreographer ?: Choreographer.getInstance().also { choreographer = it }
+        val callback = object : Choreographer.FrameCallback {
+            override fun doFrame(frameTimeNanos: Long) {
+                if (!isPlaying || lastBeatTimeNanos == 0L || currentBeatDurationNanos == 0L) {
+                    choreographerCallback = null
+                    return
+                }
+
+                updateBeatPulse(frameTimeNanos)
+                frameChoreographer.postFrameCallback(this)
+            }
         }
-        beatPulse = 0f
+        choreographerCallback = callback
+        frameChoreographer.postFrameCallback(callback)
+    }
+
+    private fun stopChoreographerLoop() {
+        choreographerCallback?.let { callback ->
+            choreographer?.removeFrameCallback(callback)
+        }
+        choreographerCallback = null
+    }
+
+    private fun updateBeatPulse(frameTimeNanos: Long) {
+        val progress = ((frameTimeNanos - lastBeatTimeNanos).toDouble() / currentBeatDurationNanos)
+            .coerceIn(0.0, 1.0)
+        val remaining = 1.0 - progress
+        beatPulse = (remaining * remaining).toFloat()
+    }
+
+    private fun toChoreographerTimeNanos(elapsedRealtimeNanos: Long): Long {
+        // Audio is scheduled with elapsedRealtimeNanos, while Choreographer frame times use nanoTime.
+        return elapsedRealtimeNanos - SystemClock.elapsedRealtimeNanos() + System.nanoTime()
     }
 
     private fun getSubdivisionValue(): Int = currentSong.groove.subdivisions

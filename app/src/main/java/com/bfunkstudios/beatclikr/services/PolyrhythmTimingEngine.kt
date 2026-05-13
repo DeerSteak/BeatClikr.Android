@@ -29,6 +29,7 @@ internal class PolyrhythmTimingEngine(
 
     private var bpm = 120f
     private var against = 2
+    private var beats = 3
     private var grid = PolyrhythmGrid.create(beats = 3, against = 2)
     private var stepDurationNanos = 0L
     private var stepIndex = 0
@@ -65,7 +66,8 @@ internal class PolyrhythmTimingEngine(
 
         this.bpm = bpm
         this.against = against.coerceIn(1, 15)
-        this.grid = PolyrhythmGrid.create(beats = beats, against = against)
+        this.beats = beats.coerceIn(1, 15)
+        this.grid = PolyrhythmGrid.create(beats = this.beats, against = this.against)
         // Compute directly in nanoseconds to minimize floating-point precision loss
         val nanosPerBeat = 60_000_000_000.0 / this.bpm
         stepDurationNanos = (this.against * nanosPerBeat / grid.lcm).toLong()
@@ -95,14 +97,14 @@ internal class PolyrhythmTimingEngine(
         val lookaheadNanos = lookaheadToleranceMs * 1_000_000L
 
         if (nowNanos >= nextStepTimeNanos - lookaheadNanos) {
-            playCurrentStep()
+            playCurrentStep(nextStepTimeNanos)
             // Increment from the scheduled time (not nowNanos) so late callbacks self-correct
             nextStepTimeNanos += stepDurationNanos
             stepIndex = (stepIndex + 1) % grid.lcm
         }
     }
 
-    private fun playCurrentStep() {
+    private fun playCurrentStep(scheduledTimeNanos: Long) {
         val step = grid.stepAt(stepIndex)
         val beatFired = step.beatFired
         val rhythmFired = step.rhythmFired
@@ -124,7 +126,10 @@ internal class PolyrhythmTimingEngine(
             beatFired = beatFired,
             rhythmFired = rhythmFired,
             beatIndex = step.beatIndex,
-            rhythmIndex = step.rhythmIndex
+            rhythmIndex = step.rhythmIndex,
+            stepTimeNanos = scheduledTimeNanos,
+            beatDurationNanos = (60_000_000_000.0 / bpm).toLong().coerceAtLeast(1L),
+            rhythmDurationNanos = (against * (60_000_000_000.0 / bpm) / beats).toLong().coerceAtLeast(1L)
         )
     }
 }

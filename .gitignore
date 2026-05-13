@@ -33,3 +33,6 @@ google-services.json
 *.hprof
 /app/src/main/res/raw
 .DS_Store
+/.claude
+/app/release
+/.kotlin

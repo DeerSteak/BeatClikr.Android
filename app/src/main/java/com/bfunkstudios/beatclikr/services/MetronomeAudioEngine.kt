@@ -14,7 +14,7 @@ import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
 interface MetronomeAudioEngineDelegate {
-    fun metronomeBeatFired(isBeat: Boolean, beatInterval: Float)
+    fun metronomeBeatFired(isBeat: Boolean, beatInterval: Float, beatTimeNanos: Long = 0L)
 }
 
 interface PolyrhythmAudioEngineDelegate {
@@ -22,7 +22,10 @@ interface PolyrhythmAudioEngineDelegate {
         beatFired: Boolean,
         rhythmFired: Boolean,
         beatIndex: Int,
-        rhythmIndex: Int
+        rhythmIndex: Int,
+        stepTimeNanos: Long = 0L,
+        beatDurationNanos: Long = 0L,
+        rhythmDurationNanos: Long = 0L
     )
 }
 
@@ -298,7 +301,7 @@ class MetronomeAudioEngine(private val context: Context) {
 
         if (nowNanos >= nextBeatTimeNanos - lookaheadNanos) {
             val subdivisionDurationNanos = getSubdivisionDurationNanos()
-            playCurrentBeat(subdivisionDurationNanos)
+            playCurrentBeat(subdivisionDurationNanos, nextBeatTimeNanos)
 
             // Increment from the scheduled time (not nowNanos) so late callbacks self-correct
             nextBeatTimeNanos += subdivisionDurationNanos
@@ -310,7 +313,7 @@ class MetronomeAudioEngine(private val context: Context) {
         }
     }
 
-    private fun playCurrentBeat(subdivisionDurationNanos: Long) {
+    private fun playCurrentBeat(subdivisionDurationNanos: Long, scheduledTimeNanos: Long) {
         val accentPattern = currentAccentPattern
         val isBeat = accentPattern?.getOrNull(subdivisionCounter) ?: (subdivisionCounter == 0)
         val ticksToNextBeat = accentPattern?.let { ticksToNextAccent(it, subdivisionCounter) }
@@ -327,7 +330,7 @@ class MetronomeAudioEngine(private val context: Context) {
             }
         }
 
-        delegate?.metronomeBeatFired(isBeat, beatInterval)
+        delegate?.metronomeBeatFired(isBeat, beatInterval, scheduledTimeNanos)
     }
 
     private fun currentStepCount(): Int = currentAccentPattern?.size ?: currentSubdivisions
