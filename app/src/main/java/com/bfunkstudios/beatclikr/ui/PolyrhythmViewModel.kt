@@ -133,6 +133,7 @@ class PolyrhythmViewModel @Inject constructor(
         rhythmPulse = 0f
         audio.isMuted = prefs.muteMetronome
         audio.useAudioTrack = prefs.useAudioTrack
+        audio.useSyntheticAudioTrackSounds = prefs.useSyntheticAudioTrackSounds
         audio.startPolyrhythm(bpm, beats, against)
         isPlaying = true
         viewModelScope.launch { practiceHistory.recordPolyrhythmPractice() }

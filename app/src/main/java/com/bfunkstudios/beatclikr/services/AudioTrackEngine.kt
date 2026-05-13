@@ -16,11 +16,7 @@ import kotlin.math.exp
 import kotlin.math.sin
 
 /**
- * Low-latency metronome output using generated PCM clicks.
- *
- * Phase 2 keeps timing in MetronomeAudioEngine and uses AudioTrack only as the
- * output primitive. Raw resource decoding can be added later if matching the
- * SoundPool samples exactly becomes more important than startup simplicity.
+ * Low-latency metronome output using cached mono PCM files or generated clicks.
  */
 data class AudioTrackMetricsSnapshot(
     val sampleRate: Int,
@@ -34,7 +30,10 @@ data class AudioTrackMetricsSnapshot(
     val maxActiveClicks: Int
 )
 
-class AudioTrackEngine(private val audioManager: AudioManager? = null) {
+class AudioTrackEngine(
+    private val audioManager: AudioManager? = null,
+    private val pcmFileCache: PcmFileCache
+) {
     private val renderThread = HandlerThread("AudioTrackRenderThread").also { it.start() }
     private val renderHandler = Handler(renderThread.looper)
     private val pendingClicks = ArrayDeque<ShortArray>()
@@ -42,15 +41,23 @@ class AudioTrackEngine(private val audioManager: AudioManager? = null) {
     private val activeClicks = mutableListOf<ActiveClick>()
 
     private var audioTrack: AudioTrack? = null
-    private var sampleRate = resolveOutputSampleRate()
+    private var sampleRate = pcmFileCache.sampleRate
     private var outputFramesPerBuffer = resolveOutputFramesPerBuffer()
     private var bufferSizeInBytes = 0
     private var renderChunkFrames = defaultRenderChunkFrames()
     private var renderBuffer = ShortArray(renderChunkFrames)
     private val waveforms = mutableMapOf<SoundFile, ShortArray>()
+    private val waveformLock = Any()
     private var beatSound: SoundFile = SoundFile.CLICK_HI
     private var rhythmSound: SoundFile = SoundFile.CLICK_LO
     private var renderRunning = false
+
+    @Volatile
+    var useSyntheticWaveforms: Boolean = false
+        set(value) {
+            field = value
+            synchronized(waveformLock) { waveforms.clear() }
+        }
 
     @Volatile
     private var queuedClicks = 0L
@@ -85,6 +92,15 @@ class AudioTrackEngine(private val audioManager: AudioManager? = null) {
         rhythmSound = SoundFile.fromResourceId(rhythmResourceId) ?: SoundFile.CLICK_LO
         ensureWaveform(beatSound)
         ensureWaveform(rhythmSound)
+    }
+
+    fun prepareSounds(soundFiles: Collection<SoundFile>) {
+        renderHandler.post {
+            pcmFileCache.prepare(soundFiles)
+            synchronized(waveformLock) {
+                soundFiles.forEach { waveforms.remove(it) }
+            }
+        }
     }
 
     fun start() {
@@ -153,7 +169,7 @@ class AudioTrackEngine(private val audioManager: AudioManager? = null) {
         latch.await(1, TimeUnit.SECONDS)
         renderThread.quitSafely()
         // Release is called during MetronomeAudioEngine shutdown, after audio callbacks are stopped.
-        waveforms.clear()
+        synchronized(waveformLock) { waveforms.clear() }
     }
 
     private fun enqueueWaveform(waveform: ShortArray) {
@@ -248,7 +264,25 @@ class AudioTrackEngine(private val audioManager: AudioManager? = null) {
     }
 
     private fun ensureWaveform(soundFile: SoundFile): ShortArray {
-        return waveforms.getOrPut(soundFile) { generateWaveform(soundFile) }
+        synchronized(waveformLock) {
+            waveforms[soundFile]?.let { return it }
+        }
+
+        val synthetic = useSyntheticWaveforms
+        val waveform = if (synthetic) {
+            generateWaveform(soundFile)
+        } else {
+            pcmFileCache.load(soundFile) ?: generateWaveform(soundFile)
+        }
+
+        synchronized(waveformLock) {
+            waveforms[soundFile]?.let { return it }
+            if (useSyntheticWaveforms != synthetic) {
+                return ensureWaveform(soundFile)
+            }
+            waveforms[soundFile] = waveform
+            return waveform
+        }
     }
 
     private fun generateWaveform(soundFile: SoundFile): ShortArray {
@@ -325,14 +359,6 @@ class AudioTrackEngine(private val audioManager: AudioManager? = null) {
         var position: Int = 0
     )
 
-    private fun resolveOutputSampleRate(): Int {
-        val value = audioManager
-            ?.getProperty(AudioManager.PROPERTY_OUTPUT_SAMPLE_RATE)
-            ?.toIntOrNull()
-            ?.takeIf { it > 0 }
-        return value ?: DEFAULT_SAMPLE_RATE
-    }
-
     private fun resolveOutputFramesPerBuffer(): Int {
         val value = audioManager
             ?.getProperty(AudioManager.PROPERTY_OUTPUT_FRAMES_PER_BUFFER)
@@ -364,7 +390,6 @@ class AudioTrackEngine(private val audioManager: AudioManager? = null) {
     }
 
     private companion object {
-        const val DEFAULT_SAMPLE_RATE = 44_100
         const val CHANNEL_CONFIG = AudioFormat.CHANNEL_OUT_MONO
         const val AUDIO_FORMAT = AudioFormat.ENCODING_PCM_16BIT
         const val BYTES_PER_SAMPLE = 2

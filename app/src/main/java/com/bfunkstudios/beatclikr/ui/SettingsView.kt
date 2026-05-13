@@ -17,6 +17,8 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -27,6 +29,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -34,11 +38,16 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.NotificationsOff
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -325,6 +334,25 @@ private fun MetronomePlaybackSection(
                 metronomeViewModel.refreshPlaybackSettings()
             }
         )
+        if (viewModel.useAudioTrack) {
+            SettingsDivider()
+            SettingsDropdownRow(
+                label = stringResource(R.string.settings_low_latency_sounds),
+                selected = if (viewModel.useSyntheticAudioTrackSounds) {
+                    stringResource(R.string.settings_low_latency_sounds_synth)
+                } else {
+                    stringResource(R.string.settings_low_latency_sounds_acoustic)
+                },
+                options = listOf(
+                    stringResource(R.string.settings_low_latency_sounds_acoustic) to false,
+                    stringResource(R.string.settings_low_latency_sounds_synth) to true
+                ),
+                onSelect = { useSynthetic ->
+                    viewModel.updateUseSyntheticAudioTrackSounds(useSynthetic)
+                    metronomeViewModel.refreshPlaybackSettings()
+                }
+            )
+        }
     }
     SettingsFooter(stringResource(R.string.settings_metronome_playback_description))
 }
@@ -574,6 +602,62 @@ private fun SettingsValueRow(
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
+    }
+}
+
+@Composable
+private fun SettingsDropdownRow(
+    label: String,
+    selected: String,
+    options: List<Pair<String, Boolean>>,
+    onSelect: (Boolean) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var expanded by remember { mutableStateOf(false) }
+
+    Row(
+        modifier = modifier
+            .clickable { expanded = true }
+            .fillMaxWidth()
+            .padding(horizontal = 12.dp, vertical = 10.dp)
+            .heightIn(min = 56.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(text = label, style = MaterialTheme.typography.titleMedium)
+
+        Box {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = selected,
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.secondary
+                )
+                Icon(
+                    imageVector = Icons.Default.ArrowDropDown,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.secondary
+                )
+            }
+
+            DropdownMenu(
+                expanded = expanded,
+                onDismissRequest = { expanded = false }
+            ) {
+                options.forEach { (optionLabel, optionValue) ->
+                    DropdownMenuItem(
+                        text = { Text(optionLabel, style = MaterialTheme.typography.bodyLarge) },
+                        onClick = {
+                            onSelect(optionValue)
+                            expanded = false
+                        }
+                    )
+                }
+            }
+        }
     }
 }
 

@@ -211,6 +211,7 @@ class MetronomeViewModel @Inject constructor(
 
     fun refreshPlaybackSettings() {
         audio.useAudioTrack = prefs.useAudioTrack
+        audio.useSyntheticAudioTrackSounds = prefs.useSyntheticAudioTrackSounds
         if (prefs.useAudioTrack) {
             audio.prewarmAudioTrack()
         }
@@ -248,6 +249,7 @@ class MetronomeViewModel @Inject constructor(
         }
         audio.isMuted = prefs.muteMetronome
         audio.useAudioTrack = prefs.useAudioTrack
+        audio.useSyntheticAudioTrackSounds = prefs.useSyntheticAudioTrackSounds
         activeBpm = currentSong.beatsPerMinute
         rampController.reset()
         audio.startMetronome(

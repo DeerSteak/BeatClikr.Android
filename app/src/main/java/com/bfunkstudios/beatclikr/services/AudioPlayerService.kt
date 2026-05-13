@@ -1,6 +1,7 @@
 package com.bfunkstudios.beatclikr.services
 
 import android.content.Context
+import com.bfunkstudios.beatclikr.data.SoundFile
 
 /**
  * Centralized audio service for metronome playback.
@@ -21,6 +22,10 @@ class AudioPlayerService private constructor(context: Context) : IAudioPlayerSer
     override var useAudioTrack: Boolean
         get() = audioEngine.useAudioTrack
         set(value) { audioEngine.useAudioTrack = value }
+
+    override var useSyntheticAudioTrackSounds: Boolean
+        get() = audioEngine.useSyntheticAudioTrackSounds
+        set(value) { audioEngine.useSyntheticAudioTrackSounds = value }
 
     override fun setupAudioPlayer(beatResourceId: Int, rhythmResourceId: Int) {
         audioEngine.loadSounds(beatResourceId, rhythmResourceId)
@@ -60,6 +65,10 @@ class AudioPlayerService private constructor(context: Context) : IAudioPlayerSer
 
     override fun prewarmAudioTrack() {
         audioEngine.prewarmAudioTrack()
+    }
+
+    override fun prepareAudioTrackSounds(soundFiles: Collection<SoundFile>) {
+        audioEngine.prepareAudioTrackSounds(soundFiles)
     }
 
     override fun getAudioTrackMetricsSnapshot(): AudioTrackMetricsSnapshot? {

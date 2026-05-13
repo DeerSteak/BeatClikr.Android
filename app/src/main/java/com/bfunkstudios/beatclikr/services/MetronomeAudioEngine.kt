@@ -10,6 +10,7 @@ import android.os.Handler
 import android.os.HandlerThread
 import android.os.SystemClock
 import com.bfunkstudios.beatclikr.constants.MetronomeConstants
+import com.bfunkstudios.beatclikr.data.SoundFile
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
@@ -36,6 +37,7 @@ class MetronomeAudioEngine(private val context: Context) {
     private val handlerThread = HandlerThread("MetronomeThread").also { it.start() }
     private val handler = Handler(handlerThread.looper)
     private val audioManager = context.getSystemService(AudioManager::class.java)
+    private val pcmFileCache = PcmFileCache(context, resolveOutputSampleRate())
 
     private var beatSoundId: Int = 0
     private var rhythmSoundId: Int = 0
@@ -70,6 +72,15 @@ class MetronomeAudioEngine(private val context: Context) {
                 } else {
                     audioTrackEngine?.stop()
                 }
+            }
+        }
+
+    @Volatile
+    var useSyntheticAudioTrackSounds: Boolean = false
+        set(value) {
+            field = value
+            handler.post {
+                audioTrackEngine?.useSyntheticWaveforms = value
             }
         }
 
@@ -228,6 +239,13 @@ class MetronomeAudioEngine(private val context: Context) {
     fun prewarmAudioTrack() {
         handler.post {
             getOrCreateAudioTrackEngine().prewarm()
+        }
+    }
+
+    fun prepareAudioTrackSounds(soundFiles: Collection<SoundFile>) {
+        handler.post {
+            pcmFileCache.prepare(soundFiles)
+            audioTrackEngine?.prepareSounds(soundFiles)
         }
     }
 
@@ -396,8 +414,9 @@ class MetronomeAudioEngine(private val context: Context) {
     }
 
     private fun getOrCreateAudioTrackEngine(): AudioTrackEngine {
-        return audioTrackEngine ?: AudioTrackEngine(audioManager).also { engine ->
+        return audioTrackEngine ?: AudioTrackEngine(audioManager, pcmFileCache).also { engine ->
             audioTrackEngine = engine
+            engine.useSyntheticWaveforms = useSyntheticAudioTrackSounds
             val beatResource = beatResourceId
             val rhythmResource = rhythmResourceId
             if (beatResource != null && rhythmResource != null) {
@@ -449,5 +468,17 @@ class MetronomeAudioEngine(private val context: Context) {
             if (accentPattern[nextIndex]) return offset
         }
         return accentPattern.size
+    }
+
+    private fun resolveOutputSampleRate(): Int {
+        val value = audioManager
+            ?.getProperty(AudioManager.PROPERTY_OUTPUT_SAMPLE_RATE)
+            ?.toIntOrNull()
+            ?.takeIf { it > 0 }
+        return value ?: DEFAULT_SAMPLE_RATE
+    }
+
+    private companion object {
+        const val DEFAULT_SAMPLE_RATE = 44_100
     }
 }

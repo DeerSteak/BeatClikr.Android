@@ -21,6 +21,10 @@ class BeatClikrApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        audioPlayerService.useSyntheticAudioTrackSounds = prefs.useSyntheticAudioTrackSounds
+        if (!prefs.useSyntheticAudioTrackSounds) {
+            audioPlayerService.prepareAudioTrackSounds(prefs.audioTrackSoundCacheSet())
+        }
         if (prefs.useAudioTrack) {
             audioPlayerService.prewarmAudioTrack()
         }
@@ -48,4 +52,13 @@ class BeatClikrApplication : Application() {
         audioPlayerService.stopPolyrhythm()
         flashlightService.turnFlashlightOff()
     }
+
+    private fun IAppPreferences.audioTrackSoundCacheSet() = listOf(
+        instantBeatSound,
+        instantRhythmSound,
+        polyrhythmBeatSound,
+        polyrhythmRhythmSound,
+        playlistBeatSound,
+        playlistRhythmSound
+    )
 }

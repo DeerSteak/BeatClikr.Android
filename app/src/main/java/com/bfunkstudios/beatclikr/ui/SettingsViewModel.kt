@@ -8,6 +8,7 @@ import androidx.lifecycle.viewModelScope
 import com.bfunkstudios.beatclikr.data.IAppPreferences
 import kotlinx.coroutines.launch
 import com.bfunkstudios.beatclikr.data.SoundFile
+import com.bfunkstudios.beatclikr.services.IAudioPlayerService
 import com.bfunkstudios.beatclikr.services.IFlashlightService
 import com.bfunkstudios.beatclikr.services.IPracticeReminderScheduler
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -37,6 +38,7 @@ sealed interface ReminderSettingsDialog {
 class SettingsViewModel @Inject constructor(
     private val prefs: IAppPreferences,
     private val flashlight: IFlashlightService,
+    private val audioPlayerService: IAudioPlayerService,
     private val reminderScheduler: IPracticeReminderScheduler
 ) : ViewModel() {
 
@@ -65,6 +67,9 @@ class SettingsViewModel @Inject constructor(
         private set
 
     var useAudioTrack by mutableStateOf(prefs.useAudioTrack)
+        private set
+
+    var useSyntheticAudioTrackSounds by mutableStateOf(prefs.useSyntheticAudioTrackSounds)
         private set
 
     var practiceReminderEnabled by mutableStateOf(prefs.practiceReminderEnabled)
@@ -170,6 +175,20 @@ class SettingsViewModel @Inject constructor(
     fun updateUseAudioTrack(value: Boolean) {
         useAudioTrack = value
         prefs.useAudioTrack = value
+        audioPlayerService.useAudioTrack = value
+        audioPlayerService.useSyntheticAudioTrackSounds = useSyntheticAudioTrackSounds
+        if (value) {
+            prepareAudioTrackSoundsIfNeeded()
+        }
+    }
+
+    fun updateUseSyntheticAudioTrackSounds(value: Boolean) {
+        useSyntheticAudioTrackSounds = value
+        prefs.useSyntheticAudioTrackSounds = value
+        audioPlayerService.useSyntheticAudioTrackSounds = value
+        if (!value) {
+            prepareAudioTrackSoundsIfNeeded()
+        }
     }
 
     fun updatePracticeReminderEnabled(value: Boolean) {
@@ -288,31 +307,56 @@ class SettingsViewModel @Inject constructor(
     fun updateMetronomeBeatSound(value: SoundFile) {
         metronomeBeatSound = value
         prefs.instantBeatSound = value
+        prepareAudioTrackSoundIfNeeded(value)
     }
 
     fun updateMetronomeRhythmSound(value: SoundFile) {
         metronomeRhythmSound = value
         prefs.instantRhythmSound = value
+        prepareAudioTrackSoundIfNeeded(value)
     }
 
     fun updatePlaylistBeatSound(value: SoundFile) {
         playlistBeatSound = value
         prefs.playlistBeatSound = value
+        prepareAudioTrackSoundIfNeeded(value)
     }
 
     fun updatePlaylistRhythmSound(value: SoundFile) {
         playlistRhythmSound = value
         prefs.playlistRhythmSound = value
+        prepareAudioTrackSoundIfNeeded(value)
     }
 
     fun updatePolyrhythmBeatSound(value: SoundFile) {
         polyrhythmBeatSound = value
         prefs.polyrhythmBeatSound = value
+        prepareAudioTrackSoundIfNeeded(value)
     }
 
     fun updatePolyrhythmRhythmSound(value: SoundFile) {
         polyrhythmRhythmSound = value
         prefs.polyrhythmRhythmSound = value
+        prepareAudioTrackSoundIfNeeded(value)
+    }
+
+    private fun prepareAudioTrackSoundIfNeeded(soundFile: SoundFile) {
+        if (useSyntheticAudioTrackSounds) return
+        audioPlayerService.prepareAudioTrackSounds(listOf(soundFile))
+    }
+
+    private fun prepareAudioTrackSoundsIfNeeded() {
+        if (useSyntheticAudioTrackSounds) return
+        audioPlayerService.prepareAudioTrackSounds(
+            listOf(
+                metronomeBeatSound,
+                metronomeRhythmSound,
+                polyrhythmBeatSound,
+                polyrhythmRhythmSound,
+                playlistBeatSound,
+                playlistRhythmSound
+            )
+        )
     }
 
     private fun clearReminderPermissionWarnings() {
