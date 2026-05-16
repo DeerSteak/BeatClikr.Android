@@ -115,14 +115,11 @@ class MetronomeViewModel @Inject constructor(
     fun returnToInstantMode() {
         if (clickerType == ClickerType.INSTANT) return
         if (isPlaying) stop()
-        currentSong = Song.instantSong().copy(
+        loadSong(Song.instantSong().copy(
             beatsPerMinute = prefs.instantBpm,
             groove = prefs.instantGroove,
             beatPattern = prefs.instantBeatPattern
-        )
-        selectedBeatSound = prefs.instantBeatSound
-        selectedRhythmSound = prefs.instantRhythmSound
-        clickerType = ClickerType.INSTANT
+        ))
     }
 
     fun loadSong(song: Song, type: ClickerType = ClickerType.INSTANT) {
@@ -326,6 +323,7 @@ class MetronomeViewModel @Inject constructor(
                 durationNanos = (beatInterval * 1_000_000_000L).toLong().coerceAtLeast(1L)
             ))
         }
+        if (!isBeat && !prefs.useFlashlight && !prefs.useVibration) return
         viewModelScope.launch(Dispatchers.Main) {
             if (isBeat) {
                 iconScale = MetronomeConstants.ICON_SCALE_MAX
