@@ -326,29 +326,17 @@ private fun MetronomePlaybackSection(
             }
         )
         SettingsDivider()
-        SettingsToggleRow(
-            label = stringResource(R.string.settings_low_latency_audio),
-            subtitle = stringResource(R.string.settings_low_latency_audio_description),
-            checked = viewModel.useAudioTrack,
-            onCheckedChange = {
-                viewModel.updateUseAudioTrack(it)
+        SettingsDropdownRow(
+            label = stringResource(R.string.settings_sound_bank),
+            selected = stringResource(viewModel.soundBank.labelRes),
+            options = SoundBank.entries.map {
+                stringResource(it.labelRes) to it
+            },
+            onSelect = { bank ->
+                viewModel.updateSoundBank(bank)
                 metronomeViewModel.refreshPlaybackSettings()
             }
         )
-        if (viewModel.useAudioTrack) {
-            SettingsDivider()
-            SettingsDropdownRow(
-                label = stringResource(R.string.settings_low_latency_sounds),
-                selected = stringResource(viewModel.soundBank.labelRes),
-                options = SoundBank.entries.map {
-                    stringResource(it.labelRes) to it
-                },
-                onSelect = { bank ->
-                    viewModel.updateSoundBank(bank)
-                    metronomeViewModel.refreshPlaybackSettings()
-                }
-            )
-        }
     }
     SettingsFooter(stringResource(R.string.settings_metronome_playback_description))
 }

@@ -20,10 +20,6 @@ class AudioPlayerService private constructor(context: Context) : IAudioPlayerSer
         get() = audioEngine.isMuted
         set(value) { audioEngine.isMuted = value }
 
-    override var useAudioTrack: Boolean
-        get() = audioEngine.useAudioTrack
-        set(value) { audioEngine.useAudioTrack = value }
-
     override var soundBank: SoundBank
         get() = audioEngine.soundBank
         set(value) { audioEngine.soundBank = value }
@@ -65,7 +61,7 @@ class AudioPlayerService private constructor(context: Context) : IAudioPlayerSer
     }
 
     override fun prewarmAudioTrack() {
-        audioEngine.prewarmAudioTrack()
+        audioEngine.prewarm()
     }
 
     override fun prepareAudioTrackSounds(soundFiles: Collection<SoundFile>) {

@@ -133,7 +133,6 @@ class PolyrhythmViewModel @Inject constructor(
         beatPulse = 0f
         rhythmPulse = 0f
         audio.isMuted = prefs.muteMetronome
-        audio.useAudioTrack = prefs.useAudioTrack
         audio.soundBank = prefs.soundBank
         audio.startPolyrhythm(bpm, beats, against)
         isPlaying = true

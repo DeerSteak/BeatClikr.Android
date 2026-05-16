@@ -67,9 +67,6 @@ class SettingsViewModel @Inject constructor(
     var sixteenthAlternate by mutableStateOf(prefs.sixteenthAlternate)
         private set
 
-    var useAudioTrack by mutableStateOf(prefs.useAudioTrack)
-        private set
-
     var soundBank by mutableStateOf(prefs.soundBank)
         private set
 
@@ -171,16 +168,6 @@ class SettingsViewModel @Inject constructor(
     fun updateSixteenthAlternate(value: Boolean) {
         sixteenthAlternate = value
         prefs.sixteenthAlternate = value
-    }
-
-    fun updateUseAudioTrack(value: Boolean) {
-        useAudioTrack = value
-        prefs.useAudioTrack = value
-        audioPlayerService.useAudioTrack = value
-        audioPlayerService.soundBank = soundBank
-        if (value) {
-            prepareAudioTrackSoundsIfNeeded()
-        }
     }
 
     fun updateSoundBank(value: SoundBank) {

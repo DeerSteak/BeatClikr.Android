@@ -225,11 +225,7 @@ class MetronomeViewModel @Inject constructor(
     }
 
     fun refreshPlaybackSettings() {
-        audio.useAudioTrack = prefs.useAudioTrack
         audio.soundBank = prefs.soundBank
-        if (prefs.useAudioTrack) {
-            audio.prewarmAudioTrack()
-        }
         if (isPlaying) {
             audio.updateTempo(
                 currentSong.beatsPerMinute,
@@ -263,7 +259,6 @@ class MetronomeViewModel @Inject constructor(
             setupMetronomeFromSelection()
         }
         audio.isMuted = prefs.muteMetronome
-        audio.useAudioTrack = prefs.useAudioTrack
         audio.soundBank = prefs.soundBank
         activeBpm = currentSong.beatsPerMinute
         rampController.reset()

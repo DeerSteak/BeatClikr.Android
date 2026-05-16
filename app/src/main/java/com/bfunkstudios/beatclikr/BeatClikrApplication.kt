@@ -26,9 +26,7 @@ class BeatClikrApplication : Application() {
         if (prefs.soundBank == SoundBank.ACOUSTIC) {
             audioPlayerService.prepareAudioTrackSounds(prefs.audioTrackSoundCacheSet())
         }
-        if (prefs.useAudioTrack) {
-            audioPlayerService.prewarmAudioTrack()
-        }
+        audioPlayerService.prewarmAudioTrack()
         // BeatClikr is foreground-only: no foreground service is used, so playback
         // stops when the app leaves the foreground. This is intentional.
         ProcessLifecycleOwner.get().lifecycle.addObserver(object : DefaultLifecycleObserver {

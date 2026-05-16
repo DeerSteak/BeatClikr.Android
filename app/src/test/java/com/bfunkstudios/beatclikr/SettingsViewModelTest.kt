@@ -41,7 +41,6 @@ class SettingsViewModelTest {
         every { prefs.muteMetronome } returns false
         every { prefs.keepScreenAwake } returns false
         every { prefs.sixteenthAlternate } returns false
-        every { prefs.useAudioTrack } returns false
         every { prefs.soundBank } returns SoundBank.SYNTH
         every { prefs.practiceReminderEnabled } returns false
         every { prefs.practiceReminderHour } returns 9
@@ -58,38 +57,7 @@ class SettingsViewModelTest {
     }
 
     @Test
-    fun `updateUseAudioTrack saves to prefs`() {
-        viewModel.updateUseAudioTrack(true)
-
-        assertTrue(viewModel.useAudioTrack)
-        verify { prefs.useAudioTrack = true }
-        verify { audioPlayerService.useAudioTrack = true }
-    }
-
-    @Test
-    fun `updateUseAudioTrack prepares selected files when cached sounds are enabled`() {
-        every { prefs.soundBank } returns SoundBank.ACOUSTIC
-        viewModel = SettingsViewModel(prefs, flashlight, audioPlayerService, reminderScheduler)
-
-        viewModel.updateUseAudioTrack(true)
-
-        verify {
-            audioPlayerService.prepareAudioTrackSounds(
-                listOf(
-                    SoundFile.CLICK_HI,
-                    SoundFile.CLICK_LO,
-                    SoundFile.CLICK_HI,
-                    SoundFile.CLICK_LO,
-                    SoundFile.CLICK_HI,
-                    SoundFile.CLICK_LO
-                )
-            )
-        }
-    }
-
-    @Test
     fun `updateSoundBank to synth saves to prefs and skips cache`() {
-        every { prefs.useAudioTrack } returns true
         every { prefs.soundBank } returns SoundBank.ACOUSTIC
         viewModel = SettingsViewModel(prefs, flashlight, audioPlayerService, reminderScheduler)
 
