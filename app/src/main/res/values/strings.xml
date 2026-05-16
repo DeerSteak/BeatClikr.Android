@@ -1,6 +1,5 @@
 <resources>
     <string name="app_name">BeatClikr</string>
-    <string name="song_list">Song List</string>
     <string name="back">Back</string>
     <string name="add_song">Add Song</string>
     <string name="instant_metronome">Metronome</string>
@@ -37,8 +36,6 @@
     <string name="copyright_value">© 2026 Benjamin Funk</string>
     <string name="previous">Previous</string>
     <string name="next">Next</string>
-    <string name="previous_song">Previous Song</string>
-    <string name="next_song">Next Song</string>
     <string name="now_playing">Now Playing</string>
     <string name="tap_song_to_begin">Tap a song to begin</string>
 
@@ -50,8 +47,6 @@
     <string name="rhythm">Rhythm</string>
     <string name="play">Play</string>
     <string name="pause">Pause</string>
-    <string name="increase_bpm">Increase BPM</string>
-    <string name="decrease_bpm">Decrease BPM</string>
     <string name="tempo_ramp">Tempo Ramp</string>
     <string name="ramp_increase_by">Increase by</string>
     <string name="ramp_every">Every</string>
@@ -90,13 +85,10 @@
     <!-- Song detail -->
     <string name="section_song_info">Song Info</string>
     <string name="section_tempo">Tempo</string>
-    <string name="section_feel">Groove</string>
     <string name="song_title">Title</string>
     <string name="artist">Artist</string>
     <string name="beats_per_bar">Beats per Bar</string>
     <string name="required">Required</string>
-    <string name="beats_per_minute_label">Beats Per Minute: %1$d</string>
-    <string name="beats_per_measure_label">Beats Per Measure: %1$d</string>
     <string name="empty_song_library">Tap + to add a song</string>
     <string name="edit">Edit</string>
     <string name="done">Done</string>

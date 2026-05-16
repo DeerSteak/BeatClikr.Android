@@ -7,7 +7,6 @@ import com.bfunkstudios.beatclikr.data.PolyrhythmGrid
 internal class PolyrhythmTimingEngine(
     private val handler: Handler,
     private val isMuted: () -> Boolean,
-    private val isLoaded: () -> Boolean,
     private val playBeatSound: () -> Unit,
     private val playRhythmSound: () -> Unit,
     private val playBeatAndRhythmSounds: () -> Unit,
@@ -19,16 +18,10 @@ internal class PolyrhythmTimingEngine(
 ) {
     var delegate: PolyrhythmAudioEngineDelegate? = null
 
-    var hasPendingStart: Boolean = false
-        private set
-
     val isRunning: Boolean
         get() = isPlaying
 
     private var isPlaying = false
-    private var pendingBpm = 120f
-    private var pendingBeats = 3
-    private var pendingAgainst = 2
 
     private var bpm = 120f
     private var against = 2
@@ -40,28 +33,13 @@ internal class PolyrhythmTimingEngine(
 
     fun start(bpm: Float, beats: Int, against: Int) {
         handler.removeCallbacks(runnable)
-        if (!isLoaded()) {
-            pendingBpm = bpm
-            pendingBeats = beats
-            pendingAgainst = against
-            hasPendingStart = true
-            return
-        }
         doStart(bpm, beats, against)
     }
 
     fun stop() {
         isPlaying = false
-        hasPendingStart = false
         handler.removeCallbacks(runnable)
         stepIndex = 0
-    }
-
-    fun onSoundsLoaded() {
-        if (hasPendingStart) {
-            hasPendingStart = false
-            doStart(pendingBpm, pendingBeats, pendingAgainst)
-        }
     }
 
     private fun doStart(bpm: Float, beats: Int, against: Int) {

@@ -1,6 +1,5 @@
 <resources>
     <string name="app_name">BeatClikr</string>
-    <string name="song_list">Lista de canciones</string>
     <string name="back">Atrás</string>
     <string name="add_song">Añadir Canción</string>
     <string name="instant_metronome">Metrónomo</string>
@@ -8,6 +7,7 @@
     <string name="tab_instant">Metrónomo</string>
     <string name="tab_polyrhythm">Polirritmia</string>
     <string name="tab_library">Biblioteca</string>
+    <string name="tab_playlist">Playlist</string>
     <string name="tab_settings">Ajustes</string>
     <string name="song_library">Biblioteca de Canciones</string>
     <string name="song_detail">Detalles de la canción</string>
@@ -36,8 +36,6 @@
     <string name="copyright_value">© 2026 Benjamin Funk</string>
     <string name="previous">Anterior</string>
     <string name="next">Siguiente</string>
-    <string name="previous_song">Canción anterior</string>
-    <string name="next_song">Siguiente canción</string>
     <string name="now_playing">Reproduciendo ahora</string>
     <string name="tap_song_to_begin">Toca una canción para comenzar</string>
 
@@ -49,8 +47,6 @@
     <string name="rhythm">Ritmo</string>
     <string name="play">Reproducir</string>
     <string name="pause">Pausar</string>
-    <string name="increase_bpm">Aumentar BPM</string>
-    <string name="decrease_bpm">Disminuir BPM</string>
     <string name="tempo_ramp">Rampa de tempo</string>
     <string name="ramp_increase_by">Aumentar en</string>
     <string name="ramp_every">Cada</string>
@@ -67,7 +63,10 @@
     <string name="settings_mute_metronome">Silenciar siempre el metrónomo</string>
     <string name="settings_keep_awake">Mantener pantalla encendida</string>
     <string name="settings_sixteenth_alternate">Semicorcheas alternadas</string>
-    <string name="settings_metronome_playback_description">BeatClikr siempre animará el metrónomo y reproducirá audio de forma predeterminada. Seleccione otras opciones de reproducción aquí.</string>
+    <string name="settings_sound_bank">Banco de sonidos</string>
+    <string name="settings_sound_bank_acoustic">Acústico</string>
+    <string name="settings_sound_bank_synth">Sintetizador</string>
+    <string name="settings_metronome_playback_description">BeatClikr siempre animará el metrónomo y reproducirá audio de forma predeterminada. Selecciona otras opciones de reproducción aquí.</string>
     <string name="settings_metronome_instruments">Metrónomo</string>
     <string name="settings_playlist_instruments">Modo de Playlist</string>
     <string name="settings_polyrhythm_instruments">Modo de polirritmia</string>
@@ -86,16 +85,51 @@
     <!-- Song detail -->
     <string name="section_song_info">Información de la canción</string>
     <string name="section_tempo">Tempo</string>
-    <string name="section_feel">Groove</string>
     <string name="song_title">Título</string>
     <string name="artist">Artista</string>
     <string name="beats_per_bar">Pulsos por compás</string>
     <string name="required">Obligatorio</string>
-    <string name="beats_per_minute_label">Pulsos por minuto: %1$d</string>
-    <string name="beats_per_measure_label">Pulsos por compás: %1$d</string>
     <string name="empty_song_library">Toca + para añadir una canción</string>
     <string name="edit">Editar</string>
     <string name="done">Hecho</string>
     <string name="cancel">Cancelar</string>
     <string name="save">Guardar</string>
+
+    <!-- Playlists -->
+    <string name="new_playlist">Nueva Playlist</string>
+    <string name="rename_playlist">Renombrar Playlist</string>
+    <string name="create">Crear</string>
+    <string name="rename">Renombrar</string>
+    <string name="playlist_name_hint">Nombre</string>
+    <string name="empty_playlist_list">Toca + para crear una playlist</string>
+    <string name="empty_playlist_detail">Toca + para añadir una canción</string>
+
+    <!-- Practice History -->
+    <string name="tab_history">Historial</string>
+    <string name="practice_history">Historial de práctica</string>
+    <string name="current_streak">Racha actual</string>
+    <string name="longest_streak">Racha más larga</string>
+    <string name="lets_go">¡Vamos!</string>
+    <string name="keep_streak_reminder">¡Practica hoy para mantener tu racha!</string>
+    <string name="no_practice_recorded">Sin práctica registrada</string>
+    <string name="practice_history_for">Historial de práctica de %1$s</string>
+    <string name="share_streak">Compartir racha</string>
+    <string name="share_image">Compartir imagen</string>
+    <string name="share_streak_current">¡Llevo %1$d días de racha practicando con BeatClikr! 🎵</string>
+    <string name="share_streak_longest">¡Mi racha más larga con BeatClikr es de %1$d días! 🎶</string>
+    <string name="share_streak_none">¡He estado practicando con BeatClikr! 🎼</string>
+    <string name="streak_since">Desde %1$s</string>
+
+    <!-- Content descriptions -->
+    <string name="close">Cerrar</string>
+    <string name="reorder">Reordenar</string>
+    <string name="edit_song">Editar canción</string>
+    <string name="focus_view">Vista enfocada</string>
+    <string name="previous_month">Mes anterior</string>
+    <string name="next_month">Mes siguiente</string>
+
+    <plurals name="day_count">
+        <item quantity="one">%1$d día</item>
+        <item quantity="other">%1$d días</item>
+    </plurals>
 </resources>
