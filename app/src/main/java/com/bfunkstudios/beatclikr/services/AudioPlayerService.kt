@@ -61,7 +61,7 @@ class AudioPlayerService private constructor(context: Context) : IAudioPlayerSer
     }
 
     override fun prewarmAudioTrack() {
-        audioEngine.prewarmAudioTrack()
+        audioEngine.prewarm()
     }
 
     override fun prepareAudioTrackSounds(soundFiles: Collection<SoundFile>) {

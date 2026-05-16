@@ -328,16 +328,12 @@ private fun MetronomePlaybackSection(
         SettingsDivider()
         SettingsDropdownRow(
             label = stringResource(R.string.settings_sound_bank),
-            selected = when (viewModel.soundBank) {
-                SoundBank.ACOUSTIC -> stringResource(R.string.settings_sound_bank_acoustic)
-                SoundBank.SYNTH -> stringResource(R.string.settings_sound_bank_synth)
+            selected = stringResource(viewModel.soundBank.labelRes),
+            options = SoundBank.entries.map {
+                stringResource(it.labelRes) to it
             },
-            options = listOf(
-                stringResource(R.string.settings_sound_bank_acoustic) to SoundBank.ACOUSTIC,
-                stringResource(R.string.settings_sound_bank_synth) to SoundBank.SYNTH
-            ),
-            onSelect = { soundBank ->
-                viewModel.updateSoundBank(soundBank)
+            onSelect = { bank ->
+                viewModel.updateSoundBank(bank)
                 metronomeViewModel.refreshPlaybackSettings()
             }
         )

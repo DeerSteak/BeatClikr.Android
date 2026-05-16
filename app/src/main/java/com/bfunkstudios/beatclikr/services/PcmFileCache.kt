@@ -2,6 +2,7 @@ package com.bfunkstudios.beatclikr.services
 
 import android.content.Context
 import android.util.Log
+import com.bfunkstudios.beatclikr.data.SoundBank
 import com.bfunkstudios.beatclikr.data.SoundFile
 import java.io.File
 import java.nio.ByteBuffer
@@ -15,14 +16,14 @@ class PcmFileCache(
     private val appContext = context.applicationContext
     private var cleanedOldVersions = false
 
-    fun prepare(soundFiles: Collection<SoundFile>) {
-        soundFiles.distinct().forEach(::load)
+    fun prepare(soundFiles: Collection<SoundFile>, bank: SoundBank) {
+        soundFiles.distinct().forEach { load(it, bank) }
     }
 
     @Synchronized
-    fun load(soundFile: SoundFile): ShortArray? {
-        val resourceId = soundFile.resourceId ?: return null
-        val cacheFile = cacheFileFor(soundFile)
+    fun load(soundFile: SoundFile, bank: SoundBank): ShortArray? {
+        val resourceId = soundFile.resourceIdFor(bank) ?: return null
+        val cacheFile = cacheFileFor(soundFile, bank)
         return runCatching {
             if (!cacheFile.exists()) {
                 cacheFile.parentFile?.mkdirs()
@@ -30,13 +31,12 @@ class PcmFileCache(
             }
             readCachedWaveform(cacheFile)
         }.onFailure { error ->
-            Log.w(TAG, "Unable to prepare cached PCM for ${soundFile.name}; using synthetic fallback.", error)
+            Log.w(TAG, "Unable to prepare cached PCM for ${soundFile.name} (${bank.name}).", error)
         }.getOrNull()
     }
 
-    private fun cacheFileFor(soundFile: SoundFile): File {
-        val fileName = soundFile.fileName
-            // Defensively sanitize future file names before using them as cache entries.
+    private fun cacheFileFor(soundFile: SoundFile, bank: SoundBank): File {
+        val fileName = soundFile.fileNameFor(bank)
             .lowercase(Locale.US)
             .replace(Regex("[^a-z0-9_]+"), "_")
         return File(audioCacheDir(), "${fileName}_${sampleRate}hz_mono16.pcm")

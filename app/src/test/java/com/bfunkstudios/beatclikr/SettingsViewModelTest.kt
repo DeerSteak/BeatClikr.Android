@@ -41,7 +41,7 @@ class SettingsViewModelTest {
         every { prefs.muteMetronome } returns false
         every { prefs.keepScreenAwake } returns false
         every { prefs.sixteenthAlternate } returns false
-        every { prefs.soundBank } returns SoundBank.ACOUSTIC
+        every { prefs.soundBank } returns SoundBank.SYNTH
         every { prefs.practiceReminderEnabled } returns false
         every { prefs.practiceReminderHour } returns 9
         every { prefs.practiceReminderMinute } returns 0
@@ -70,7 +70,7 @@ class SettingsViewModelTest {
     }
 
     @Test
-    fun `sound changes prepare one file when acoustic sound bank is active`() {
+    fun `sound changes prepare one file when cached sounds are enabled`() {
         every { prefs.soundBank } returns SoundBank.ACOUSTIC
         viewModel = SettingsViewModel(prefs, flashlight, audioPlayerService, reminderScheduler)
 

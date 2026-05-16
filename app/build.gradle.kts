@@ -1,6 +1,6 @@
 plugins {
     id("com.android.application")
-id("org.jetbrains.kotlin.plugin.compose")
+    id("org.jetbrains.kotlin.plugin.compose")
     id("com.google.devtools.ksp")
     id("com.google.dagger.hilt.android")
 }
@@ -14,10 +14,10 @@ android {
         applicationId = "com.bfunkstudios.beatclikr"
         minSdk = 25
         //noinspection OldTargetApi
-        targetSdk = 35
+        targetSdk = 36
         //noinspection HighAppVersionCode
-        versionCode = 2026051202
-        versionName = "4.0.0"
+        versionCode = 2026051602
+        versionName = "4.1.0"
 
         testInstrumentationRunner = "com.bfunkstudios.beatclikr.HiltTestRunner"
         vectorDrawables {
@@ -27,7 +27,8 @@ android {
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"

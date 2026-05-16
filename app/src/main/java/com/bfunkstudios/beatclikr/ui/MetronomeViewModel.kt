@@ -2,6 +2,7 @@ package com.bfunkstudios.beatclikr.ui
 
 import android.os.SystemClock
 import android.view.Choreographer
+import java.util.concurrent.atomic.AtomicReference
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -18,6 +19,7 @@ import com.bfunkstudios.beatclikr.data.Groove
 import com.bfunkstudios.beatclikr.data.IAppPreferences
 import com.bfunkstudios.beatclikr.data.PracticeHistoryRepository
 import com.bfunkstudios.beatclikr.data.Song
+import com.bfunkstudios.beatclikr.data.SoundBank
 import com.bfunkstudios.beatclikr.data.SoundFile
 import com.bfunkstudios.beatclikr.services.IAudioPlayerService
 import com.bfunkstudios.beatclikr.services.IFlashlightService
@@ -89,6 +91,9 @@ class MetronomeViewModel @Inject constructor(
     private var choreographerCallback: Choreographer.FrameCallback? = null
     private var lastBeatTimeNanos: Long = 0L
     private var currentBeatDurationNanos: Long = 0L
+    private val pendingBeatEvent = AtomicReference<PendingBeatEvent?>(null)
+
+    private data class PendingBeatEvent(val timeNanos: Long, val durationNanos: Long)
 
     private val appLifecycleObserver = object : DefaultLifecycleObserver {
         override fun onPause(owner: LifecycleOwner) {
@@ -105,6 +110,16 @@ class MetronomeViewModel @Inject constructor(
         loadSong(song, ClickerType.PLAYLIST)
         start()
         viewModelScope.launch { practiceHistory.recordSongPlayed(song) }
+    }
+
+    fun returnToInstantMode() {
+        if (clickerType == ClickerType.INSTANT) return
+        if (isPlaying) stop()
+        loadSong(Song.instantSong().copy(
+            beatsPerMinute = prefs.instantBpm,
+            groove = prefs.instantGroove,
+            beatPattern = prefs.instantBeatPattern
+        ))
     }
 
     fun loadSong(song: Song, type: ClickerType = ClickerType.INSTANT) {
@@ -211,7 +226,6 @@ class MetronomeViewModel @Inject constructor(
 
     fun refreshPlaybackSettings() {
         audio.soundBank = prefs.soundBank
-        audio.prewarmAudioTrack()
         if (isPlaying) {
             audio.updateTempo(
                 currentSong.beatsPerMinute,
@@ -271,6 +285,7 @@ class MetronomeViewModel @Inject constructor(
         beatPulse = 0f
         lastBeatTimeNanos = 0L
         currentBeatDurationNanos = 0L
+        pendingBeatEvent.set(null)
         if (shouldRestoreRampBpm) {
             currentSong = currentSong.copy(beatsPerMinute = activeBpm)
         }
@@ -295,18 +310,20 @@ class MetronomeViewModel @Inject constructor(
     }
 
     override fun metronomeBeatFired(isBeat: Boolean, beatInterval: Float, beatTimeNanos: Long) {
+        // Write the timing anchor from the audio callback thread directly — no coroutine dispatch
+        // latency — so the Choreographer latches the exact scheduled audio time on its next frame.
+        if (isBeat && beatTimeNanos > 0L) {
+            pendingBeatEvent.set(PendingBeatEvent(
+                timeNanos = toChoreographerTimeNanos(beatTimeNanos),
+                durationNanos = (beatInterval * 1_000_000_000L).toLong().coerceAtLeast(1L)
+            ))
+        }
+        if (!isBeat && !prefs.useFlashlight && !prefs.useVibration) return
         viewModelScope.launch(Dispatchers.Main) {
             if (isBeat) {
                 iconScale = MetronomeConstants.ICON_SCALE_MAX
-                // Show the hit immediately; Choreographer owns the frame-synced decay.
-                beatPulse = 1f
-                if (beatTimeNanos > 0L) {
-                    lastBeatTimeNanos = toChoreographerTimeNanos(beatTimeNanos)
-                    currentBeatDurationNanos = (beatInterval * 1_000_000_000L).toLong().coerceAtLeast(1L)
-                    startChoreographerLoop()
-                }
+                startChoreographerLoop()
                 handleBeat()
-                // Icon scale is a one-frame snap; the pulse fade above is the smooth visual.
                 delay(16)
                 iconScale = MetronomeConstants.ICON_SCALE_MIN
             } else {
@@ -339,11 +356,10 @@ class MetronomeViewModel @Inject constructor(
         val frameChoreographer = choreographer ?: Choreographer.getInstance().also { choreographer = it }
         val callback = object : Choreographer.FrameCallback {
             override fun doFrame(frameTimeNanos: Long) {
-                if (!isPlaying || lastBeatTimeNanos == 0L || currentBeatDurationNanos == 0L) {
+                if (!isPlaying) {
                     choreographerCallback = null
                     return
                 }
-
                 updateBeatPulse(frameTimeNanos)
                 frameChoreographer.postFrameCallback(this)
             }
@@ -360,6 +376,11 @@ class MetronomeViewModel @Inject constructor(
     }
 
     private fun updateBeatPulse(frameTimeNanos: Long) {
+        pendingBeatEvent.getAndSet(null)?.let { event ->
+            lastBeatTimeNanos = event.timeNanos
+            currentBeatDurationNanos = event.durationNanos
+        }
+        if (lastBeatTimeNanos == 0L || currentBeatDurationNanos == 0L) return
         val progress = ((frameTimeNanos - lastBeatTimeNanos).toDouble() / currentBeatDurationNanos)
             .coerceIn(0.0, 1.0)
         val remaining = 1.0 - progress

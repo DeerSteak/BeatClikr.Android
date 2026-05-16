@@ -62,7 +62,7 @@ class MetronomeAudioEngine(private val context: Context) {
         set(value) {
             field = value
             handler.post {
-                audioTrackEngine?.useSyntheticWaveforms = (value == SoundBank.SYNTH)
+                audioTrackEngine?.soundBank = value
             }
         }
 
@@ -94,29 +94,23 @@ class MetronomeAudioEngine(private val context: Context) {
                 .build()
         } else null
 
-    private val polyrhythmEngine: PolyrhythmTimingEngine
-
-    init {
-        polyrhythmEngine = PolyrhythmTimingEngine(
-            handler = handler,
-            isMuted = { isMuted },
-            playBeatSound = ::playPolyrhythmBeatSound,
-            playRhythmSound = ::playPolyrhythmRhythmSound,
-            playBeatAndRhythmSounds = ::playPolyrhythmBeatAndRhythmSounds,
-            outputLatencyNanos = ::getAudioTrackOutputLatencyNanos,
-            checkIntervalMs = checkInterval,
-            firstBeatDelayMs = firstBeatDelayMs,
-            lookaheadToleranceMs = lookaheadToleranceMs,
-            requestAudioFocus = ::requestAudioFocus
-        )
-    }
+    private val polyrhythmEngine = PolyrhythmTimingEngine(
+        handler = handler,
+        isMuted = { isMuted },
+        isLoaded = { true },
+        playBeatSound = { audioTrackEngine?.playBeat() },
+        playRhythmSound = { audioTrackEngine?.playRhythm() },
+        playBeatAndRhythmSounds = { audioTrackEngine?.playBeatAndRhythm() },
+        outputLatencyNanos = { if (!isMuted) audioTrackEngine?.estimatedOutputLatencyNanos ?: 0L else 0L },
+        checkIntervalMs = checkInterval,
+        firstBeatDelayMs = firstBeatDelayMs,
+        lookaheadToleranceMs = lookaheadToleranceMs,
+        requestAudioFocus = ::requestAudioFocus
+    )
 
     fun loadSounds(beatResourceId: Int, rhythmResourceId: Int) {
         handler.post {
-            val sameResources = this.beatResourceId == beatResourceId && this.rhythmResourceId == rhythmResourceId
-            if (sameResources) return@post
-
-            polyrhythmEngine.stop()
+            if (this.beatResourceId == beatResourceId && this.rhythmResourceId == rhythmResourceId) return@post
             this.beatResourceId = beatResourceId
             this.rhythmResourceId = rhythmResourceId
             getOrCreateAudioTrackEngine().setSounds(beatResourceId, rhythmResourceId)
@@ -159,7 +153,7 @@ class MetronomeAudioEngine(private val context: Context) {
         }
     }
 
-    fun prewarmAudioTrack() {
+    fun prewarm() {
         handler.post {
             getOrCreateAudioTrackEngine().prewarm()
         }
@@ -167,7 +161,7 @@ class MetronomeAudioEngine(private val context: Context) {
 
     fun prepareAudioTrackSounds(soundFiles: Collection<SoundFile>) {
         handler.post {
-            pcmFileCache.prepare(soundFiles)
+            pcmFileCache.prepare(soundFiles, soundBank)
             audioTrackEngine?.prepareSounds(soundFiles)
         }
     }
@@ -316,39 +310,20 @@ class MetronomeAudioEngine(private val context: Context) {
             }
         }
 
-        val visualBeatTimeNanos = scheduledTimeNanos + (audioTrackEngine?.estimatedOutputLatencyNanos ?: 0L)
+        val visualBeatTimeNanos = scheduledTimeNanos +
+            if (!isMuted) audioTrackEngine?.estimatedOutputLatencyNanos ?: 0L else 0L
         delegate?.metronomeBeatFired(isBeat, beatInterval, visualBeatTimeNanos)
     }
 
     private fun getOrCreateAudioTrackEngine(): AudioTrackEngine {
         return audioTrackEngine ?: AudioTrackEngine(audioManager, pcmFileCache).also { engine ->
             audioTrackEngine = engine
-            engine.useSyntheticWaveforms = (soundBank == SoundBank.SYNTH)
+            engine.soundBank = soundBank
             val beatResource = beatResourceId
             val rhythmResource = rhythmResourceId
             if (beatResource != null && rhythmResource != null) {
                 engine.setSounds(beatResource, rhythmResource)
             }
-        }
-    }
-
-    private fun playPolyrhythmBeatSound() {
-        audioTrackEngine?.playBeat()
-    }
-
-    private fun playPolyrhythmRhythmSound() {
-        audioTrackEngine?.playRhythm()
-    }
-
-    private fun playPolyrhythmBeatAndRhythmSounds() {
-        audioTrackEngine?.playBeatAndRhythm()
-    }
-
-    private fun getAudioTrackOutputLatencyNanos(): Long {
-        return if (!isMuted) {
-            audioTrackEngine?.estimatedOutputLatencyNanos ?: 0L
-        } else {
-            0L
         }
     }
 
