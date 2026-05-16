@@ -14,7 +14,7 @@ android {
         applicationId = "com.bfunkstudios.beatclikr"
         minSdk = 25
         //noinspection OldTargetApi
-        targetSdk = 35
+        targetSdk = 36
         //noinspection HighAppVersionCode
         versionCode = 2026051601
         versionName = "4.1.0"
