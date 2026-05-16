@@ -149,7 +149,7 @@ fun PlaylistDetailView(
 
     if (showSongPicker) {
         val songs by viewModel.allSongs.collectAsState()
-        val sheetState = rememberModalBottomSheetState()
+        val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
         ModalBottomSheet(
             onDismissRequest = onSongPickerDismiss,
             sheetState = sheetState

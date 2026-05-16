@@ -97,7 +97,6 @@ class MetronomeAudioEngine(private val context: Context) {
     private val polyrhythmEngine = PolyrhythmTimingEngine(
         handler = handler,
         isMuted = { isMuted },
-        isLoaded = { true },
         playBeatSound = { audioTrackEngine?.playBeat() },
         playRhythmSound = { audioTrackEngine?.playRhythm() },
         playBeatAndRhythmSounds = { audioTrackEngine?.playBeatAndRhythm() },
