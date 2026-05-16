@@ -61,6 +61,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.bfunkstudios.beatclikr.R
+import com.bfunkstudios.beatclikr.data.SoundBank
 import com.bfunkstudios.beatclikr.data.SoundFile
 import com.bfunkstudios.beatclikr.ui.components.SectionCard
 import com.bfunkstudios.beatclikr.ui.components.SoundPickerRow
@@ -338,17 +339,12 @@ private fun MetronomePlaybackSection(
             SettingsDivider()
             SettingsDropdownRow(
                 label = stringResource(R.string.settings_low_latency_sounds),
-                selected = if (viewModel.useSyntheticAudioTrackSounds) {
-                    stringResource(R.string.settings_low_latency_sounds_synth)
-                } else {
-                    stringResource(R.string.settings_low_latency_sounds_acoustic)
+                selected = stringResource(viewModel.soundBank.labelRes),
+                options = SoundBank.entries.map {
+                    stringResource(it.labelRes) to it
                 },
-                options = listOf(
-                    stringResource(R.string.settings_low_latency_sounds_acoustic) to false,
-                    stringResource(R.string.settings_low_latency_sounds_synth) to true
-                ),
-                onSelect = { useSynthetic ->
-                    viewModel.updateUseSyntheticAudioTrackSounds(useSynthetic)
+                onSelect = { bank ->
+                    viewModel.updateSoundBank(bank)
                     metronomeViewModel.refreshPlaybackSettings()
                 }
             )
@@ -606,11 +602,11 @@ private fun SettingsValueRow(
 }
 
 @Composable
-private fun SettingsDropdownRow(
+private fun <T> SettingsDropdownRow(
     label: String,
     selected: String,
-    options: List<Pair<String, Boolean>>,
-    onSelect: (Boolean) -> Unit,
+    options: List<Pair<String, T>>,
+    onSelect: (T) -> Unit,
     modifier: Modifier = Modifier
 ) {
     var expanded by remember { mutableStateOf(false) }

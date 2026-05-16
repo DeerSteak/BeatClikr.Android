@@ -255,6 +255,9 @@ private fun BeatClikrNavigationContent(
                 }
             ) {
                 composable(ROUTE_INSTANT) {
+                    LaunchedEffect(Unit) {
+                        metronomeViewModel.returnToInstantMode()
+                    }
                     if (useSidebar) {
                         MetronomeView(viewModel = metronomeViewModel)
                     } else {

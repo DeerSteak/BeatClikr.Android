@@ -1,6 +1,7 @@
 package com.bfunkstudios.beatclikr
 
 import com.bfunkstudios.beatclikr.data.IAppPreferences
+import com.bfunkstudios.beatclikr.data.SoundBank
 import com.bfunkstudios.beatclikr.data.SoundFile
 import com.bfunkstudios.beatclikr.services.IFlashlightService
 import com.bfunkstudios.beatclikr.services.IAudioPlayerService
@@ -41,7 +42,7 @@ class SettingsViewModelTest {
         every { prefs.keepScreenAwake } returns false
         every { prefs.sixteenthAlternate } returns false
         every { prefs.useAudioTrack } returns false
-        every { prefs.useSyntheticAudioTrackSounds } returns true
+        every { prefs.soundBank } returns SoundBank.SYNTH
         every { prefs.practiceReminderEnabled } returns false
         every { prefs.practiceReminderHour } returns 9
         every { prefs.practiceReminderMinute } returns 0
@@ -67,7 +68,7 @@ class SettingsViewModelTest {
 
     @Test
     fun `updateUseAudioTrack prepares selected files when cached sounds are enabled`() {
-        every { prefs.useSyntheticAudioTrackSounds } returns false
+        every { prefs.soundBank } returns SoundBank.ACOUSTIC
         viewModel = SettingsViewModel(prefs, flashlight, audioPlayerService, reminderScheduler)
 
         viewModel.updateUseAudioTrack(true)
@@ -87,22 +88,22 @@ class SettingsViewModelTest {
     }
 
     @Test
-    fun `updateUseSyntheticAudioTrackSounds saves to prefs and skips cache when enabled`() {
+    fun `updateSoundBank to synth saves to prefs and skips cache`() {
         every { prefs.useAudioTrack } returns true
-        every { prefs.useSyntheticAudioTrackSounds } returns false
+        every { prefs.soundBank } returns SoundBank.ACOUSTIC
         viewModel = SettingsViewModel(prefs, flashlight, audioPlayerService, reminderScheduler)
 
-        viewModel.updateUseSyntheticAudioTrackSounds(true)
+        viewModel.updateSoundBank(SoundBank.SYNTH)
 
-        assertTrue(viewModel.useSyntheticAudioTrackSounds)
-        verify { prefs.useSyntheticAudioTrackSounds = true }
-        verify { audioPlayerService.useSyntheticAudioTrackSounds = true }
+        assertEquals(SoundBank.SYNTH, viewModel.soundBank)
+        verify { prefs.soundBank = SoundBank.SYNTH }
+        verify { audioPlayerService.soundBank = SoundBank.SYNTH }
         verify(exactly = 0) { audioPlayerService.prepareAudioTrackSounds(any()) }
     }
 
     @Test
     fun `sound changes prepare one file when cached sounds are enabled`() {
-        every { prefs.useSyntheticAudioTrackSounds } returns false
+        every { prefs.soundBank } returns SoundBank.ACOUSTIC
         viewModel = SettingsViewModel(prefs, flashlight, audioPlayerService, reminderScheduler)
 
         viewModel.updateMetronomeBeatSound(SoundFile.SNARE)

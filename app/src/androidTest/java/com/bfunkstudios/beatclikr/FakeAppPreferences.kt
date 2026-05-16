@@ -1,8 +1,9 @@
 package com.bfunkstudios.beatclikr
 
-import com.bfunkstudios.beatclikr.data.IAppPreferences
-import com.bfunkstudios.beatclikr.data.Groove
 import com.bfunkstudios.beatclikr.data.BeatPattern
+import com.bfunkstudios.beatclikr.data.Groove
+import com.bfunkstudios.beatclikr.data.IAppPreferences
+import com.bfunkstudios.beatclikr.data.SoundBank
 import com.bfunkstudios.beatclikr.data.SoundFile
 
 class FakeAppPreferences : IAppPreferences {
@@ -32,7 +33,7 @@ class FakeAppPreferences : IAppPreferences {
     override var keepScreenAwake: Boolean = false
     override var sixteenthAlternate: Boolean = false
     override var useAudioTrack: Boolean = false
-    override var useSyntheticAudioTrackSounds: Boolean = true
+    override var soundBank: SoundBank = SoundBank.SYNTH
     override var practiceReminderEnabled: Boolean = false
     override var practiceReminderHour: Int = 9
     override var practiceReminderMinute: Int = 0

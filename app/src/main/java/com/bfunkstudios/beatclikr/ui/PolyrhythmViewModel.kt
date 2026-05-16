@@ -15,6 +15,7 @@ import androidx.lifecycle.viewModelScope
 import com.bfunkstudios.beatclikr.constants.MetronomeConstants
 import com.bfunkstudios.beatclikr.data.IAppPreferences
 import com.bfunkstudios.beatclikr.data.PracticeHistoryRepository
+import com.bfunkstudios.beatclikr.data.SoundBank
 import com.bfunkstudios.beatclikr.data.SoundFile
 import com.bfunkstudios.beatclikr.services.IAudioPlayerService
 import com.bfunkstudios.beatclikr.services.PolyrhythmAudioEngineDelegate
@@ -133,7 +134,7 @@ class PolyrhythmViewModel @Inject constructor(
         rhythmPulse = 0f
         audio.isMuted = prefs.muteMetronome
         audio.useAudioTrack = prefs.useAudioTrack
-        audio.useSyntheticAudioTrackSounds = prefs.useSyntheticAudioTrackSounds
+        audio.soundBank = prefs.soundBank
         audio.startPolyrhythm(bpm, beats, against)
         isPlaying = true
         viewModelScope.launch { practiceHistory.recordPolyrhythmPractice() }

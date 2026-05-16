@@ -10,6 +10,7 @@ import android.os.Handler
 import android.os.HandlerThread
 import android.os.SystemClock
 import com.bfunkstudios.beatclikr.constants.MetronomeConstants
+import com.bfunkstudios.beatclikr.data.SoundBank
 import com.bfunkstudios.beatclikr.data.SoundFile
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
@@ -76,11 +77,11 @@ class MetronomeAudioEngine(private val context: Context) {
         }
 
     @Volatile
-    var useSyntheticAudioTrackSounds: Boolean = false
+    var soundBank: SoundBank = SoundBank.ACOUSTIC
         set(value) {
             field = value
             handler.post {
-                audioTrackEngine?.useSyntheticWaveforms = value
+                audioTrackEngine?.soundBank = value
             }
         }
 
@@ -244,7 +245,7 @@ class MetronomeAudioEngine(private val context: Context) {
 
     fun prepareAudioTrackSounds(soundFiles: Collection<SoundFile>) {
         handler.post {
-            pcmFileCache.prepare(soundFiles)
+            pcmFileCache.prepare(soundFiles, soundBank)
             audioTrackEngine?.prepareSounds(soundFiles)
         }
     }
@@ -416,7 +417,7 @@ class MetronomeAudioEngine(private val context: Context) {
     private fun getOrCreateAudioTrackEngine(): AudioTrackEngine {
         return audioTrackEngine ?: AudioTrackEngine(audioManager, pcmFileCache).also { engine ->
             audioTrackEngine = engine
-            engine.useSyntheticWaveforms = useSyntheticAudioTrackSounds
+            engine.soundBank = soundBank
             val beatResource = beatResourceId
             val rhythmResource = rhythmResourceId
             if (beatResource != null && rhythmResource != null) {

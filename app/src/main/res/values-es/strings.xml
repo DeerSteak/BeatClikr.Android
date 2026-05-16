@@ -74,7 +74,6 @@
     <string name="settings_instruments_description">En cada modo, selecciona el sonido principal que suena en cada pulso y el sonido de ritmo o groove que suena en las subdivisiones.</string>
     <string name="about">Acerca de</string>
     <string name="version">Versión</string>
-    <string name="version_value">1.0</string>
 
     <!-- Subdivisions -->
     <string name="subdivision_quarter">Negra</string>

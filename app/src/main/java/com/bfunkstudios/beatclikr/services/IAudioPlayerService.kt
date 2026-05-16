@@ -1,5 +1,6 @@
 package com.bfunkstudios.beatclikr.services
 
+import com.bfunkstudios.beatclikr.data.SoundBank
 import com.bfunkstudios.beatclikr.data.SoundFile
 
 interface IAudioPlayerService {
@@ -7,7 +8,7 @@ interface IAudioPlayerService {
     var polyrhythmDelegate: PolyrhythmAudioEngineDelegate?
     var isMuted: Boolean
     var useAudioTrack: Boolean
-    var useSyntheticAudioTrackSounds: Boolean
+    var soundBank: SoundBank
     fun setupAudioPlayer(beatResourceId: Int, rhythmResourceId: Int)
     fun startMetronome(
         bpm: Float,

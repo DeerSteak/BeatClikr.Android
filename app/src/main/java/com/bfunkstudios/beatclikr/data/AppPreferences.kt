@@ -117,9 +117,15 @@ class AppPreferences(context: Context) : IAppPreferences {
         get() = prefs.getBoolean(Keys.USE_AUDIO_TRACK, false)
         set(value) = prefs.edit { putBoolean(Keys.USE_AUDIO_TRACK, value) }
 
-    override var useSyntheticAudioTrackSounds: Boolean
-        get() = prefs.getBoolean(Keys.USE_SYNTHETIC_AUDIO_TRACK_SOUNDS, true)
-        set(value) = prefs.edit { putBoolean(Keys.USE_SYNTHETIC_AUDIO_TRACK_SOUNDS, value) }
+    override var soundBank: SoundBank
+        get() {
+            val stored = prefs.getString(Keys.SOUND_BANK, null)
+            if (stored != null) return runCatching { SoundBank.valueOf(stored) }.getOrDefault(SoundBank.ACOUSTIC)
+            // Migrate from old boolean: synthetic=true → SYNTH, else ACOUSTIC
+            val legacy = prefs.getBoolean(Keys.LEGACY_SYNTHETIC_SOUNDS, false)
+            return if (legacy) SoundBank.SYNTH else SoundBank.ACOUSTIC
+        }
+        set(value) = prefs.edit { putString(Keys.SOUND_BANK, value.name) }
 
     // --- Practice reminders ---
 
@@ -166,7 +172,8 @@ class AppPreferences(context: Context) : IAppPreferences {
         const val KEEP_SCREEN_AWAKE = "keep_screen_awake"
         const val SIXTEENTH_ALTERNATE = "sixteenth_alternate"
         const val USE_AUDIO_TRACK = "use_audio_track"
-        const val USE_SYNTHETIC_AUDIO_TRACK_SOUNDS = "use_synthetic_audio_track_sounds"
+        const val SOUND_BANK = "sound_bank"
+        const val LEGACY_SYNTHETIC_SOUNDS = "use_synthetic_audio_track_sounds"
         const val REMINDER_ENABLED = "reminder_enabled"
         const val REMINDER_HOUR = "reminder_hour"
         const val REMINDER_MINUTE = "reminder_minute"

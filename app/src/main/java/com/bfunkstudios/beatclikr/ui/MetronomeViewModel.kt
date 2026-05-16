@@ -18,6 +18,7 @@ import com.bfunkstudios.beatclikr.data.Groove
 import com.bfunkstudios.beatclikr.data.IAppPreferences
 import com.bfunkstudios.beatclikr.data.PracticeHistoryRepository
 import com.bfunkstudios.beatclikr.data.Song
+import com.bfunkstudios.beatclikr.data.SoundBank
 import com.bfunkstudios.beatclikr.data.SoundFile
 import com.bfunkstudios.beatclikr.services.IAudioPlayerService
 import com.bfunkstudios.beatclikr.services.IFlashlightService
@@ -105,6 +106,19 @@ class MetronomeViewModel @Inject constructor(
         loadSong(song, ClickerType.PLAYLIST)
         start()
         viewModelScope.launch { practiceHistory.recordSongPlayed(song) }
+    }
+
+    fun returnToInstantMode() {
+        if (clickerType == ClickerType.INSTANT) return
+        if (isPlaying) stop()
+        currentSong = Song.instantSong().copy(
+            beatsPerMinute = prefs.instantBpm,
+            groove = prefs.instantGroove,
+            beatPattern = prefs.instantBeatPattern
+        )
+        selectedBeatSound = prefs.instantBeatSound
+        selectedRhythmSound = prefs.instantRhythmSound
+        clickerType = ClickerType.INSTANT
     }
 
     fun loadSong(song: Song, type: ClickerType = ClickerType.INSTANT) {
@@ -211,7 +225,7 @@ class MetronomeViewModel @Inject constructor(
 
     fun refreshPlaybackSettings() {
         audio.useAudioTrack = prefs.useAudioTrack
-        audio.useSyntheticAudioTrackSounds = prefs.useSyntheticAudioTrackSounds
+        audio.soundBank = prefs.soundBank
         if (prefs.useAudioTrack) {
             audio.prewarmAudioTrack()
         }
@@ -249,7 +263,7 @@ class MetronomeViewModel @Inject constructor(
         }
         audio.isMuted = prefs.muteMetronome
         audio.useAudioTrack = prefs.useAudioTrack
-        audio.useSyntheticAudioTrackSounds = prefs.useSyntheticAudioTrackSounds
+        audio.soundBank = prefs.soundBank
         activeBpm = currentSong.beatsPerMinute
         rampController.reset()
         audio.startMetronome(
