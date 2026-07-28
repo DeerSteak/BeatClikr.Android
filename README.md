@@ -145,6 +145,7 @@ This describes the present implementation, not the target architecture. The reme
 | [benchmarks/2026-07-28-android-17-emulator.md](benchmarks/2026-07-28-android-17-emulator.md) | Current emulator correctness baseline |
 | [benchmarks/2026-07-28-pixel-8a-android-17.md](benchmarks/2026-07-28-pixel-8a-android-17.md) | Initial Pixel 8a real-device engine baseline |
 | [benchmarks/2026-07-28-pixel-8a-acoustic-240bpm.md](benchmarks/2026-07-28-pixel-8a-acoustic-240bpm.md) | Initial Pixel 8a built-in-speaker acoustic baseline |
+| [benchmarks/2026-07-28-pixel-8a-cpu-profile.md](benchmarks/2026-07-28-pixel-8a-cpu-profile.md) | Pixel 8a CPU, memory, thermal, and profiled-load result |
 
 ## Database version policy
 

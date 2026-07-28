@@ -79,15 +79,6 @@ class AudioEngineStressInstrumentedTest {
             val scheduledDrift = abs((scheduled.last() - scheduled.first()) - expectedSpan)
             val metrics = requireNotNull(engine.getAudioTrackMetricsSnapshot())
 
-            assertEquals(expectedEvents, scheduled.size)
-            assertEquals(expectedEvents, arrivals.size)
-            assertTrue("Scheduled callbacks must increase", scheduled.zipWithNext().all { it.second > it.first })
-            assertTrue("Scheduled interval error exceeded 2 ms", scheduledErrors.max() <= 2_000_000L)
-            assertTrue("Scheduled drift exceeded 2 ms", scheduledDrift <= 2_000_000L)
-            assertTrue("AudioTrack rendered no chunks", metrics.renderedChunks > 0)
-            assertTrue("AudioTrack wrote no frames", metrics.writtenFrames > 0)
-            assertEquals("AudioTrack underruns occurred", 0, metrics.underrunCount)
-
             Log.i(
                 TAG,
                 "minutes=$durationMinutes events=$expectedEvents " +
@@ -99,6 +90,15 @@ class AudioEngineStressInstrumentedTest {
                     "underruns=${metrics.underrunCount} chunks=${metrics.renderedChunks} " +
                     "writtenFrames=${metrics.writtenFrames}"
             )
+
+            assertEquals(expectedEvents, scheduled.size)
+            assertEquals(expectedEvents, arrivals.size)
+            assertTrue("Scheduled callbacks must increase", scheduled.zipWithNext().all { it.second > it.first })
+            assertTrue("Scheduled interval error exceeded 2 ms", scheduledErrors.max() <= 2_000_000L)
+            assertTrue("Scheduled drift exceeded 2 ms", scheduledDrift <= 2_000_000L)
+            assertTrue("AudioTrack rendered no chunks", metrics.renderedChunks > 0)
+            assertTrue("AudioTrack wrote no frames", metrics.writtenFrames > 0)
+            assertEquals("AudioTrack underruns occurred", 0, metrics.underrunCount)
         } finally {
             engine.release()
         }
