@@ -1,0 +1,75 @@
+# Validation
+
+## Verification layers
+
+| Layer | Purpose | Environment |
+| --- | --- | --- |
+| Unit tests | Domain, state, and repository behavior | JVM |
+| Lint | Android and Compose static checks | JVM/Android SDK |
+| Debug assembly | Resource and dependency integration | Android SDK |
+| Instrumentation | Android decoding and engine behavior | Emulator/device |
+| Release bundle | Production resource, shrinker, and signing path | Trusted machine |
+| Physical benchmark | Audible device-specific behavior | Reference hardware |
+
+Passing a lower layer does not replace a higher one. Generated CI audio cannot
+validate production assets, and an emulator cannot certify speaker timing.
+
+## Local checks
+
+Use the JDK bundled with Android Studio:
+
+```bash
+export JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home"
+export PATH="$JAVA_HOME/bin:$PATH"
+./gradlew --no-daemon testDebugUnitTest lintDebug assembleDebug
+```
+
+With an Android 17 emulator running:
+
+```bash
+./gradlew --no-daemon connectedDebugAndroidTest
+```
+
+Instrumentation writes timing metrics to test output. Preserve a baseline in
+`benchmarks/` when the environment or timing implementation changes.
+
+## CI
+
+GitHub Actions pins JDK 17 and required Android SDK components. Since
+proprietary WAV files are absent, CI generates deterministic placeholder tones
+from the tracked requirements.
+
+CI must start from a clean checkout. Success means the public source, declared
+toolchain, generated resources, tests, lint, and debug build agree. It does not
+mean a publishable production bundle exists.
+
+## Production bundle checklist
+
+Build production artifacts locally or in a private release environment with
+authorized acoustic assets and signing material.
+
+1. Confirm every required WAV passes validation.
+2. Run unit tests, lint, and emulator instrumentation.
+3. Run the physical timing suite on the Pixel 8a reference environment.
+4. Generate the release Android App Bundle.
+5. Verify bundle contents, versions, package, signing, shrinker output, and
+   acoustic resources.
+6. Distribute through an internal Play track and perform a smoke test.
+7. Record the commit, toolchains, device result, and artifact checksum.
+
+Never commit signing keys, credentials, private audio, or private manifests.
+
+## Benchmark records
+
+Each record should state:
+
+- date and Git commit;
+- device or emulator model;
+- Android version and build;
+- build variant and audio route;
+- exact test and duration;
+- callback error, underruns, drift, and any acoustic measurement;
+- limitations or environmental changes.
+
+Keep separate emulator-correctness and physical-audio baselines. Create a new
+record when the toolchain, OS, device, or timing design changes.

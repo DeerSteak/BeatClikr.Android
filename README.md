@@ -12,7 +12,7 @@ Current features include:
 - optional visual, haptic, flashlight, mute, dark-theme, and keep-awake behavior;
 - adaptive phone and tablet navigation.
 
-The current architecture and its known deficiencies are documented in [ARCHITECTURAL_REVIEW.md](ARCHITECTURAL_REVIEW.md). The dependency-ordered improvement backlog is in [REMEDIATION_PLAN.md](REMEDIATION_PLAN.md). Timing claims should be based on the device measurements required by those documents, not inferred from timer implementation alone.
+The current architecture and its known deficiencies are documented in [ADVERSARIAL_PROJECT_REVIEW.md](ADVERSARIAL_PROJECT_REVIEW.md). The dependency-ordered improvement backlog is in [BEATCLIKR_ACTION_PLAN.md](BEATCLIKR_ACTION_PLAN.md). Timing claims should be based on the device measurements required by those documents, not inferred from timer implementation alone.
 
 ## Requirements
 
@@ -111,7 +111,7 @@ The public workflow does not:
 - build or sign a production release;
 - prove audio latency, jitter, or drift.
 
-An authorized release pipeline must provision and validate the private audio resources before running `bundleRelease`. See `REMEDIATION_PLAN.md` for the required private asset manifest and physical-device timing gates.
+An authorized release pipeline must provision and validate the private audio resources before running `bundleRelease`. See `BEATCLIKR_ACTION_PLAN.md` for the required private asset manifest and physical-device timing gates.
 
 ## Architecture
 
@@ -126,7 +126,23 @@ The project currently uses:
 
 This describes the present implementation, not the target architecture. The remediation plan calls for a pure sample-frame scheduler, a single playback coordinator, transactional data mutations, and measured hardware acceptance gates.
 
-### Database version policy
+## Documentation
+
+| File | Contents |
+| --- | --- |
+| [Docs/Architecture.md](Docs/Architecture.md) | Current layers, ownership, persistence, flows, and limits |
+| [Docs/Models.md](Docs/Models.md) | Room entities, relations, musical models, and schema policy |
+| [Docs/ViewModels.md](Docs/ViewModels.md) | Feature state, dependency injection, and ownership |
+| [Docs/Views.md](Docs/Views.md) | Compose screens, navigation, adaptive layout, and components |
+| [Docs/Services.md](Docs/Services.md) | Audio, output, reminder, repository, and lifecycle services |
+| [Docs/Constants.md](Docs/Constants.md) | Current constants and mathematical helpers |
+| [Docs/SongLibrary.md](Docs/SongLibrary.md) | Songs, playlists, practice history, reminders, and migrations |
+| [Docs/Capabilities.md](Docs/Capabilities.md) | Shipping features, permissions, storage, and background policy |
+| [Docs/PlaybackPerformance.md](Docs/PlaybackPerformance.md) | Timing contract, output pipeline, metrics, and hardware protocol |
+| [Docs/Validation.md](Docs/Validation.md) | Local, CI, instrumentation, and production release checks |
+| [benchmarks/2026-07-28-android-17-emulator.md](benchmarks/2026-07-28-android-17-emulator.md) | Current emulator correctness baseline |
+
+## Database version policy
 
 Room database version 4 is the first version released through Google Play and is the migration baseline. Pre-release database versions 1–3 are unsupported and are destructively recreated if encountered. All migrations beginning with version 4 must preserve user data and include exported schemas and instrumentation tests.
 
@@ -138,6 +154,9 @@ app/src/main/res/        Android resources
 app/src/test/            JVM unit tests
 app/src/androidTest/     Instrumented and Compose UI tests
 app/schemas/             Exported Room schemas
+audio/                   Tracked audio contract and private source metadata
+Docs/                    Architecture, timing, testing, and release guidance
+benchmarks/              Environment-specific timing records
 tools/                   Development and CI support scripts
 .github/workflows/       GitHub Actions workflows
 ```
