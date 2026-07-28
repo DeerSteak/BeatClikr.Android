@@ -2,8 +2,7 @@
 
 ## Application constants
 
-`AppLocale` resolves the device's default locale for formatting. UI text should
-still come from Android string resources rather than model constants.
+`AppLocale` resolves the device's default locale for formatting. UI text should still come from Android string resources rather than model constants.
 
 `MetronomeConstants` currently defines:
 
@@ -19,9 +18,7 @@ still come from Android string resources rather than model constants.
 | `FIRST_BEAT_DELAY_MS` | 67 ms | Startup scheduling delay |
 | `LOOKAHEAD_TOLERANCE_MS` | 2 ms | Early firing window |
 
-The timing values describe the existing polling implementation, not accuracy
-guarantees. They should disappear or move behind the audio backend when the
-sample-frame scheduler replaces polling.
+The timing values describe the existing polling implementation, not accuracy guarantees. They should disappear or move behind the audio backend when the sample-frame scheduler replaces polling.
 
 ## Musical helpers
 
@@ -31,6 +28,4 @@ sample-frame scheduler replaces polling.
 - Room `Converters` persist UUID and musical enum values.
 - Practice-history date helpers normalize values to local day boundaries.
 
-Constants should be scoped to the subsystem that owns them. This file documents
-the current centralized values; it does not endorse adding unrelated globals.
-
+Constants should be scoped to the subsystem that owns them. This file documents the current centralized values; it does not endorse adding unrelated globals.

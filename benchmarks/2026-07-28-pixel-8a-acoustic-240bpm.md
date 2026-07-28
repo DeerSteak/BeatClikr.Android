@@ -13,17 +13,9 @@ The source WAV is local and is not committed.
 
 ## Method
 
-Transient energy was measured from the first difference of both channels with a
-1.5 ms RMS envelope. Local maxima were constrained to at least 45 ms apart.
-Thresholds from 0.003 through 0.03 full scale all produced the same 1,982 onset
-count, indicating that the recorded background noise did not create
-threshold-sensitive detections.
+Transient energy was measured from the first difference of both channels with a 1.5 ms RMS envelope. Local maxima were constrained to at least 45 ms apart. Thresholds from 0.003 through 0.03 full scale all produced the same 1,982 onset count, indicating that the recorded background noise did not create threshold-sensitive detections.
 
-Beat and subdivision samples have different acoustic attack shapes. Adjacent
-strongest-peak positions therefore include a repeatable timbre offset and are
-not a defensible direct scheduler-jitter measure. The primary interval analysis
-compares like positions every four subdivisions, then expresses the 250 ms
-same-position error per subdivision.
+Beat and subdivision samples have different acoustic attack shapes. Adjacent strongest-peak positions therefore include a repeatable timbre offset and are not a defensible direct scheduler-jitter measure. The primary interval analysis compares like positions every four subdivisions, then expresses the 250 ms same-position error per subdivision.
 
 ## Results
 
@@ -40,14 +32,6 @@ same-position error per subdivision.
 
 ## Interpretation
 
-This is the first measurement of sound leaving the Pixel 8a speaker. It shows no
-audible-event loss and very small average tempo error across approximately two
-minutes. The result supports the user's observation that playback sounded
-reasonably steady.
+This is the first measurement of sound leaving the Pixel 8a speaker. It shows no audible-event loss and very small average tempo error across approximately two minutes. The result supports the user's observation that playback sounded reasonably steady.
 
-The percentile errors are conservative because they still include microphone,
-room reflection, sample attack-shape, interface clock, and detector uncertainty.
-They do not measure absolute tap-to-sound latency. A longer recording, a
-single-identical click sound for every subdivision, and a saved analysis tool
-would produce a stronger regression baseline.
-
+The percentile errors are conservative because they still include microphone, room reflection, sample attack-shape, interface clock, and detector uncertainty. They do not measure absolute tap-to-sound latency. A longer recording, a single-identical click sound for every subdivision, and a saved analysis tool would produce a stronger regression baseline.

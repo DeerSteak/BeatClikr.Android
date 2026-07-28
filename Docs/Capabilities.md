@@ -27,23 +27,12 @@ The camera flash is optional, so devices without one remain installable.
 
 ## Background behavior
 
-Metronome playback is foreground-only. Audio and flashlight resources stop when
-the app leaves the foreground; there is no foreground service, media session,
-lock-screen control, or background audio promise. Reminder alarms and receivers
-operate independently of playback.
+Metronome playback is foreground-only. Audio and flashlight resources stop when the app leaves the foreground; there is no foreground service, media session, lock-screen control, or background audio promise. Reminder alarms and receivers operate independently of playback.
 
 ## Storage and backup
 
-Room and SharedPreferences store user-authored data locally. Generated PCM is
-regenerable internal data and should be excluded from backup. The current backup
-classification still requires verification and a concise privacy statement.
-Proprietary WAV files and signing material are never committed.
+Room and SharedPreferences store user-authored data locally. Generated PCM is regenerable internal data and should be excluded from backup. The current backup classification still requires verification and a concise privacy statement. Proprietary WAV files and signing material are never committed.
 
 ## Release validation
 
-Public CI validates source and resource wiring with generated non-production
-tones. An authorized production build must validate the proprietary sounds,
-produce the bundle, and pass emulator plus Pixel 8a checks. See
-[Validation.md](Validation.md) and
-[PlaybackPerformance.md](PlaybackPerformance.md).
-
+Public CI validates source and resource wiring with generated non-production tones. An authorized production build must validate the proprietary sounds, produce the bundle, and pass emulator plus Pixel 8a checks. See [Validation.md](Validation.md) and [PlaybackPerformance.md](PlaybackPerformance.md).

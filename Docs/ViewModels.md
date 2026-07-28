@@ -1,8 +1,6 @@
 # ViewModels
 
-Hilt constructs Android ViewModels and supplies repository, preference, audio,
-haptic, flashlight, and reminder interfaces. Compose observes a mixture of
-`StateFlow` and snapshot state.
+Hilt constructs Android ViewModels and supplies repository, preference, audio, haptic, flashlight, and reminder interfaces. Compose observes a mixture of `StateFlow` and snapshot state.
 
 ## ViewModel responsibilities
 
@@ -15,24 +13,14 @@ haptic, flashlight, and reminder interfaces. Compose observes a mixture of
 | `PracticeHistoryViewModel` | Date selection, calendar aggregation, streak calculations, and share text |
 | `SettingsViewModel` | Preferences, sound banks, output options, flashlight permission flow, and reminder permission/scheduling flow |
 
-`RampController` is a plain state helper used by `MetronomeViewModel`; it is not
-an Android ViewModel.
+`RampController` is a plain state helper used by `MetronomeViewModel`; it is not an Android ViewModel.
 
 ## Dependency injection
 
-`AppModule` binds interfaces to process-scoped implementations. ViewModels
-receive interfaces rather than constructing services, which supports JVM tests
-with fakes. `BeatClikrApplication` prewarms audio and observes process lifecycle;
-`MainActivity` supplies window-level theme and keep-awake behavior.
+`AppModule` binds interfaces to process-scoped implementations. ViewModels receive interfaces rather than constructing services, which supports JVM tests with fakes. `BeatClikrApplication` prewarms audio and observes process lifecycle; `MainActivity` supplies window-level theme and keep-awake behavior.
 
 ## State ownership limits
 
-Playback truth is currently split between ViewModel flags and the audio engine.
-Audio-focus failure or lifecycle-driven stop can therefore diverge from
-`isPlaying`. The target design replaces this with one coordinator exposing an
-authoritative `StateFlow<PlaybackState>`.
+Playback truth is currently split between ViewModel flags and the audio engine. Audio-focus failure or lifecycle-driven stop can therefore diverge from `isPlaying`. The target design replaces this with one coordinator exposing an authoritative `StateFlow<PlaybackState>`.
 
-Timing callbacks also cross from audio scheduling into Choreographer-based
-visual state. See [PlaybackPerformance.md](PlaybackPerformance.md) for the clock
-and measurement constraints.
-
+Timing callbacks also cross from audio scheduling into Choreographer-based visual state. See [PlaybackPerformance.md](PlaybackPerformance.md) for the clock and measurement constraints.

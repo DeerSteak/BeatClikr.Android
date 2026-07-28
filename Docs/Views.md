@@ -19,28 +19,16 @@ The UI is implemented with Jetpack Compose and Navigation Compose.
 
 ## Navigation and adaptation
 
-Top-level routes cover Instant, Polyrhythm, Library, Playlist, History, and
-Settings, with a parameterized playlist-detail route. Compact layouts use a
-bottom navigation bar and place polyrhythm inside the metronome container.
-Expanded layouts use a navigation rail, expose polyrhythm directly, and limit
-content width to 840 dp.
+Top-level routes cover Instant, Polyrhythm, Library, Playlist, History, and Settings, with a parameterized playlist-detail route. Compact layouts use a bottom navigation bar and place polyrhythm inside the metronome container. Expanded layouts use a navigation rail, expose polyrhythm directly, and limit content width to 840 dp.
 
-Switching directly between instant and polyrhythm stops the other engine.
-Other routes currently rely on foreground and ViewModel policies for transport
-ownership.
+Switching directly between instant and polyrhythm stops the other engine. Other routes currently rely on foreground and ViewModel policies for transport ownership.
 
 ## Shared components
 
-Reusable components include BPM and groove controls, odd-meter selection, sound
-pickers, calendar cells, song rows and forms, playlist transport, the pulsing
-metronome indicator, section cards, and the shareable streak card.
+Reusable components include BPM and groove controls, odd-meter selection, sound pickers, calendar cells, song rows and forms, playlist transport, the pulsing metronome indicator, section cards, and the shareable streak card.
 
-The theme uses custom light and dark palettes; dynamic color is intentionally
-disabled to preserve BeatClikr branding.
+The theme uses custom light and dark palettes; dynamic color is intentionally disabled to preserve BeatClikr branding.
 
 ## UI validation
 
-Automated Compose coverage exists, but TalkBack, large fonts, RTL, landscape,
-tablet/foldable behavior, contrast, and reduced-motion behavior still require a
-formal acceptance matrix.
-
+Automated Compose coverage exists, but TalkBack, large fonts, RTL, landscape, tablet/foldable behavior, contrast, and reduced-motion behavior still require a formal acceptance matrix.

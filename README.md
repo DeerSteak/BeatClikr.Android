@@ -68,9 +68,7 @@ With JDK 17, the Android SDK, and the proprietary WAV files installed:
 ./gradlew --no-daemon testDebugUnitTest lintDebug assembleDebug
 ```
 
-The debug APK is produced under `app/build/outputs/apk/debug/`.
-It uses the application ID `com.bfunkstudios.beatclikr.debug`, allowing it to
-coexist with a signed production installation.
+The debug APK is produced under `app/build/outputs/apk/debug/`. It uses the application ID `com.bfunkstudios.beatclikr.debug`, allowing it to coexist with a signed production installation.
 
 Instrumented tests require a connected device or running emulator:
 

@@ -2,10 +2,7 @@
 
 ## Timing contract
 
-Beat scheduling uses a monotonic nanosecond clock. Wall-clock time is only for
-user-visible dates and history; it must not drive beat intervals. Tempo
-conversion retains nanosecond precision and advances from the previous scheduled
-deadline, not the callback time, so callback delay does not accumulate as drift.
+Beat scheduling uses a monotonic nanosecond clock. Wall-clock time is only for user-visible dates and history; it must not drive beat intervals. Tempo conversion retains nanosecond precision and advances from the previous scheduled deadline, not the callback time, so callback delay does not accumulate as drift.
 
 For a tempo of `bpm`, the nominal quarter-note interval is:
 
@@ -13,74 +10,46 @@ For a tempo of `bpm`, the nominal quarter-note interval is:
 intervalNs = 60,000,000,000 / bpm
 ```
 
-Subdivisions and polyrhythms derive their deadlines from that interval. Late
-work may be reported and recovered from, but it must not silently redefine the
-future time base.
+Subdivisions and polyrhythms derive their deadlines from that interval. Late work may be reported and recovered from, but it must not silently redefine the future time base.
 
 ## Output pipeline
 
-WAV files are decoded to PCM and cached in persistent internal storage. This
-avoids cache eviction causing an unexpected decode spike during playback. The
-mixer selects samples, combines coincident events, clips safely, and streams
-fixed-size chunks to `AudioTrack`.
+WAV files are decoded to PCM and cached in persistent internal storage. This avoids cache eviction causing an unexpected decode spike during playback. The mixer selects samples, combines coincident events, clips safely, and streams fixed-size chunks to `AudioTrack`.
 
-`AudioTrack` underruns and playback timestamps are diagnostic signals. The
-engine's latency estimate is only a lower bound because device DSP, hardware,
-speaker, and acoustic delay are outside its measurement.
+`AudioTrack` underruns and playback timestamps are diagnostic signals. The engine's latency estimate is only a lower bound because device DSP, hardware, speaker, and acoustic delay are outside its measurement.
 
-The first and later beat callbacks use the same scheduled clock as audio.
-ViewModels convert timestamps between engine and UI clock domains only at
-explicit boundaries.
+The first and later beat callbacks use the same scheduled clock as audio. ViewModels convert timestamps between engine and UI clock domains only at explicit boundaries.
 
 ## Secondary feedback
 
-Visual, haptic, and camera-flash feedback are secondary beat-event consumers.
-They cannot be assumed to occur simultaneously with speaker output:
+Visual, haptic, and camera-flash feedback are secondary beat-event consumers. They cannot be assumed to occur simultaneously with speaker output:
 
 - Compose rendering waits for a display frame.
 - Vibration APIs and hardware add device-dependent latency.
 - Torch activation passes through camera services and hardware.
 - Speaker output includes buffered and hardware latency.
 
-Tests must measure each path independently. An on-time visual callback does not
-prove that the acoustic transient was on time.
+Tests must measure each path independently. An on-time visual callback does not prove that the acoustic transient was on time.
 
 ## Audio assets
 
-The acoustic assets are proprietary and intentionally untracked. Their canonical
-names and format constraints are in
-[`audio/audio-requirements.json`](../audio/audio-requirements.json). The actual
-WAV resources remain ignored, while `.gitkeep` preserves the resource directory.
+The acoustic assets are proprietary and intentionally untracked. Their canonical names and format constraints are in [`audio/audio-requirements.json`](../audio/audio-requirements.json). The actual WAV resources remain ignored, while `.gitkeep` preserves the resource directory.
 
-Release builds validate the real files. CI generates deterministic,
-non-proprietary tones satisfying the same naming and decoding contract. Public
-CI therefore proves code and resource wiring, not production sound quality.
+Release builds validate the real files. CI generates deterministic, non-proprietary tones satisfying the same naming and decoding contract. Public CI therefore proves code and resource wiring, not production sound quality.
 
 ## What current tests establish
 
-The emulator instrumentation harness exercises the real PCM decoder and audio
-engines. Its baseline covers every required sound, dense standard scheduling,
-polyrhythm scheduling, callback interval error, underruns, and output chunks.
+The emulator instrumentation harness exercises the real PCM decoder and audio engines. Its baseline covers every required sound, dense standard scheduling, polyrhythm scheduling, callback interval error, underruns, and output chunks.
 
-The recorded result is in
-[`benchmarks/2026-07-28-android-17-emulator.md`](../benchmarks/2026-07-28-android-17-emulator.md).
-It is a regression reference, not a physical-device audio benchmark.
+The recorded result is in [`benchmarks/2026-07-28-android-17-emulator.md`](../benchmarks/2026-07-28-android-17-emulator.md). It is a regression reference, not a physical-device audio benchmark.
 
-The first Pixel 8a engine result is in
-[`benchmarks/2026-07-28-pixel-8a-android-17.md`](../benchmarks/2026-07-28-pixel-8a-android-17.md).
-It exercises real hardware but still measures software callbacks rather than
-acoustic onset.
+The first Pixel 8a engine result is in [`benchmarks/2026-07-28-pixel-8a-android-17.md`](../benchmarks/2026-07-28-pixel-8a-android-17.md). It exercises real hardware but still measures software callbacks rather than acoustic onset.
 
-The first microphone-recorded speaker result is in
-[`benchmarks/2026-07-28-pixel-8a-acoustic-240bpm.md`](../benchmarks/2026-07-28-pixel-8a-acoustic-240bpm.md).
-It measures audible onset intervals but not absolute input-to-sound latency.
+The first microphone-recorded speaker result is in [`benchmarks/2026-07-28-pixel-8a-acoustic-240bpm.md`](../benchmarks/2026-07-28-pixel-8a-acoustic-240bpm.md). It measures audible onset intervals but not absolute input-to-sound latency.
 
 ## Physical-device validation
 
-The Pixel 8a running Android 17 is the initial reference device. Record the OS
-build, app commit, build variant, audio route, volume, battery mode, and method
-with every result. Test the built-in speaker first; Bluetooth is a separate
-latency profile.
+The Pixel 8a running Android 17 is the initial reference device. Record the OS build, app commit, build variant, audio route, volume, battery mode, and method with every result. Test the built-in speaker first; Bluetooth is a separate latency profile.
 
 At minimum, validate:
 
@@ -91,10 +60,6 @@ At minimum, validate:
 5. long-run drift, underruns, and audible artifacts;
 6. visual, haptic, and flash alignment as separate measurements.
 
-`AudioEngineStressInstrumentedTest` runs the dense 240 BPM/sixteenth path for 30
-minutes by default. It requires complete callbacks, monotonic scheduled time,
-scheduled drift and interval error within 2 ms, written audio frames, and zero
-reported `AudioTrack` underruns.
+`AudioEngineStressInstrumentedTest` runs the dense 240 BPM/sixteenth path for 30 minutes by default. It requires complete callbacks, monotonic scheduled time, scheduled drift and interval error within 2 ms, written audio frames, and zero reported `AudioTrack` underruns.
 
-Do not claim sub-millisecond acoustic timing from callback metrics. Measuring
-sound leaving the device requires loopback recording or an external rig.
+Do not claim sub-millisecond acoustic timing from callback metrics. Measuring sound leaving the device requires loopback recording or an external rig.

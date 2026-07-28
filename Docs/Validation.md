@@ -11,8 +11,7 @@
 | Release bundle | Production resource, shrinker, and signing path | Trusted machine |
 | Physical benchmark | Audible device-specific behavior | Reference hardware |
 
-Passing a lower layer does not replace a higher one. Generated CI audio cannot
-validate production assets, and an emulator cannot certify speaker timing.
+Passing a lower layer does not replace a higher one. Generated CI audio cannot validate production assets, and an emulator cannot certify speaker timing.
 
 ## Local checks
 
@@ -30,9 +29,7 @@ With an Android 17 emulator running:
 ./gradlew --no-daemon connectedDebugAndroidTest
 ```
 
-Debug builds use `com.bfunkstudios.beatclikr.debug`, so they can coexist with a
-signed production build without replacing it or its local data. Debug backup is
-disabled so an OS backup pass cannot kill a long-running instrumentation process.
+Debug builds use `com.bfunkstudios.beatclikr.debug`, so they can coexist with a signed production build without replacing it or its local data. Debug backup is disabled so an OS backup pass cannot kill a long-running instrumentation process.
 
 Run the physical-device stress test for its default 30 minutes:
 
@@ -41,33 +38,35 @@ Run the physical-device stress test for its default 30 minutes:
   -Pandroid.testInstrumentationRunnerArguments.class=com.bfunkstudios.beatclikr.AudioEngineStressInstrumentedTest
 ```
 
-Override the duration from 1–60 minutes with
-`-Pandroid.testInstrumentationRunnerArguments.stressDurationMinutes=60`.
+Override the duration from 1–60 minutes with `-Pandroid.testInstrumentationRunnerArguments.stressDurationMinutes=60`.
 
-Instrumentation writes timing metrics to test output. Preserve a baseline in
-`benchmarks/` when the environment or timing implementation changes.
+Instrumentation writes timing metrics to test output. Preserve a baseline in `benchmarks/` when the environment or timing implementation changes.
+
+## Git hooks
+
+Enable the tracked hooks once per checkout:
+
+```bash
+tools/install_git_hooks.sh
+```
+
+The pre-commit hook runs `tools/format_markdown.py` across repository Markdown. If formatting changes a file, the commit stops so the developer can review and stage the result before committing again.
 
 ## CI
 
-GitHub Actions pins JDK 17 and required Android SDK components. Since
-proprietary WAV files are absent, CI generates deterministic placeholder tones
-from the tracked requirements.
+GitHub Actions pins JDK 17 and required Android SDK components. Since proprietary WAV files are absent, CI generates deterministic placeholder tones from the tracked requirements.
 
-CI must start from a clean checkout. Success means the public source, declared
-toolchain, generated resources, tests, lint, and debug build agree. It does not
-mean a publishable production bundle exists.
+CI must start from a clean checkout. Success means the public source, declared toolchain, generated resources, tests, lint, and debug build agree. It does not mean a publishable production bundle exists.
 
 ## Production bundle checklist
 
-Build production artifacts locally or in a private release environment with
-authorized acoustic assets and signing material.
+Build production artifacts locally or in a private release environment with authorized acoustic assets and signing material.
 
 1. Confirm every required WAV passes validation.
 2. Run unit tests, lint, and emulator instrumentation.
 3. Run the physical timing suite on the Pixel 8a reference environment.
 4. Generate the release Android App Bundle.
-5. Verify bundle contents, versions, package, signing, shrinker output, and
-   acoustic resources.
+5. Verify bundle contents, versions, package, signing, shrinker output, and acoustic resources.
 6. Distribute through an internal Play track and perform a smoke test.
 7. Record the commit, toolchains, device result, and artifact checksum.
 
@@ -85,5 +84,4 @@ Each record should state:
 - callback error, underruns, drift, and any acoustic measurement;
 - limitations or environmental changes.
 
-Keep separate emulator-correctness and physical-audio baselines. Create a new
-record when the toolchain, OS, device, or timing design changes.
+Keep separate emulator-correctness and physical-audio baselines. Create a new record when the toolchain, OS, device, or timing design changes.
