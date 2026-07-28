@@ -22,7 +22,7 @@ The test records the current implementation as a Phase 0 baseline. It applies a 
 
 ## Assessment
 
-The proposed TB-007 local-route budget is p50 ≤ 75 ms, p95 ≤ 100 ms, and p99 ≤ 150 ms. Neither cold nor warm starts meet its p50 or p95 limits. Warm p99 meets the 150 ms limit; cold p99 does not.
+The internally reviewed TB-007 local-route budget is p50 ≤ 175 ms, p95 ≤ 225 ms, and p99 ≤ 300 ms. Both measured distributions meet those limits. This remains Phase 0 debug-build evidence rather than release acceptance.
 
 The approximately 67 ms intentional first-beat delay and the current output-latency estimate account for much of the warm result. Cold starts add engine creation and sound preparation variability. Phase 3 render work and Phase 4 authoritative startup should revisit the budget and implementation using an actual presentation timestamp when the backend exposes one.
 

@@ -1,6 +1,6 @@
 # ADR 0001: Musical Time
 
-**Status:** Proposed  
+**Status:** Accepted
 **Date:** 2026-07-28  
 **Decision owners:** Product and audio architecture
 
@@ -18,7 +18,7 @@ The clauses below are normative. Scheduler, renderer, playback, and UI acceptanc
 
 - **MT-001:** BPM always means quarter notes per minute.
 - **MT-002:** The supported tempo range is 30 through 240 BPM inclusive.
-- **MT-003:** Scheduling accepts decimal BPM values and does not round them. The current UI may display the nearest whole BPM.
+- **MT-003:** Scheduling and persistence accept decimal BPM values without rounding. Direct slider and increment controls select whole BPM values, matching iOS; imported decimal values remain valid and may be displayed with up to two fractional digits.
 - **MT-004:** Quarter, eighth, triplet, and sixteenth grooves divide each quarter note into one, two, three, or four scheduler ticks.
 - **MT-005:** An odd-quarter pattern uses quarter-note pattern steps. An odd-eighth pattern uses eighth-note pattern steps.
 - **MT-006:** The first step of an odd-meter pattern is always accented. Every subsequent step is accented or unaccented according to its value in the selected pattern.
@@ -52,14 +52,25 @@ The clauses below are normative. Scheduler, renderer, playback, and UI acceptanc
 - **MT-022:** A beat sound, rhythm sound, or sound-bank change prepares the replacement sounds off the render thread and restarts active playback at its mode origin without ending the logical playback period. Global mute is applied when the active audio timeline is next started or restarted.
 - **MT-023:** When several commands request the same boundary, command sequence determines their order and the final valid configuration is applied atomically.
 
+### Tempo ramp
+
+- **MT-024:** Tempo ramp is available only for the instant metronome. It is not applied to song, playlist, or polyrhythm playback.
+- **MT-025:** The supported ramp increments are 1, 2, 5, and 10 BPM, and the supported intervals are 4, 8, 16, 32, 48, and 64 beat events.
+- **MT-026:** Starting playback resets the ramp counter. The initial beat establishes the counter at zero; each subsequent selected interval of beat events raises tempo by the selected increment, capped at 240 BPM.
+- **MT-027:** A beat event for ramp counting is tick zero in a standard groove and every accented step in an odd-meter pattern. Subdivision events and alternate-sixteenth offbeats do not advance the counter.
+- **MT-028:** Each ramp increment restarts the standard timeline at tick zero under MT-019 without ending the logical playback period.
+- **MT-029:** Stopping a ramped session restores the tempo captured when that session started.
+
 ### Deadline recovery
 
-- **MT-024:** A delayed callback never moves the musical time base and never emits a catch-up burst.
-- **MT-025:** Events whose presentation deadlines have passed are counted and dropped. Phase advances directly to the first future event derived from the original session origin.
-- **MT-026:** Integer or rational sample-frame arithmetic carries fractional remainder so that quantization cannot accumulate long-run drift.
+- **MT-030:** A delayed callback never moves the musical time base and never emits a catch-up burst.
+- **MT-031:** Events whose presentation deadlines have passed are counted and dropped. Phase advances directly to the first future event derived from the original session origin.
+- **MT-032:** Integer or rational sample-frame arithmetic carries fractional remainder so that quantization cannot accumulate long-run drift.
 
 ## Consequences
 
 The existing polling engine does not satisfy every clause. In particular, a multi-event stall can currently enqueue events in a catch-up sequence, configuration changes do not all use the boundaries above, and audio readiness is not an authoritative prerequisite for a successful start. Those are implementation gaps assigned to Phases 2 through 4, not exceptions to this contract.
 
-The contract deliberately mirrors iOS behavior: quarter-note BPM, beat/rhythm sound mapping, additive odd meters, `M:N` polyrhythm labeling, configuration-driven timeline restarts, a beat-first start, and no hidden count-in.
+The contract deliberately mirrors iOS behavior: quarter-note BPM, beat/rhythm sound mapping, additive odd meters, `M:N` polyrhythm labeling, configuration-driven timeline restarts, tempo-ramp counting, a beat-first start, and no hidden count-in.
+
+This review intentionally does not freeze the current tap-tempo estimator as product behavior. Phase 7 may replace its wall-clock arithmetic and simple averaging with a monotonic, outlier-resistant estimator while preserving the visible tempo range and whole-BPM direct-control behavior above.

@@ -1,6 +1,6 @@
 # ADR 0003: Practice History
 
-**Status:** Proposed  
+**Status:** Accepted
 **Date:** 2026-07-28  
 **Decision owners:** Product and data architecture
 
@@ -22,29 +22,33 @@ The sibling iOS practice model is the reference behavior. Android mirrors its co
 - **PH-006:** Each transition into confirmed `Playing` begins one playback period. Repeated song, metronome, and polyrhythm plays increment period count and accumulated duration.
 - **PH-007:** Focus-denied starts, preparation failures, and sessions stopped before confirmed playback add neither duration nor period count.
 - **PH-008:** History stores duration with subsecond internal precision and presents user-facing duration rounded consistently.
+- **PH-009:** Repeating a start notification for the same active item and session is idempotent. It does not open another period or reset elapsed accounting.
+- **PH-010:** Confirmed playback of a different item closes and checkpoints the active item's period before opening the new item's period.
 
 ### Identity
 
-- **PH-009:** A song is aggregated by stable song ID, not mutable title or artist text.
-- **PH-010:** Standard metronome and polyrhythm practice use stable reserved identities and follow the same duration and period-count rules as songs.
-- **PH-011:** Editing or renaming an item does not split its historical identity.
+- **PH-011:** A song is aggregated by stable song ID, not mutable title or artist text.
+- **PH-012:** Standard metronome and polyrhythm practice use stable reserved identities and follow the same duration and period-count rules as songs.
+- **PH-013:** Editing or renaming an item does not split its historical identity.
 
 ### Local day and timezone
 
-- **PH-012:** A daily bucket represents the device-local civil date on which each interval of practice occurred.
-- **PH-013:** A session crossing local midnight is split at the boundary so elapsed time is assigned to the correct dates.
-- **PH-014:** A timezone or UTC-offset change closes the active accounting segment and opens a new segment in the new local context without stopping audio.
-- **PH-015:** Travel and later timezone changes never relabel or merge already stored daily buckets.
-- **PH-016:** Daylight-saving transitions use monotonic elapsed duration and local civil-date boundaries. Repeated or skipped wall-clock times neither duplicate nor erase practice duration.
+- **PH-014:** A daily bucket has a stable Gregorian local civil-day key captured in the device timezone, plus the timezone identifier, calendar identifier, and original absolute timestamp used to create the record.
+- **PH-015:** Each duration checkpoint selects the bucket for the device-local civil date at checkpoint time and assigns the entire monotonic interval since the previous checkpoint to that bucket. A session crossing midnight is not split at the exact boundary.
+- **PH-016:** A timezone or UTC-offset change affects the bucket selected by the next checkpoint without stopping audio. The entire interval since the previous checkpoint is assigned using the local context at that checkpoint.
+- **PH-017:** Travel and later timezone changes never relabel or merge already stored daily buckets.
+- **PH-018:** Daylight-saving transitions use monotonic elapsed duration, and checkpoint bucket selection uses the current Gregorian local date. Repeated or skipped wall-clock times neither duplicate nor erase practice duration.
 
 ### Data integrity
 
-- **PH-017:** Duration and period-count updates are transactional and survive process death without double counting.
-- **PH-018:** Reminder and streak calculations use only qualified daily history.
-- **PH-019:** Schema migration preserves existing records. Legacy entries without duration receive 30 seconds so previously earned history and streaks remain qualified, matching the iOS migration policy.
+- **PH-019:** Duration and period-count updates are transactional and survive process death without double counting.
+- **PH-020:** Reminder and streak calculations use only qualified daily history.
+- **PH-021:** Schema migration preserves existing records. Legacy entries without duration receive 30 seconds so previously earned history and streaks remain qualified, matching the iOS migration policy.
 
 ## Consequences
 
-Implementing this contract requires duration, period-count, and accounting state beyond the current schema. Phase 4 supplies authoritative playback events and Phase 6 supplies transactional persistence and migration.
+Implementing this contract requires duration, period-count, and accounting state beyond the current schema. Phase 4 supplies authoritative playback events and Phase 5 supplies transactional accounting and migration.
 
 The 30-second threshold matches the existing product intent while preventing taps, denied focus, and immediately stopped playback from creating misleading practice history.
+
+The checkpoint attribution, stable local-day key, stored timezone/calendar metadata, and original absolute timestamp mirror the current iOS persistence behavior. This deliberately does not invent exact midnight or timezone-boundary splitting that iOS does not perform.

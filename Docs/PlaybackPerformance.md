@@ -2,7 +2,7 @@
 
 ## Timing contract
 
-The proposed normative contracts are [`Decisions/0001-Musical-Time.md`](Decisions/0001-Musical-Time.md), [`Decisions/0002-Playback-Lifecycle-and-Outputs.md`](Decisions/0002-Playback-Lifecycle-and-Outputs.md), and [`Decisions/0003-Practice-History.md`](Decisions/0003-Practice-History.md). Quantitative release gates are in [`Timing-Budgets.md`](Timing-Budgets.md).
+The accepted normative contracts are [`Decisions/0001-Musical-Time.md`](Decisions/0001-Musical-Time.md), [`Decisions/0002-Playback-Lifecycle-and-Outputs.md`](Decisions/0002-Playback-Lifecycle-and-Outputs.md), and [`Decisions/0003-Practice-History.md`](Decisions/0003-Practice-History.md). Quantitative release gates are in [`Timing-Budgets.md`](Timing-Budgets.md).
 
 The current engine schedules against a monotonic nanosecond clock. Wall-clock time is only for user-visible dates and history; it must not drive beat intervals. Tempo conversion advances from the previous scheduled deadline rather than callback time, so callback delay does not normally accumulate as drift.
 
@@ -10,7 +10,7 @@ The current engine schedules against a monotonic nanosecond clock. Wall-clock ti
 intervalNs = 60,000,000,000 / bpm
 ```
 
-Subdivisions and polyrhythms derive deadlines from that interval. The replacement scheduler must meet contract clauses MT-024 through MT-026 by dropping expired events, avoiding catch-up bursts, preserving the session time base, and carrying fractional sample-frame remainder.
+Subdivisions and polyrhythms derive deadlines from that interval. The replacement scheduler must meet contract clauses MT-030 through MT-032 by dropping expired events, avoiding catch-up bursts, preserving the session time base, and carrying fractional sample-frame remainder.
 
 ## Output pipeline
 

@@ -34,7 +34,7 @@ The test itself completed without an assertion failure. Gradle failed afterward 
 | Context switches | 1,254,864 |
 | Page faults | 6,703 |
 
-The aggregate CPU result meets the proposed TB-014 mean limit of 25% of one core. This run did not collect CPU percentiles, so it does not establish the proposed p95 limit.
+The aggregate CPU result meets the accepted TB-014 mean limit of 25% of one core. This run did not collect CPU percentiles, so it does not establish the accepted p95 limit.
 
 ## Memory and thermal observations
 

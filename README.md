@@ -143,6 +143,8 @@ This describes the present implementation, not the target architecture. The reme
 | [Docs/Decisions/0001-Musical-Time.md](Docs/Decisions/0001-Musical-Time.md) | BPM, meter, accent, boundary, phase, and polyrhythm contract |
 | [Docs/Decisions/0002-Playback-Lifecycle-and-Outputs.md](Docs/Decisions/0002-Playback-Lifecycle-and-Outputs.md) | Playback ownership, focus, lifecycle, routes, and secondary outputs |
 | [Docs/Decisions/0003-Practice-History.md](Docs/Decisions/0003-Practice-History.md) | Practice qualification, duration, identity, and local-day behavior |
+| [Docs/Decisions/Review-Guide.md](Docs/Decisions/Review-Guide.md) | Phase 1 internal findings and product-owner approval checklist |
+| [Docs/Decisions/Current-Implementation-Audit.md](Docs/Decisions/Current-Implementation-Audit.md) | Clause-by-clause Android conformance and divergence audit |
 | [Docs/Validation.md](Docs/Validation.md) | Local, CI, instrumentation, and production release checks |
 | [benchmarks/2026-07-28-android-17-emulator.md](benchmarks/2026-07-28-android-17-emulator.md) | Current emulator correctness baseline |
 | [benchmarks/2026-07-28-pixel-8a-android-17.md](benchmarks/2026-07-28-pixel-8a-android-17.md) | Initial Pixel 8a real-device engine baseline |

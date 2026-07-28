@@ -40,7 +40,7 @@ The run meets the provisional TB-017 limit of no more than six percentage points
 | Rendered chunks | 1,439,915 |
 | Written frames | 172,789,800 |
 
-All expected callbacks completed and the scheduled timeline did not drift. The four `AudioTrack` underruns fail the proposed TB-008 zero-underrun gate. This is baseline evidence for scheduler/render hardening in Phases 2 and 3; it does not invalidate the battery-consumption measurement.
+All expected callbacks completed and the scheduled timeline did not drift. The four `AudioTrack` underruns fail the accepted TB-008 zero-underrun gate. This is baseline evidence for scheduler/render hardening in Phases 2 and 3; it does not invalidate the battery-consumption measurement.
 
 ## Memory
 
