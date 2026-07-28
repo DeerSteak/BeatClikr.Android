@@ -1,0 +1,50 @@
+{
+  "schemaVersion": 1,
+  "requiredFiles": [
+    "clickhi_e5.wav",
+    "clicklo_f5.wav",
+    "cowbell_gsharp3.wav",
+    "crashl_csharp3.wav",
+    "crashr_a3.wav",
+    "hatclosed_fsharp2.wav",
+    "hatopen_asharp2.wav",
+    "kick_c2.wav",
+    "ridebell_f3.wav",
+    "rideedge_dsharp3.wav",
+    "snare_d2.wav",
+    "tamb_fsharp3.wav",
+    "tomhi_d3.wav",
+    "tomlow_a2.wav",
+    "tommid_b2.wav",
+    "synth_clickhi_e5.wav",
+    "synth_clicklo_f5.wav",
+    "synth_cowbell_gsharp3.wav",
+    "synth_crashl_csharp3.wav",
+    "synth_crashr_a3.wav",
+    "synth_hatclosed_fsharp2.wav",
+    "synth_hatopen_asharp2.wav",
+    "synth_kick_c2.wav",
+    "synth_ridebell_f3.wav",
+    "synth_rideedge_dsharp3.wav",
+    "synth_snare_d2.wav",
+    "synth_tamb_fsharp3.wav",
+    "synth_tomhi_d3.wav",
+    "synth_tomlow_a2.wav",
+    "synth_tommid_b2.wav"
+  ],
+  "allowedExtraFiles": [
+    "silence_d7.wav"
+  ],
+  "format": {
+    "compression": "NONE",
+    "sampleWidthBytes": 2,
+    "allowedSampleRates": [
+      44100,
+      48000
+    ],
+    "allowedChannels": [
+      1,
+      2
+    ]
+  }
+}

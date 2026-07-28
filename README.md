@@ -36,6 +36,30 @@ The required filenames are the `R.raw` identifiers declared in `SoundFile.kt`, w
 
 Do not commit production WAV files. The tracked `.gitkeep` preserves the directory in a clean checkout.
 
+### Authorized production audio setup
+
+The tracked `audio/audio-requirements.json` defines the 30 required filenames and supported PCM formats. The production checksums, provenance, license, and asset version live in the ignored private manifest:
+
+```text
+audio/audio-manifest.private.json
+```
+
+On the trusted source machine, create or refresh that manifest after intentionally updating the production sound set:
+
+```bash
+python3 tools/validate_audio.py \
+  --create-private-manifest \
+  --asset-version production-v1
+```
+
+Store the resulting private manifest with the protected source-audio archive. On another authorized machine, provision both the WAV files and private manifest, then verify them:
+
+```bash
+python3 tools/validate_audio.py
+```
+
+Every release build runs this validation automatically before Android resource processing. A release fails if a required sound is missing, malformed, renamed, or differs from the private checksum manifest. `silence_d7.wav` is permitted as a legacy unused resource but is not part of the required production bank.
+
 ## Local verification
 
 With JDK 17, the Android SDK, and the proprietary WAV files installed:

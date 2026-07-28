@@ -2,43 +2,11 @@
 """Generate non-production WAV resources used only by public CI."""
 
 from pathlib import Path
+import json
 import math
 import struct
 import wave
 
-
-RESOURCE_NAMES = (
-    "clickhi_e5",
-    "clicklo_f5",
-    "cowbell_gsharp3",
-    "crashl_csharp3",
-    "crashr_a3",
-    "hatclosed_fsharp2",
-    "hatopen_asharp2",
-    "kick_c2",
-    "ridebell_f3",
-    "rideedge_dsharp3",
-    "snare_d2",
-    "tamb_fsharp3",
-    "tomhi_d3",
-    "tomlow_a2",
-    "tommid_b2",
-    "synth_clickhi_e5",
-    "synth_clicklo_f5",
-    "synth_cowbell_gsharp3",
-    "synth_crashl_csharp3",
-    "synth_crashr_a3",
-    "synth_hatclosed_fsharp2",
-    "synth_hatopen_asharp2",
-    "synth_kick_c2",
-    "synth_ridebell_f3",
-    "synth_rideedge_dsharp3",
-    "synth_snare_d2",
-    "synth_tamb_fsharp3",
-    "synth_tomhi_d3",
-    "synth_tomlow_a2",
-    "synth_tommid_b2",
-)
 
 SAMPLE_RATE = 44_100
 FRAME_COUNT = 441
@@ -65,8 +33,9 @@ def main() -> None:
     existing_wavs = list(raw_directory.glob("*.wav"))
     if existing_wavs:
         raise SystemExit("Refusing to overwrite existing WAV resources.")
-    for index, name in enumerate(RESOURCE_NAMES):
-        write_placeholder(raw_directory / f"{name}.wav", 440.0 + index * 10.0)
+    requirements = json.loads(Path("audio/audio-requirements.json").read_text(encoding="utf-8"))
+    for index, filename in enumerate(requirements["requiredFiles"]):
+        write_placeholder(raw_directory / filename, 440.0 + index * 10.0)
 
 
 if __name__ == "__main__":

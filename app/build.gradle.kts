@@ -59,6 +59,26 @@ ksp {
     arg("room.schemaLocation", "$projectDir/schemas")
 }
 
+val validateProductionAudio by tasks.registering(Exec::class) {
+    group = "verification"
+    description = "Validates proprietary production WAV files against the private manifest."
+    workingDir(rootProject.projectDir)
+    commandLine(
+        "python3",
+        rootProject.file("tools/validate_audio.py").absolutePath,
+        "--audio-dir",
+        project.file("src/main/res/raw").absolutePath,
+        "--requirements",
+        rootProject.file("audio/audio-requirements.json").absolutePath,
+        "--private-manifest",
+        rootProject.file("audio/audio-manifest.private.json").absolutePath
+    )
+}
+
+tasks.matching { it.name == "preReleaseBuild" }.configureEach {
+    dependsOn(validateProductionAudio)
+}
+
 dependencies {
     val navVersion = "2.9.8"
     implementation("androidx.navigation:navigation-compose:$navVersion")
