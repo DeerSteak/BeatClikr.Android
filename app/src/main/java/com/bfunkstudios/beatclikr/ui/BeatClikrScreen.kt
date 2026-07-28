@@ -49,7 +49,6 @@ import com.bfunkstudios.beatclikr.ui.components.SongDetail
 import com.bfunkstudios.beatclikr.ui.components.SongLibraryView
 import java.util.UUID
 
-// --- Root composable ---
 
 @Composable
 fun BeatClikrApp(

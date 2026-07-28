@@ -310,8 +310,7 @@ class MetronomeViewModel @Inject constructor(
     }
 
     override fun metronomeBeatFired(isBeat: Boolean, beatInterval: Float, beatTimeNanos: Long) {
-        // Write the timing anchor from the audio callback thread directly — no coroutine dispatch
-        // latency — so the Choreographer latches the exact scheduled audio time on its next frame.
+        // Avoid dispatch latency when handing the scheduled time to Choreographer.
         val hasScheduledBeatTime = isBeat && beatTimeNanos > 0L
         if (hasScheduledBeatTime) {
             pendingBeatEvent.set(PendingBeatEvent(

@@ -35,7 +35,6 @@ class MainActivity : ComponentActivity() {
         lifecycleScope.launch { reminderScheduler.rescheduleIfEnabled() }
     }
 
-    // BeatClikr is foreground-only: stop playback when the activity leaves the foreground.
     override fun onPause() {
         super.onPause()
         audioPlayerService.stopMetronome()
@@ -58,7 +57,6 @@ class MainActivity : ComponentActivity() {
             }
 
             BeatClikrTheme(forceDarkTheme = forceDarkTheme) {
-                // A surface container using the 'background' color from the theme
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
@@ -72,5 +70,4 @@ class MainActivity : ComponentActivity() {
         }
     }
 }
-
 

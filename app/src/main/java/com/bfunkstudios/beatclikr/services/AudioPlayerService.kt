@@ -4,10 +4,7 @@ import android.content.Context
 import com.bfunkstudios.beatclikr.data.SoundBank
 import com.bfunkstudios.beatclikr.data.SoundFile
 
-/**
- * Centralized audio service for metronome playback.
- * Manages the audio engine and provides a clean API for playback control.
- */
+/** Centralized playback API backed by the metronome audio engine. */
 class AudioPlayerService private constructor(context: Context) : IAudioPlayerService, MetronomeAudioEngineDelegate {
     private val audioEngine = MetronomeAudioEngine(context.applicationContext)
 

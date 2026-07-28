@@ -47,8 +47,7 @@ class PracticeHistoryRepositoryImpl @Inject constructor(
         return session
     }
 
-    // Uses device local time deliberately — sessions are grouped by the day the user practiced,
-    // which should match their local clock, not UTC.
+    // Practice days follow the user's local calendar, not UTC.
     private fun todayStart(): Long {
         return Calendar.getInstance().apply {
             set(Calendar.HOUR_OF_DAY, 0)

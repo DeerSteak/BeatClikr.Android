@@ -27,8 +27,6 @@ class BeatClikrApplication : Application() {
             audioPlayerService.prepareAudioTrackSounds(prefs.audioTrackSoundCacheSet())
         }
         audioPlayerService.prewarmAudioTrack()
-        // BeatClikr is foreground-only: no foreground service is used, so playback
-        // stops when the app leaves the foreground. This is intentional.
         ProcessLifecycleOwner.get().lifecycle.addObserver(object : DefaultLifecycleObserver {
             override fun onStop(owner: LifecycleOwner) {
                 stopResources()

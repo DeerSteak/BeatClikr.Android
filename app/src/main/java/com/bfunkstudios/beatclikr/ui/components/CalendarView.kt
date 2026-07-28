@@ -64,7 +64,6 @@ fun CalendarView(
     ) {
         Column(modifier = Modifier.padding(8.dp)) {
 
-            // Month navigation header
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -100,7 +99,6 @@ fun CalendarView(
                 }
             }
 
-            // Day-of-week header
             Row(modifier = Modifier.fillMaxWidth()) {
                 DAY_LABELS.forEach { label ->
                     Text(
@@ -115,7 +113,6 @@ fun CalendarView(
                 }
             }
 
-            // Day grid
             weeks.forEach { week ->
                 Row(modifier = Modifier.fillMaxWidth()) {
                     week.forEach { dayMs ->

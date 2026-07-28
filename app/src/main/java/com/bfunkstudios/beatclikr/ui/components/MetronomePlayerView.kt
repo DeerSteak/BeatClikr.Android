@@ -29,10 +29,8 @@ fun MetronomePlayerView(
 
     LaunchedEffect(scale) {
         if (scale == MetronomeConstants.ICON_SCALE_MAX) {
-            // Instant jump to max (no animation)
             animatedScale.snapTo(MetronomeConstants.ICON_SCALE_MAX)
         } else {
-            // Smooth animation down to min over beat duration
             animatedScale.animateTo(
                 targetValue = scale,
                 animationSpec = tween(

@@ -49,7 +49,6 @@ fun SharableStreakCard(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            // Flame icon with glow
             Box(contentAlignment = Alignment.Center) {
                 Icon(
                     imageVector = Icons.Default.LocalFireDepartment,
@@ -67,7 +66,6 @@ fun SharableStreakCard(
                 )
             }
 
-            // Streak number
             Text(
                 text = streakDays,
                 fontSize = 105.sp,
@@ -77,7 +75,6 @@ fun SharableStreakCard(
                 overflow = TextOverflow.Clip
             )
 
-            // "day streak"
             Text(
                 text = "day streak",
                 fontSize = 32.sp,
@@ -85,13 +82,11 @@ fun SharableStreakCard(
                 color = Color.White
             )
 
-            // Divider
             HorizontalDivider(
                 modifier = Modifier.padding(horizontal = 80.dp),
                 color = Color.White.copy(alpha = 0.2f)
             )
 
-            // App branding
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp)

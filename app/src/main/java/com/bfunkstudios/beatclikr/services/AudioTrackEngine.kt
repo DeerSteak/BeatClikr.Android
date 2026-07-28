@@ -13,9 +13,7 @@ import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import kotlin.collections.ArrayDeque
 
-/**
- * Low-latency metronome output using cached mono PCM files.
- */
+/** Low-latency metronome output using cached mono PCM files. */
 data class AudioTrackMetricsSnapshot(
     val sampleRate: Int,
     val outputFramesPerBuffer: Int,

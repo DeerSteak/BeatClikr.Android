@@ -73,7 +73,6 @@ fun PlaylistFocusView(
                     modifier = Modifier.fillMaxSize(),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    // Close button
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -101,7 +100,6 @@ fun PlaylistFocusView(
 
                     Spacer(modifier = Modifier.weight(1f))
 
-                    // Now Playing label
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         modifier = Modifier.padding(bottom = 28.dp)
@@ -126,7 +124,6 @@ fun PlaylistFocusView(
                         }
                     }
 
-                    // Transport
                     FocusTransportRow(
                         canGoPrevious = viewModel.canGoPrevious(entries),
                         canGoNext = viewModel.canGoNext(entries),
