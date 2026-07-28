@@ -76,6 +76,15 @@ Instrumented tests require a connected device or running emulator:
 ./gradlew --no-daemon connectedDebugAndroidTest
 ```
 
+The real-engine emulator correctness harness can be run separately:
+
+```bash
+./gradlew --no-daemon connectedDebugAndroidTest \
+  -Pandroid.testInstrumentationRunnerArguments.class=com.bfunkstudios.beatclikr.AudioEngineInstrumentedTest
+```
+
+It verifies both sound banks decode, dense metronome callbacks remain monotonic, PCM reaches `AudioTrack`, underrun metrics are readable, and polyrhythm events are complete. Its callback-jitter threshold is intentionally broad because emulator scheduling and virtual audio cannot establish audible timing quality. Use the Pixel 8a and physical loopback procedure for publishable latency/jitter results.
+
 Release verification should use the authorized production audio and signing process:
 
 ```bash

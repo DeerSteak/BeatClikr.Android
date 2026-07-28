@@ -25,7 +25,8 @@ data class AudioTrackMetricsSnapshot(
     val queuedClicks: Long,
     val renderedChunks: Long,
     val writtenFrames: Long,
-    val maxActiveClicks: Int
+    val maxActiveClicks: Int,
+    val underrunCount: Int
 )
 
 class AudioTrackEngine(
@@ -82,7 +83,8 @@ class AudioTrackEngine(
         queuedClicks = queuedClicks,
         renderedChunks = renderedChunks,
         writtenFrames = writtenFrames,
-        maxActiveClicks = maxActiveClicks
+        maxActiveClicks = maxActiveClicks,
+        underrunCount = audioTrack?.underrunCount ?: 0
     )
 
     fun setSounds(beatResourceId: Int, rhythmResourceId: Int) {
