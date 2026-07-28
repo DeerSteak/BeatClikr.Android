@@ -14,7 +14,8 @@ internal class PolyrhythmTimingEngine(
     private val checkIntervalMs: Long,
     private val firstBeatDelayMs: Long,
     private val lookaheadToleranceMs: Long,
-    private val requestAudioFocus: () -> Boolean
+    private val requestAudioFocus: () -> Boolean,
+    isLoaded: () -> Boolean
 ) {
     var delegate: PolyrhythmAudioEngineDelegate? = null
 
