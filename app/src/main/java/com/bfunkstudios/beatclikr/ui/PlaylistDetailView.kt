@@ -60,6 +60,7 @@ fun PlaylistDetailView(
         localEntries.addAll(entries)
     }
 
+    val songPickerSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val lazyListState = rememberLazyListState()
     val reorderState = rememberReorderableLazyListState(lazyListState) { from, to ->
         localEntries.add(to.index, localEntries.removeAt(from.index))
@@ -149,10 +150,9 @@ fun PlaylistDetailView(
 
     if (showSongPicker) {
         val songs by viewModel.allSongs.collectAsState()
-        val sheetState = rememberModalBottomSheetState()
         ModalBottomSheet(
             onDismissRequest = onSongPickerDismiss,
-            sheetState = sheetState
+            sheetState = songPickerSheetState
         ) {
             Text(
                 text = stringResource(R.string.add_song),
