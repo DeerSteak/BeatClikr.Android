@@ -31,7 +31,7 @@ google-services.json
 
 # Android Profiling
 *.hprof
-/app/src/main/res/raw
+/app/src/main/res/raw/*.wav
 .DS_Store
 /.claude
 /app/release
