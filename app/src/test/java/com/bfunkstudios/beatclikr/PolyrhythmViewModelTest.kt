@@ -1,5 +1,6 @@
 package com.bfunkstudios.beatclikr
 
+import androidx.arch.core.executor.testing.InstantTaskExecutorRule
 import com.bfunkstudios.beatclikr.data.IAppPreferences
 import com.bfunkstudios.beatclikr.data.PracticeHistoryRepository
 import com.bfunkstudios.beatclikr.data.SoundFile
@@ -19,10 +20,14 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
+import org.junit.Rule
 import org.junit.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class PolyrhythmViewModelTest {
+
+    @get:Rule
+    val instantTaskExecutorRule = InstantTaskExecutorRule()
 
     private lateinit var audio: IAudioPlayerService
     private lateinit var prefs: IAppPreferences

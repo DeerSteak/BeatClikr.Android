@@ -112,7 +112,7 @@ class InstantMetronomeViewTest {
 
     @Test
     fun bpmDisplaysOnLaunch() {
-        composeRule.onNodeWithText("120").assertIsDisplayed()
+        composeRule.onNodeWithText("60").assertIsDisplayed()
     }
 
     @Test

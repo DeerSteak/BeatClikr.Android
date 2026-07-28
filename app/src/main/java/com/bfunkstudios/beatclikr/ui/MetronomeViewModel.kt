@@ -312,7 +312,8 @@ class MetronomeViewModel @Inject constructor(
     override fun metronomeBeatFired(isBeat: Boolean, beatInterval: Float, beatTimeNanos: Long) {
         // Write the timing anchor from the audio callback thread directly — no coroutine dispatch
         // latency — so the Choreographer latches the exact scheduled audio time on its next frame.
-        if (isBeat && beatTimeNanos > 0L) {
+        val hasScheduledBeatTime = isBeat && beatTimeNanos > 0L
+        if (hasScheduledBeatTime) {
             pendingBeatEvent.set(PendingBeatEvent(
                 timeNanos = toChoreographerTimeNanos(beatTimeNanos),
                 durationNanos = (beatInterval * 1_000_000_000L).toLong().coerceAtLeast(1L)
@@ -322,7 +323,7 @@ class MetronomeViewModel @Inject constructor(
         viewModelScope.launch(Dispatchers.Main) {
             if (isBeat) {
                 iconScale = MetronomeConstants.ICON_SCALE_MAX
-                startChoreographerLoop()
+                if (hasScheduledBeatTime) startChoreographerLoop()
                 handleBeat()
                 delay(16)
                 iconScale = MetronomeConstants.ICON_SCALE_MIN

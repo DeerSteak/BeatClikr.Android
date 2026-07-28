@@ -1,5 +1,7 @@
 package com.bfunkstudios.beatclikr
 
+import android.app.Application
+import android.content.res.Resources
 import com.bfunkstudios.beatclikr.data.PracticeHistoryRepository
 import com.bfunkstudios.beatclikr.ui.PracticeHistoryViewModel
 import io.mockk.every
@@ -20,15 +22,25 @@ import org.junit.Test
 @OptIn(ExperimentalCoroutinesApi::class)
 class PracticeHistoryViewModelTest {
 
+    private lateinit var application: Application
     private lateinit var repository: PracticeHistoryRepository
     private lateinit var viewModel: PracticeHistoryViewModel
 
     @Before
     fun setUp() {
         Dispatchers.setMain(UnconfinedTestDispatcher())
+        val resources = mockk<Resources>()
+        application = mockk()
+        every { application.resources } returns resources
+        every { application.getString(any()) } returns "Let's go"
+        every { application.getString(any(), *anyVararg()) } returns "Streak"
+        every { resources.getQuantityString(R.plurals.day_count, any(), any()) } answers {
+            val count = secondArg<Int>()
+            if (count == 1) "1 day" else "$count days"
+        }
         repository = mockk(relaxed = true)
         every { repository.getAllSessions() } returns flowOf(emptyList())
-        viewModel = PracticeHistoryViewModel(repository)
+        viewModel = PracticeHistoryViewModel(application, repository)
     }
 
     @After

@@ -1,5 +1,6 @@
 package com.bfunkstudios.beatclikr
 
+import androidx.arch.core.executor.testing.InstantTaskExecutorRule
 import com.bfunkstudios.beatclikr.constants.MetronomeConstants
 import com.bfunkstudios.beatclikr.data.BeatPattern
 import com.bfunkstudios.beatclikr.data.ClickerType
@@ -26,10 +27,14 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
+import org.junit.Rule
 import org.junit.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class MetronomeViewModelTest {
+
+    @get:Rule
+    val instantTaskExecutorRule = InstantTaskExecutorRule()
 
     private lateinit var audio: IAudioPlayerService
     private lateinit var prefs: IAppPreferences
@@ -416,9 +421,9 @@ class MetronomeViewModelTest {
     }
 
     @Test
-    fun `metronomeBeatFired on beat starts beat pulse`() {
+    fun `metronomeBeatFired without scheduled time does not start beat pulse`() {
         viewModel.metronomeBeatFired(isBeat = true, beatInterval = 0.5f)
-        assertEquals(1f, viewModel.beatPulse)
+        assertEquals(0f, viewModel.beatPulse)
     }
 
     @Test

@@ -11,7 +11,6 @@ class FakeAudioPlayerService : IAudioPlayerService {
     override var delegate: MetronomeAudioEngineDelegate? = null
     override var polyrhythmDelegate: PolyrhythmAudioEngineDelegate? = null
     override var isMuted: Boolean = false
-    override var useAudioTrack: Boolean = false
     override var soundBank: SoundBank = SoundBank.ACOUSTIC
 
     var startCount = 0

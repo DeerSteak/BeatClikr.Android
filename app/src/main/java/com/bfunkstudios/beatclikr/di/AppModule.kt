@@ -67,7 +67,7 @@ abstract class AppModule {
         @Provides @Singleton
         fun provideDatabase(@ApplicationContext context: Context): BeatClikrDatabase =
             Room.databaseBuilder(context, BeatClikrDatabase::class.java, "beatclikr.db")
-                .addMigrations(BeatClikrDatabase.MIGRATION_1_2, BeatClikrDatabase.MIGRATION_2_3, BeatClikrDatabase.MIGRATION_3_4)
+                .fallbackToDestructiveMigrationFrom(true, 1, 2, 3)
                 .build()
 
         @Provides @Singleton
