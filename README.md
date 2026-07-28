@@ -144,6 +144,7 @@ This describes the present implementation, not the target architecture. The reme
 | [Docs/Validation.md](Docs/Validation.md) | Local, CI, instrumentation, and production release checks |
 | [benchmarks/2026-07-28-android-17-emulator.md](benchmarks/2026-07-28-android-17-emulator.md) | Current emulator correctness baseline |
 | [benchmarks/2026-07-28-pixel-8a-android-17.md](benchmarks/2026-07-28-pixel-8a-android-17.md) | Initial Pixel 8a real-device engine baseline |
+| [benchmarks/2026-07-28-pixel-8a-acoustic-240bpm.md](benchmarks/2026-07-28-pixel-8a-acoustic-240bpm.md) | Initial Pixel 8a built-in-speaker acoustic baseline |
 
 ## Database version policy
 

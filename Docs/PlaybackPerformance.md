@@ -71,6 +71,10 @@ The first Pixel 8a engine result is in
 It exercises real hardware but still measures software callbacks rather than
 acoustic onset.
 
+The first microphone-recorded speaker result is in
+[`benchmarks/2026-07-28-pixel-8a-acoustic-240bpm.md`](../benchmarks/2026-07-28-pixel-8a-acoustic-240bpm.md).
+It measures audible onset intervals but not absolute input-to-sound latency.
+
 ## Physical-device validation
 
 The Pixel 8a running Android 17 is the initial reference device. Record the OS
@@ -86,6 +90,11 @@ At minimum, validate:
 4. start, stop, tempo change, backgrounding, and audio-focus interruption;
 5. long-run drift, underruns, and audible artifacts;
 6. visual, haptic, and flash alignment as separate measurements.
+
+`AudioEngineStressInstrumentedTest` runs the dense 240 BPM/sixteenth path for 30
+minutes by default. It requires complete callbacks, monotonic scheduled time,
+scheduled drift and interval error within 2 ms, written audio frames, and zero
+reported `AudioTrack` underruns.
 
 Do not claim sub-millisecond acoustic timing from callback metrics. Measuring
 sound leaving the device requires loopback recording or an external rig.

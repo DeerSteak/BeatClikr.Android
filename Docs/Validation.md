@@ -31,7 +31,18 @@ With an Android 17 emulator running:
 ```
 
 Debug builds use `com.bfunkstudios.beatclikr.debug`, so they can coexist with a
-signed production build without replacing it or its local data.
+signed production build without replacing it or its local data. Debug backup is
+disabled so an OS backup pass cannot kill a long-running instrumentation process.
+
+Run the physical-device stress test for its default 30 minutes:
+
+```bash
+./gradlew --no-daemon connectedDebugAndroidTest \
+  -Pandroid.testInstrumentationRunnerArguments.class=com.bfunkstudios.beatclikr.AudioEngineStressInstrumentedTest
+```
+
+Override the duration from 1–60 minutes with
+`-Pandroid.testInstrumentationRunnerArguments.stressDurationMinutes=60`.
 
 Instrumentation writes timing metrics to test output. Preserve a baseline in
 `benchmarks/` when the environment or timing implementation changes.
