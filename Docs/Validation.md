@@ -30,6 +30,9 @@ With an Android 17 emulator running:
 ./gradlew --no-daemon connectedDebugAndroidTest
 ```
 
+Debug builds use `com.bfunkstudios.beatclikr.debug`, so they can coexist with a
+signed production build without replacing it or its local data.
+
 Instrumentation writes timing metrics to test output. Preserve a baseline in
 `benchmarks/` when the environment or timing implementation changes.
 

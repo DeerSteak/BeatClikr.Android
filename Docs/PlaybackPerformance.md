@@ -66,6 +66,11 @@ The recorded result is in
 [`benchmarks/2026-07-28-android-17-emulator.md`](../benchmarks/2026-07-28-android-17-emulator.md).
 It is a regression reference, not a physical-device audio benchmark.
 
+The first Pixel 8a engine result is in
+[`benchmarks/2026-07-28-pixel-8a-android-17.md`](../benchmarks/2026-07-28-pixel-8a-android-17.md).
+It exercises real hardware but still measures software callbacks rather than
+acoustic onset.
+
 ## Physical-device validation
 
 The Pixel 8a running Android 17 is the initial reference device. Record the OS

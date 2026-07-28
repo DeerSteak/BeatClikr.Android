@@ -13,6 +13,6 @@ class ExampleInstrumentedTest {
     @Test
     fun useAppContext() {
         val appContext = InstrumentationRegistry.getInstrumentation().targetContext
-        assertEquals("com.bfunkstudios.beatclikr", appContext.packageName)
+        assertEquals("com.bfunkstudios.beatclikr.debug", appContext.packageName)
     }
 }

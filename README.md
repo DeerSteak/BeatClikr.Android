@@ -69,6 +69,8 @@ With JDK 17, the Android SDK, and the proprietary WAV files installed:
 ```
 
 The debug APK is produced under `app/build/outputs/apk/debug/`.
+It uses the application ID `com.bfunkstudios.beatclikr.debug`, allowing it to
+coexist with a signed production installation.
 
 Instrumented tests require a connected device or running emulator:
 
@@ -141,6 +143,7 @@ This describes the present implementation, not the target architecture. The reme
 | [Docs/PlaybackPerformance.md](Docs/PlaybackPerformance.md) | Timing contract, output pipeline, metrics, and hardware protocol |
 | [Docs/Validation.md](Docs/Validation.md) | Local, CI, instrumentation, and production release checks |
 | [benchmarks/2026-07-28-android-17-emulator.md](benchmarks/2026-07-28-android-17-emulator.md) | Current emulator correctness baseline |
+| [benchmarks/2026-07-28-pixel-8a-android-17.md](benchmarks/2026-07-28-pixel-8a-android-17.md) | Initial Pixel 8a real-device engine baseline |
 
 ## Database version policy
 
