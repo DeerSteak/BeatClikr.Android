@@ -38,7 +38,7 @@ Do not commit production WAV files. The tracked `.gitkeep` preserves the directo
 
 ### Authorized production audio setup
 
-The tracked `audio/audio-requirements.json` defines the 30 required filenames and supported PCM formats. The production checksums, provenance, license, and asset version live in the ignored private manifest:
+The tracked `audio/audio-requirements.json` defines the 30 required filenames and supported PCM formats. The production checksums, bank, PCM encoding, sample format, peak sample magnitude, exact leading-silence frames, provenance, license, and asset version live in the ignored private manifest:
 
 ```text
 audio/audio-manifest.private.json
@@ -52,7 +52,7 @@ python3 tools/validate_audio.py \
   --asset-version production-v1
 ```
 
-Store the resulting private manifest with the protected source-audio archive. On another authorized machine, provision both the WAV files and private manifest, then verify them:
+Store the resulting private manifest with the protected source-audio archive. On another authorized release machine, provision both the WAV files and private manifest locally, then verify them:
 
 ```bash
 python3 tools/validate_audio.py
@@ -111,7 +111,7 @@ The public workflow does not:
 - build or sign a production release;
 - prove audio latency, jitter, or drift.
 
-An authorized release pipeline must provision and validate the private audio resources before running `bundleRelease`. See `BEATCLIKR_ACTION_PLAN.md` for the required private asset manifest and physical-device timing gates.
+An authorized local release environment must provision and validate the private audio resources before running `bundleRelease`. Access-controlled production-audio provisioning in GitHub CI is not required for now. See `BEATCLIKR_ACTION_PLAN.md` for the required private asset manifest and physical-device timing gates.
 
 ## Architecture
 
@@ -139,11 +139,18 @@ This describes the present implementation, not the target architecture. The reme
 | [Docs/SongLibrary.md](Docs/SongLibrary.md) | Songs, playlists, practice history, reminders, and migrations |
 | [Docs/Capabilities.md](Docs/Capabilities.md) | Shipping features, permissions, storage, and background policy |
 | [Docs/PlaybackPerformance.md](Docs/PlaybackPerformance.md) | Timing contract, output pipeline, metrics, and hardware protocol |
+| [Docs/Timing-Budgets.md](Docs/Timing-Budgets.md) | Quantitative scheduler, acoustic, alignment, and resource acceptance gates |
+| [Docs/Decisions/0001-Musical-Time.md](Docs/Decisions/0001-Musical-Time.md) | BPM, meter, accent, boundary, phase, and polyrhythm contract |
+| [Docs/Decisions/0002-Playback-Lifecycle-and-Outputs.md](Docs/Decisions/0002-Playback-Lifecycle-and-Outputs.md) | Playback ownership, focus, lifecycle, routes, and secondary outputs |
+| [Docs/Decisions/0003-Practice-History.md](Docs/Decisions/0003-Practice-History.md) | Practice qualification, duration, identity, and local-day behavior |
 | [Docs/Validation.md](Docs/Validation.md) | Local, CI, instrumentation, and production release checks |
 | [benchmarks/2026-07-28-android-17-emulator.md](benchmarks/2026-07-28-android-17-emulator.md) | Current emulator correctness baseline |
 | [benchmarks/2026-07-28-pixel-8a-android-17.md](benchmarks/2026-07-28-pixel-8a-android-17.md) | Initial Pixel 8a real-device engine baseline |
 | [benchmarks/2026-07-28-pixel-8a-acoustic-240bpm.md](benchmarks/2026-07-28-pixel-8a-acoustic-240bpm.md) | Initial Pixel 8a built-in-speaker acoustic baseline |
 | [benchmarks/2026-07-28-pixel-8a-cpu-profile.md](benchmarks/2026-07-28-pixel-8a-cpu-profile.md) | Pixel 8a CPU, memory, thermal, and profiled-load result |
+| [benchmarks/2026-07-28-pixel-8a-startup-latency.md](benchmarks/2026-07-28-pixel-8a-startup-latency.md) | Pixel 8a cold and warm predicted-presentation startup baseline |
+| [benchmarks/2026-07-28-pixel-8a-low-overhead-profile.md](benchmarks/2026-07-28-pixel-8a-low-overhead-profile.md) | Pixel 8a aggregate CPU and zero-underrun sustained profile |
+| [benchmarks/2026-07-28-pixel-8a-battery.md](benchmarks/2026-07-28-pixel-8a-battery.md) | Pixel 8a unplugged battery, thermal, memory, and one-hour audio result |
 
 ## Database version policy
 

@@ -2,15 +2,15 @@
 
 ## Timing contract
 
-Beat scheduling uses a monotonic nanosecond clock. Wall-clock time is only for user-visible dates and history; it must not drive beat intervals. Tempo conversion retains nanosecond precision and advances from the previous scheduled deadline, not the callback time, so callback delay does not accumulate as drift.
+The proposed normative contracts are [`Decisions/0001-Musical-Time.md`](Decisions/0001-Musical-Time.md), [`Decisions/0002-Playback-Lifecycle-and-Outputs.md`](Decisions/0002-Playback-Lifecycle-and-Outputs.md), and [`Decisions/0003-Practice-History.md`](Decisions/0003-Practice-History.md). Quantitative release gates are in [`Timing-Budgets.md`](Timing-Budgets.md).
 
-For a tempo of `bpm`, the nominal quarter-note interval is:
+The current engine schedules against a monotonic nanosecond clock. Wall-clock time is only for user-visible dates and history; it must not drive beat intervals. Tempo conversion advances from the previous scheduled deadline rather than callback time, so callback delay does not normally accumulate as drift.
 
 ```text
 intervalNs = 60,000,000,000 / bpm
 ```
 
-Subdivisions and polyrhythms derive their deadlines from that interval. Late work may be reported and recovered from, but it must not silently redefine the future time base.
+Subdivisions and polyrhythms derive deadlines from that interval. The replacement scheduler must meet contract clauses MT-024 through MT-026 by dropping expired events, avoiding catch-up bursts, preserving the session time base, and carrying fractional sample-frame remainder.
 
 ## Output pipeline
 

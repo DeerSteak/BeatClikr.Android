@@ -1,0 +1,65 @@
+# ADR 0001: Musical Time
+
+**Status:** Proposed  
+**Date:** 2026-07-28  
+**Decision owners:** Product and audio architecture
+
+## Context
+
+The shipping engine derives deadlines from a monotonic clock, but several musical behaviors are implicit in ViewModel and engine code. The replacement scheduler needs a stable product contract before implementation so that tests validate intended behavior instead of preserving implementation accidents.
+
+The sibling iOS app is the reference product behavior. Android mirrors it unless an Android platform constraint prevents parity or an explicit decision records an intentional divergence.
+
+## Decision
+
+The clauses below are normative. Scheduler, renderer, playback, and UI acceptance tests cite these identifiers.
+
+### Tempo and meter
+
+- **MT-001:** BPM always means quarter notes per minute.
+- **MT-002:** The supported tempo range is 30 through 240 BPM inclusive.
+- **MT-003:** Scheduling accepts decimal BPM values and does not round them. The current UI may display the nearest whole BPM.
+- **MT-004:** Quarter, eighth, triplet, and sixteenth grooves divide each quarter note into one, two, three, or four scheduler ticks.
+- **MT-005:** An odd-quarter pattern uses quarter-note pattern steps. An odd-eighth pattern uses eighth-note pattern steps.
+- **MT-006:** The first step of an odd-meter pattern is always accented. Every subsequent step is accented or unaccented according to its value in the selected pattern.
+
+### Accents and feedback
+
+- **MT-007:** Standard playback repeats one sound pattern per quarter note. Tick zero is a beat event and any remaining ticks in that quarter note are subdivision events; the engine does not create a separate measure-level downbeat class.
+- **MT-008:** In standard playback, tick zero uses the selected beat sound and the remaining ticks use the selected rhythm sound. In odd-meter playback, each `true` pattern step uses the selected beat sound and each `false` step uses the selected rhythm sound.
+- **MT-009:** When alternate sixteenths are enabled, ticks zero and two use the selected beat sound while ticks one and three use the selected rhythm sound. Visual, haptic, and flash feedback still pulse only on tick zero.
+- **MT-010:** The global metronome mute suppresses audio without removing musical events, phase, diagnostics, or enabled secondary-output events.
+
+### Start, stop, and count-in
+
+- **MT-011:** A new standard-metronome session starts at tick zero and its first audible event uses the selected beat sound.
+- **MT-012:** A new polyrhythm session starts both streams at the same cycle origin.
+- **MT-013:** Start has no implicit count-in. A future count-in is a separate explicit mode and is not part of the recorded practice duration.
+- **MT-014:** Stop prevents all not-yet-presented events, ends the current phase, and does not preserve a resumable cursor.
+
+### Polyrhythm
+
+- **MT-015:** A displayed ratio `M:N` means the rhythm stream emits `M` evenly spaced events while the reference beat stream emits `N` evenly spaced quarter-note events in one cycle.
+- **MT-016:** A polyrhythm cycle lasts `N` quarter notes. The reference interval is `60 / BPM` seconds and the rhythm interval is `N × 60 / (BPM × M)` seconds.
+- **MT-017:** `M` and `N` are independently selectable from 1 through 15 inclusive.
+- **MT-018:** Coincident stream events share the same intended sample frame and are mixed once at that frame without serial timing displacement.
+
+### Configuration boundaries
+
+- **MT-019:** A user tempo change during standard playback restarts the audio timeline at tick zero using the new tempo without ending the logical playback period.
+- **MT-020:** A groove or odd-meter pattern change during playback restarts the standard-metronome timeline at tick zero without ending the logical playback period.
+- **MT-021:** A polyrhythm tempo or ratio change during playback restarts both streams together at a new shared cycle origin without ending the logical playback period.
+- **MT-022:** A beat sound, rhythm sound, or sound-bank change prepares the replacement sounds off the render thread and restarts active playback at its mode origin without ending the logical playback period. Global mute is applied when the active audio timeline is next started or restarted.
+- **MT-023:** When several commands request the same boundary, command sequence determines their order and the final valid configuration is applied atomically.
+
+### Deadline recovery
+
+- **MT-024:** A delayed callback never moves the musical time base and never emits a catch-up burst.
+- **MT-025:** Events whose presentation deadlines have passed are counted and dropped. Phase advances directly to the first future event derived from the original session origin.
+- **MT-026:** Integer or rational sample-frame arithmetic carries fractional remainder so that quantization cannot accumulate long-run drift.
+
+## Consequences
+
+The existing polling engine does not satisfy every clause. In particular, a multi-event stall can currently enqueue events in a catch-up sequence, configuration changes do not all use the boundaries above, and audio readiness is not an authoritative prerequisite for a successful start. Those are implementation gaps assigned to Phases 2 through 4, not exceptions to this contract.
+
+The contract deliberately mirrors iOS behavior: quarter-note BPM, beat/rhythm sound mapping, additive odd meters, `M:N` polyrhythm labeling, configuration-driven timeline restarts, a beat-first start, and no hidden count-in.
