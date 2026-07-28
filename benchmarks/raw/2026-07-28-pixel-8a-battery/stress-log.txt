@@ -1,0 +1,13 @@
+--------- beginning of main
+07-28 14:54:38.393 12408 12421 I BeatClikrAudioStress: progressMinutes=49/60 remainingEvents=10560
+07-28 14:55:38.395 12408 12421 I BeatClikrAudioStress: progressMinutes=50/60 remainingEvents=9600
+07-28 14:56:38.397 12408 12421 I BeatClikrAudioStress: progressMinutes=51/60 remainingEvents=8640
+07-28 14:57:38.398 12408 12421 I BeatClikrAudioStress: progressMinutes=52/60 remainingEvents=7680
+07-28 14:58:38.400 12408 12421 I BeatClikrAudioStress: progressMinutes=53/60 remainingEvents=6720
+07-28 14:59:38.402 12408 12421 I BeatClikrAudioStress: progressMinutes=54/60 remainingEvents=5760
+07-28 15:00:38.404 12408 12421 I BeatClikrAudioStress: progressMinutes=55/60 remainingEvents=4800
+07-28 15:01:38.405 12408 12421 I BeatClikrAudioStress: progressMinutes=56/60 remainingEvents=3840
+07-28 15:02:38.407 12408 12421 I BeatClikrAudioStress: progressMinutes=57/60 remainingEvents=2880
+07-28 15:03:38.408 12408 12421 I BeatClikrAudioStress: progressMinutes=58/60 remainingEvents=1920
+07-28 15:04:38.409 12408 12421 I BeatClikrAudioStress: progressMinutes=59/60 remainingEvents=960
+07-28 15:05:38.769 12408 12421 I BeatClikrAudioStress: minutes=60 events=57600 scheduledDriftMs=0.0 callbackP50Ms=0.301228 callbackP95Ms=1.115031 callbackP99Ms=2.309733 callbackMaxMs=89.219727 underruns=4 chunks=1439915 writtenFrames=172789800
