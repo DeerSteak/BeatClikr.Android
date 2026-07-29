@@ -54,6 +54,8 @@ Tests that enforce approved contracts begin their method name with the normalize
 
 `TempoRampContractTest` ports the iOS ramp choices and verifies the initial-beat rule, interval counting, reset behavior, subdivision exclusion, odd-meter accent counting, and the 240 BPM cap. Contract-tagged `MetronomeViewModelTest` cases verify instant-only application and restoration of the starting tempo on stop.
 
+The Android-free 2.2a model suite verifies exact decimal tempo normalization, exact frame periods, inclusive tempo bounds, all regular subdivision and odd-meter unit mappings, every existing additive pattern, defensive immutability, and the complete frame-event vocabulary. These are JVM tests and require no emulator or Android runtime.
+
 Run only the standard-metronome characterization suite on an attached emulator:
 
 ```bash
