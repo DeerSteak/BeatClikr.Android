@@ -13,7 +13,7 @@ BeatClikr currently provides:
 - compact phone and expanded tablet navigation;
 - offline local operation without an account.
 
-The supported platform floor is Android 12/API 31. CI exercises that minimum and Android 17/API 37 as the forward-compatibility lane.
+The supported platform floor is Android 12/API 31. CI exercises that minimum and the Android 16/API 36 target; Android 17/API 37 compatibility remains a manual check until its CI emulator is stable.
 
 ## Android permissions and features
 

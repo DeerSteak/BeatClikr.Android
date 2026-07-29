@@ -91,7 +91,7 @@ The pre-commit hook runs `tools/format_markdown.py` across repository Markdown. 
 
 GitHub Actions pins JDK 17 and required Android SDK components. Since proprietary WAV files are absent, CI generates deterministic placeholder tones from the tracked requirements.
 
-The emulator matrix runs the bounded instrumentation and contract suites at the supported floor, Android 12/API 31, and the forward-compatibility target, Android 17/API 37. Long-duration stress, startup benchmark, and acoustic timing tests remain explicit physical-device or performance runs.
+The emulator matrix runs the bounded instrumentation and contract suites at the supported floor, Android 12/API 31, and the current target, Android 16/API 36. Android 17/API 37 remains a manual compatibility check until its CI emulator is stable. Long-duration stress, startup benchmark, and acoustic timing tests remain explicit physical-device or performance runs.
 
 CI must start from a clean checkout. Success means the public source, declared toolchain, generated resources, tests, lint, debug build, and supported-version emulator checks agree. It does not mean a publishable production bundle exists.
 

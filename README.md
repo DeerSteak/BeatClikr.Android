@@ -102,7 +102,7 @@ GitHub Actions runs [`.github/workflows/android-ci.yml`](.github/workflows/andro
 4. configures Gradle caching;
 5. generates non-production placeholder WAVs;
 6. runs debug unit tests, Android lint, and a debug build;
-7. runs the bounded instrumentation and contract suites on Android 12/API 31 and Android 17/API 37 emulators.
+7. runs the bounded instrumentation and contract suites on Android 12/API 31 and Android 16/API 36 emulators.
 
 Public CI cannot access the proprietary BeatClikr sounds. `tools/generate_ci_audio.py` creates short placeholder PCM WAVs only so Android resource generation and code verification can run. These files are ignored by Git and must never be used for a production artifact.
 
