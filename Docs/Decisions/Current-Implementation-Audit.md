@@ -147,18 +147,18 @@ These differences deserve product review before implementation work begins.
 | TB-004 | Partial | The two-minute 240 BPM recording had no missing or doubled onsets; the required one-hour dense run is absent |
 | TB-005 | Partial | The same recording met the percentile limits for one short maximum-density condition, not the required one-hour multi-condition population |
 | TB-006 | Partial | The two-minute fitted endpoint error was −2.536 ms; the required one-hour drift evidence is absent |
-| TB-007 | Partial | Thirty cold and thirty warm debug starts fit the accepted limits; release-build and per-route acceptance evidence is absent |
-| TB-008 | Differs | A 30-minute low-overhead run had zero underruns, but the one-hour battery workload reported four |
+| TB-007 | Partial | Thirty cold and thirty warm release-equivalent starts fit the accepted limits on the built-in-speaker route; other routes remain unevidenced |
+| TB-008 | Conforms in current reference | The release-equivalent five-minute, 30-minute, and one-hour maximum-density runs all reported zero underruns |
 | TB-009 | Differs | Tempo changes neither restart at the contract origin nor operate in sample frames |
 | TB-010 | Unevidenced | No atomic command-boundary implementation or randomized test exists |
 | TB-011 | Unevidenced | Visuals use predicted timing, but no synchronized high-speed measurement exists |
 | TB-012 | Unevidenced | No external haptic-onset measurement exists |
 | TB-013 | Unevidenced | No photodiode or high-speed flash measurement exists |
-| TB-014 | Partial | A 30-minute run averaged 20.94% of one core, meeting the mean limit; one-hour and p95 evidence is absent |
-| TB-015 | Partial | Available snapshots suggest flat memory, but the required warm-up-to-final one-hour series is incomplete |
-| TB-016 | Partial | The one-hour battery workload showed no thermal escalation, but it was a debug instrumentation run rather than the normal release-build gate |
-| TB-017 | Partial | One unplugged run met the provisional consumption limit; the contract requires three documented runs |
-| TB-018 | Unevidenced | No matched before/after release-build regression protocol has been run |
+| TB-014 | Partial | The release-equivalent 25-minute aggregate profile averaged 14.67% of one core, meeting the mean limit; one-hour and p95 evidence is absent |
+| TB-015 | Partial | The release-equivalent 30-minute run decreased from 16.96 MiB to 12.15 MiB PSS, but the required warm-up-to-final one-hour series is incomplete |
+| TB-016 | Conforms in current reference | The one-hour release-equivalent battery workload completed with Android thermal status 0 |
+| TB-017 | Partial | One release-equivalent unplugged run consumed 2.87 displayed percentage points per hour; the contract requires three documented runs |
+| TB-018 | Baseline pinned | The pre-Phase-3 release-equivalent comparator is recorded; the first matched before/after comparison awaits a timing-sensitive change |
 
 ## Current strengths worth preserving
 

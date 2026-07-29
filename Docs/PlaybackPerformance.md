@@ -47,6 +47,16 @@ The first Pixel 8a engine result is in [`benchmarks/2026-07-28-pixel-8a-android-
 
 The first microphone-recorded speaker result is in [`benchmarks/2026-07-28-pixel-8a-acoustic-240bpm.md`](../benchmarks/2026-07-28-pixel-8a-acoustic-240bpm.md). It measures audible onset intervals but not absolute input-to-sound latency.
 
+The pre-Phase-3 release comparator is in [`benchmarks/2026-07-28-pixel-8a-release-comparator.md`](../benchmarks/2026-07-28-pixel-8a-release-comparator.md). Its raw directory pins the commit, release-equivalent build, device fingerprint, route, settings, workloads, and exact commands required by TB-018.
+
+## Low-overhead resource protocol
+
+Resource comparisons use the non-debuggable, minified, resource-shrunk `benchmark` variant. This variant inherits `release`, has a separate application ID and local installation signature, and is profileable by shell so device-side aggregate counters can observe it without a debugger.
+
+Run the maximum-density workload at 240 BPM with sixteenth subdivisions. Use one continuous `simpleperf stat --app` interval for aggregate CPU, take memory and thermal snapshots only after warm-up and near the end, and collect the engine's buffered underrun and timing metrics after completion. Do not continuously poll `dumpsys` or attach Android Studio's interactive profiler.
+
+Battery is a separate physically unplugged run over wireless debugging. Record start and end charge counter, displayed percentage, battery temperature, Android thermal status, route, media volume, brightness mode and value, screen state, radio state, and the complete observation window. Restore changed settings after collection.
+
 ## Physical-device validation
 
 The Pixel 8a running Android 17 is the initial reference device. Record the OS build, app commit, build variant, audio route, volume, battery mode, and method with every result. Test the built-in speaker first; Bluetooth is a separate latency profile.
