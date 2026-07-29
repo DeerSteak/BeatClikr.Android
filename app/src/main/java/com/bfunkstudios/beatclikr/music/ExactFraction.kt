@@ -42,14 +42,14 @@ class ExactFraction private constructor(
             numerator.signum() >= 0 -> BigInteger.ONE
             else -> BigInteger.ONE.negate()
         }
-        return (quotient + adjustment).toLongExact()
+        return (quotient + adjustment).longValueExact()
     }
 
     fun floorLong(): Long {
         val division = numerator.divideAndRemainder(denominator)
         val quotient = division[0]
         val hasNegativeRemainder = division[1].signum() < 0
-        return (if (hasNegativeRemainder) quotient - BigInteger.ONE else quotient).toLongExact()
+        return (if (hasNegativeRemainder) quotient - BigInteger.ONE else quotient).longValueExact()
     }
 
     companion object {
@@ -76,14 +76,6 @@ class ExactFraction private constructor(
             return ExactFraction(signedNumerator / divisor, positiveDenominator / divisor)
         }
     }
-}
-
-private fun BigInteger.toLongExact(): Long {
-    val converted = toLong()
-    if (BigInteger.valueOf(converted) != this) {
-        throw ArithmeticException("Value does not fit in Long")
-    }
-    return converted
 }
 
 class ExactTempo private constructor(

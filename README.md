@@ -18,11 +18,12 @@ The current architecture and its known deficiencies are documented in [ADVERSARI
 
 - Android Studio or Android SDK command-line tools
 - JDK 17
+- Android 12/API 31 or newer for installation
 - Android SDK Platform 37.0 (Android 17/API 37)
 - Android SDK Build Tools 36.0.0
 - The proprietary BeatClikr WAV resources described below
 
-The project compiles against API 37 while retaining target API 36 until Android 17 behavior-change testing is complete. The Gradle wrapper installs Gradle 9.4.1. Android Studio's bundled JDK 21 is also compatible for local builds, but CI runs the supported JDK 17 baseline.
+The app supports Android 12/API 31 and newer. It compiles against API 37 while retaining target API 36 until Android 17 behavior-change testing is complete. The Gradle wrapper installs Gradle 9.4.1. Android Studio's bundled JDK 21 is also compatible for local builds, but CI runs the supported JDK 17 baseline.
 
 ## Proprietary audio resources
 
@@ -100,14 +101,15 @@ GitHub Actions runs [`.github/workflows/android-ci.yml`](.github/workflows/andro
 3. installs Android SDK Platform 37 and Build Tools 36.0.0;
 4. configures Gradle caching;
 5. generates non-production placeholder WAVs;
-6. runs debug unit tests, Android lint, and a debug build.
+6. runs debug unit tests, Android lint, and a debug build;
+7. runs the bounded instrumentation and contract suites on Android 12/API 31 and Android 17/API 37 emulators.
 
 Public CI cannot access the proprietary BeatClikr sounds. `tools/generate_ci_audio.py` creates short placeholder PCM WAVs only so Android resource generation and code verification can run. These files are ignored by Git and must never be used for a production artifact.
 
 The public workflow does not:
 
 - validate production sound quality or checksums;
-- run connected-device instrumentation tests;
+- run the long-duration stress, startup benchmark, or acoustic timing suites;
 - build or sign a production release;
 - prove audio latency, jitter, or drift.
 
