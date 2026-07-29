@@ -25,3 +25,7 @@
     public static **[] values();
     public static ** valueOf(java.lang.String);
 }
+
+# Instrumentation APKs implement these app-owned public callbacks.
+-keep interface com.bfunkstudios.beatclikr.services.MetronomeAudioEngineDelegate { *; }
+-keep interface com.bfunkstudios.beatclikr.services.PolyrhythmAudioEngineDelegate { *; }

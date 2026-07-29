@@ -179,4 +179,18 @@ class PolyrhythmViewModelTest {
         viewModel.updateAgainst(4)
         assertEquals(2000, viewModel.cycleDurationMillis)
     }
+
+    @Test
+    fun mt024_polyrhythmEventsNeverApplyTempoRamp() {
+        repeat(100) { index ->
+            viewModel.polyrhythmBeatFired(
+                beatFired = true,
+                rhythmFired = true,
+                beatIndex = index % viewModel.against,
+                rhythmIndex = index % viewModel.beats
+            )
+        }
+
+        assertEquals(120f, viewModel.bpm)
+    }
 }
