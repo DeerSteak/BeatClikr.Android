@@ -48,11 +48,19 @@ Tests that enforce approved contracts begin their method name with the normalize
 
 `StandardMetronomeContractFixtures` contains resource-independent BPM, subdivision, tick, beat, and abstract sound-role cases corresponding to the representative iOS `MetronomeConstantsTests`, `GrooveTests`, and `MetronomeAudioBlockPlan` cases. `StandardMetronomeContractInstrumentedTest` runs those fixtures through the real Android engine.
 
+`AccentContractFixtures` covers every Android odd-meter definition using groupings independently ported from the representative iOS `BeatPatternTests`, `GrooveTests`, and `MetronomeAudioBlockPlan` cases. `AccentContractInstrumentedTest` verifies both odd-meter timing units, additive-group accents, beat/rhythm sound selection, and alternate-sixteenth feedback against the real engine. `AccentContractTest` separately guards the Android pattern definitions on the JVM.
+
 Run only the standard-metronome characterization suite on an attached emulator:
 
 ```bash
 ANDROID_SERIAL="emulator-5554" ./gradlew --no-daemon connectedDebugAndroidTest \
   -Pandroid.testInstrumentationRunnerArguments.class=com.bfunkstudios.beatclikr.StandardMetronomeContractInstrumentedTest
+```
+
+Run only the accent characterization suite:
+
+```bash
+ANDROID_SERIAL="emulator-5554" ./gradlew --no-daemon connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.bfunkstudios.beatclikr.AccentContractInstrumentedTest
 ```
 
 ## Git hooks

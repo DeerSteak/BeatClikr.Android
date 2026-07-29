@@ -21,6 +21,7 @@
 
 # Preserve enum classes (includes SoundFile — enum names are stored in SharedPreferences)
 -keepclassmembers enum * {
+    <fields>;
     public static **[] values();
     public static ** valueOf(java.lang.String);
 }
