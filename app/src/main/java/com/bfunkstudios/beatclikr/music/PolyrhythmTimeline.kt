@@ -3,8 +3,9 @@ package com.bfunkstudios.beatclikr.music
 class PolyrhythmTimeline(
     val configuration: PolyrhythmConfiguration,
     val sampleRate: Int,
-    val origin: SessionOrigin
-) {
+    override val origin: SessionOrigin
+) : FrameEventTimeline {
+    override val mode = TimelineMode.POLYRHYTHM
     private val slotsPerCycle = leastCommonMultiple(configuration.beats, configuration.against)
     private val beatSlotInterval = slotsPerCycle / configuration.against
     private val rhythmSlotInterval = slotsPerCycle / configuration.beats
@@ -16,7 +17,7 @@ class PolyrhythmTimeline(
             ExactFraction.of(configuration.against.toLong())
     )
 
-    fun eventsIn(range: FrameRange): Sequence<FrameEvent> = sequence {
+    override fun eventsIn(range: FrameRange): Sequence<FrameEvent> = sequence {
         if (range.endFrameExclusive <= origin.originFrame) return@sequence
         val relativeStart = (range.startFrame - origin.originFrame).coerceAtLeast(0)
         var slotIndex = timeline.firstIntervalAtOrAfter(relativeStart)
@@ -30,6 +31,15 @@ class PolyrhythmTimeline(
             require(slotIndex < Long.MAX_VALUE) { "Polyrhythm slot index exhausted" }
             slotIndex++
         }
+    }
+
+    override fun eventCountIn(range: FrameRange): Long {
+        if (range.endFrameExclusive <= origin.originFrame) return 0
+        val relativeStart = (range.startFrame - origin.originFrame).coerceAtLeast(0)
+        val relativeEnd = range.endFrameExclusive - origin.originFrame
+        val firstSlot = timeline.firstIntervalAtOrAfter(relativeStart)
+        val endSlot = timeline.firstIntervalAtOrAfter(relativeEnd)
+        return Math.subtractExact(eventCountBefore(endSlot), eventCountBefore(firstSlot))
     }
 
     private fun eventAt(slotIndex: Long, slot: Int, intendedFrame: Long): FrameEvent {
@@ -71,6 +81,17 @@ class PolyrhythmTimeline(
 
     private fun hasEventAt(slot: Int): Boolean =
         slot % beatSlotInterval == 0 || slot % rhythmSlotInterval == 0
+
+    private fun eventCountBefore(slotIndex: Long): Long {
+        val completeCycles = slotIndex / slotsPerCycle
+        val slotInCycle = (slotIndex % slotsPerCycle).toInt()
+        val insertion = eventSlots.binarySearch(slotInCycle)
+        val partialCount = if (insertion >= 0) insertion else -insertion - 1
+        return Math.addExact(
+            Math.multiplyExact(completeCycles, eventSlots.size.toLong()),
+            partialCount.toLong()
+        )
+    }
 
     private fun leastCommonMultiple(first: Int, second: Int): Int =
         first / greatestCommonDivisor(first, second) * second

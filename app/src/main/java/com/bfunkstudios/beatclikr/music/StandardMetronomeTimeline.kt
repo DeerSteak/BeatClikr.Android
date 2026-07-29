@@ -48,8 +48,9 @@ class AbsoluteAudioTimeline(
 class StandardMetronomeTimeline(
     val configuration: StandardMetronomeConfiguration,
     val sampleRate: Int,
-    val origin: SessionOrigin
-) {
+    override val origin: SessionOrigin
+) : FrameEventTimeline {
+    override val mode = TimelineMode.STANDARD
     private val patternSize: Int
     private val subdivisions: Int
     private val timeline: AbsoluteAudioTimeline
@@ -70,7 +71,7 @@ class StandardMetronomeTimeline(
         timeline = AbsoluteAudioTimeline(sampleRate, intervalsPerMinute)
     }
 
-    fun eventsIn(range: FrameRange): Sequence<FrameEvent> = sequence {
+    override fun eventsIn(range: FrameRange): Sequence<FrameEvent> = sequence {
         if (range.endFrameExclusive <= origin.originFrame) return@sequence
         val relativeStart = (range.startFrame - origin.originFrame).coerceAtLeast(0)
         var intervalIndex = timeline.firstIntervalAtOrAfter(relativeStart)
@@ -86,6 +87,15 @@ class StandardMetronomeTimeline(
             require(intervalIndex < Long.MAX_VALUE) { "Interval index exhausted" }
             intervalIndex++
         }
+    }
+
+    override fun eventCountIn(range: FrameRange): Long {
+        if (range.endFrameExclusive <= origin.originFrame) return 0
+        val relativeStart = (range.startFrame - origin.originFrame).coerceAtLeast(0)
+        val relativeEnd = range.endFrameExclusive - origin.originFrame
+        val first = timeline.firstIntervalAtOrAfter(relativeStart)
+        val end = timeline.firstIntervalAtOrAfter(relativeEnd)
+        return Math.subtractExact(end, first)
     }
 
     private fun eventAt(intervalIndex: Long, intendedFrame: Long): FrameEvent {

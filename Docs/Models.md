@@ -34,6 +34,8 @@ Room version 4 is the supported migration baseline. Unknown versions 1–3 are d
 - `TempoRampState` is an immutable instant-metronome reducer. It counts only standard beats and additive accents, preserves the starting tempo, caps exact increments at 240 BPM, and emits the BPM that must restart the standard timeline.
 - `PlaybackCommand` defines typed, immutable start, stop, tempo, groove, pattern, sound, bank, mute, polyrhythm, and ramp requests. Every request carries its target phase session, monotonic command sequence, and submission timestamp.
 - `CommandBoundary` reduces a strictly sequenced batch into one atomic `PlaybackSnapshot`. Timeline restarts receive a new phase session while retaining `LogicalPlaybackID`; sound changes cannot publish until their preparation sequences are confirmed, and mute waits for the next start or restart.
+- `DeadlineRecovery` owns the first unprocessed frame for one timeline session and mode. Each timeline counts an expired range arithmetically without enumerating its events; recovery then returns only events inside the current render window, preserves the original origin, and rejects stale-session, moved-origin, or wrong-mode state.
+- `DeadlineDiagnostics` separates missed event deadlines, dropped events, committed events, and recovery-window counts. Its session and mode identity make aggregation unambiguous without adding Android dependencies to the timing core.
 - `Groove` defines quarter, eighth, triplet, sixteenth, and odd-meter modes.
 - `BeatPattern` converts additive groupings such as 3+2+2 into accent arrays.
 - `PolyrhythmGrid` maps two counts onto their least-common-multiple grid.

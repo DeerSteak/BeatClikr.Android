@@ -60,6 +60,8 @@ The Phase 2.3 pure-timeline suite verifies iOS-compatible absolute rounding, exa
 
 The Phase 2.4 command suite verifies stale-session rejection, strict same-boundary ordering, atomic final configuration, standard and polyrhythm phase restarts, stable logical playback identity, deferred mute, and two-stage sound preparation and publication. These commands remain Android-free and are not connected to production playback until Phase 3.
 
+The Phase 2.5 recovery suite verifies multi-event stalls, direct future-event selection, constant-time range counts, exact deadline and drop counts, coincident polyrhythm drops, repeated recovery windows, overlapping render windows, immutable origins, and stale session or mode rejection. Expired events are counted but never enumerated or returned to the renderer, preventing recovery work and catch-up output from scaling with the duration of a stall.
+
 Run only the standard-metronome characterization suite on an attached emulator:
 
 ```bash
