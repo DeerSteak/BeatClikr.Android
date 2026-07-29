@@ -42,6 +42,37 @@ Override the duration from 1–60 minutes with `-Pandroid.testInstrumentationRun
 
 Instrumentation writes timing metrics to test output. Preserve a baseline in `benchmarks/` when the environment or timing implementation changes.
 
+## Contract test convention
+
+Tests that enforce approved contracts begin their method name with the normalized lowercase contract IDs they cover, joined by underscores, such as `mt001_mt003_supportedTempoBoundsAndDecimalBpmAreScheduledWithoutRounding`. Keep the descriptive suffix readable in Gradle and Android test reports. Use the same convention for `PL-*`, `PH-*`, and `TB-*` clauses.
+
+`StandardMetronomeContractFixtures` contains resource-independent BPM, subdivision, tick, beat, and abstract sound-role cases corresponding to the representative iOS `MetronomeConstantsTests`, `GrooveTests`, and `MetronomeAudioBlockPlan` cases. `StandardMetronomeContractInstrumentedTest` runs those fixtures through the real Android engine.
+
+`AccentContractFixtures` covers every Android odd-meter definition using groupings independently ported from the representative iOS `BeatPatternTests`, `GrooveTests`, and `MetronomeAudioBlockPlan` cases. `AccentContractInstrumentedTest` verifies both odd-meter timing units, additive-group accents, beat/rhythm sound selection, and alternate-sixteenth feedback against the real engine. `AccentContractTest` separately guards the Android pattern definitions on the JVM.
+
+`PolyrhythmContractFixtures` represents expected events independently of `PolyrhythmGrid` and uses the same `beats` and `against` business meanings as iOS: `beats` is the displayed Rhythm count and `against` is the displayed Beat count. `PolyrhythmContractTest` exhaustively verifies all 225 supported ratios, event indices, shared origins, exact coincidences, and representative iOS duration formulas. `PolyrhythmContractInstrumentedTest` verifies complete real-engine cycles for boundary, equal, coprime, and shared-factor ratios.
+
+`TempoRampContractTest` ports the iOS ramp choices and verifies the initial-beat rule, interval counting, reset behavior, subdivision exclusion, odd-meter accent counting, and the 240 BPM cap. Contract-tagged `MetronomeViewModelTest` cases verify instant-only application and restoration of the starting tempo on stop.
+
+Run only the standard-metronome characterization suite on an attached emulator:
+
+```bash
+ANDROID_SERIAL="emulator-5554" ./gradlew --no-daemon connectedDebugAndroidTest \
+  -Pandroid.testInstrumentationRunnerArguments.class=com.bfunkstudios.beatclikr.StandardMetronomeContractInstrumentedTest
+```
+
+Run only the accent characterization suite:
+
+```bash
+ANDROID_SERIAL="emulator-5554" ./gradlew --no-daemon connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.bfunkstudios.beatclikr.AccentContractInstrumentedTest
+```
+
+Run only the polyrhythm characterization suite:
+
+```bash
+ANDROID_SERIAL="emulator-5554" ./gradlew --no-daemon connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.bfunkstudios.beatclikr.PolyrhythmContractInstrumentedTest
+```
+
 ## Git hooks
 
 Enable the tracked hooks once per checkout:

@@ -2,6 +2,7 @@
 """Create or verify the private production-audio manifest."""
 
 import argparse
+import array
 import hashlib
 import json
 from pathlib import Path
@@ -17,15 +18,33 @@ def load_json(path: Path) -> dict:
 def inspect_wav(path: Path) -> dict:
     try:
         with wave.open(str(path), "rb") as source:
+            channels = source.getnchannels()
+            sample_width = source.getsampwidth()
+            frame_count = source.getnframes()
+            pcm = source.readframes(frame_count)
             metadata = {
-                "channels": source.getnchannels(),
+                "bank": "synthetic" if path.stem.startswith("synth_") else "acoustic",
+                "channels": channels,
                 "sampleRate": source.getframerate(),
-                "sampleWidthBytes": source.getsampwidth(),
-                "frameCount": source.getnframes(),
+                "sampleWidthBytes": sample_width,
+                "frameCount": frame_count,
                 "compression": source.getcomptype(),
             }
     except (EOFError, wave.Error) as error:
         raise ValueError(f"{path.name}: invalid WAV file ({error})") from error
+    if metadata["compression"] == "NONE" and sample_width == 2:
+        samples = array.array("h")
+        samples.frombytes(pcm)
+        if sys.byteorder != "little":
+            samples.byteswap()
+        metadata["pcmEncoding"] = "PCM_SIGNED_16_LE"
+        metadata["peakSampleMagnitude"] = max((abs(sample) for sample in samples), default=0)
+        leading_frames = 0
+        for frame_start in range(0, len(samples), channels):
+            if any(samples[frame_start : frame_start + channels]):
+                break
+            leading_frames += 1
+        metadata["leadingSilenceFrames"] = leading_frames
     metadata["sha256"] = hashlib.sha256(path.read_bytes()).hexdigest()
     return metadata
 
@@ -71,7 +90,7 @@ def create_manifest(path: Path, inspected: dict, asset_version: str) -> None:
     for name, metadata in inspected.items():
         files[name] = {key: value for key, value in metadata.items() if key != "compression"}
     manifest = {
-        "schemaVersion": 1,
+        "schemaVersion": 2,
         "assetVersion": asset_version,
         "provenance": "Private BeatClikr source archive.",
         "license": "Proprietary BeatClikr production audio.",
@@ -84,6 +103,8 @@ def create_manifest(path: Path, inspected: dict, asset_version: str) -> None:
 def compare_manifest(inspected: dict, manifest: dict, required: list[str]) -> list[str]:
     errors = []
     manifest_files = manifest.get("files", {})
+    if manifest.get("schemaVersion") != 2:
+        errors.append("Private manifest schemaVersion must be 2")
     if not manifest.get("assetVersion"):
         errors.append("Private manifest is missing assetVersion")
     for name in required:
@@ -94,7 +115,17 @@ def compare_manifest(inspected: dict, manifest: dict, required: list[str]) -> li
         actual = inspected.get(name)
         if actual is None:
             continue
-        for key in ("sha256", "channels", "sampleRate", "sampleWidthBytes", "frameCount"):
+        for key in (
+            "sha256",
+            "bank",
+            "channels",
+            "sampleRate",
+            "sampleWidthBytes",
+            "pcmEncoding",
+            "frameCount",
+            "peakSampleMagnitude",
+            "leadingSilenceFrames",
+        ):
             if actual[key] != expected.get(key):
                 errors.append(f"{name}: {key} does not match the private manifest")
     return errors

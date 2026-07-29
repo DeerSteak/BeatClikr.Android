@@ -1,0 +1,11 @@
+<?xml version='1.0' encoding='UTF-8' ?>
+<testsuites tests="1" failures="0" errors="0" skipped="0" time="3601.852" timestamp="2026-07-29T01:59:27" hostname="localhost">
+  <testsuite name="com.bfunkstudios.beatclikr.AudioEngineStressInstrumentedTest" tests="1" failures="0" errors="0" skipped="0" time="3600.287" timestamp="2026-07-29T01:59:27" hostname="localhost">
+    <properties>
+      <property name="device" value="Pixel 8a - 17" />
+      <property name="flavor" value="" />
+      <property name="project" value=":app" />
+    </properties>
+    <testcase name="denseMetronomeRemainsStable" classname="com.bfunkstudios.beatclikr.AudioEngineStressInstrumentedTest" time="3600.287" />
+  </testsuite>
+</testsuites>

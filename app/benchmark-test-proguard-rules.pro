@@ -1,0 +1,3 @@
+-dontwarn com.google.auto.value.AutoValue
+-dontwarn javax.lang.model.element.Modifier
+-keep class androidx.tracing.** { *; }

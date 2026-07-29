@@ -20,4 +20,9 @@ class RampController(
         val newBpm = (currentBpm + increment).coerceAtMost(MetronomeConstants.MAX_BPM)
         return if (newBpm != currentBpm) newBpm else null
     }
+
+    companion object {
+        val supportedIncrements = listOf(1, 2, 5, 10)
+        val supportedIntervals = listOf(4, 8, 16, 32, 48, 64)
+    }
 }

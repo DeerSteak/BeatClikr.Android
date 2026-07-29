@@ -2,15 +2,15 @@
 
 ## Timing contract
 
-Beat scheduling uses a monotonic nanosecond clock. Wall-clock time is only for user-visible dates and history; it must not drive beat intervals. Tempo conversion retains nanosecond precision and advances from the previous scheduled deadline, not the callback time, so callback delay does not accumulate as drift.
+The accepted normative contracts are [`Decisions/0001-Musical-Time.md`](Decisions/0001-Musical-Time.md), [`Decisions/0002-Playback-Lifecycle-and-Outputs.md`](Decisions/0002-Playback-Lifecycle-and-Outputs.md), and [`Decisions/0003-Practice-History.md`](Decisions/0003-Practice-History.md). Quantitative release gates are in [`Timing-Budgets.md`](Timing-Budgets.md).
 
-For a tempo of `bpm`, the nominal quarter-note interval is:
+The current engine schedules against a monotonic nanosecond clock. Wall-clock time is only for user-visible dates and history; it must not drive beat intervals. Tempo conversion advances from the previous scheduled deadline rather than callback time, so callback delay does not normally accumulate as drift.
 
 ```text
 intervalNs = 60,000,000,000 / bpm
 ```
 
-Subdivisions and polyrhythms derive their deadlines from that interval. Late work may be reported and recovered from, but it must not silently redefine the future time base.
+Subdivisions and polyrhythms derive deadlines from that interval. The replacement scheduler must meet contract clauses MT-030 through MT-032 by dropping expired events, avoiding catch-up bursts, preserving the session time base, and carrying fractional sample-frame remainder.
 
 ## Output pipeline
 
@@ -41,11 +41,29 @@ Release builds validate the real files. CI generates deterministic, non-propriet
 
 The emulator instrumentation harness exercises the real PCM decoder and audio engines. Its baseline covers every required sound, dense standard scheduling, polyrhythm scheduling, callback interval error, underruns, and output chunks.
 
+The standard-metronome contract suite additionally covers the 30–240 BPM bounds, a 137.5 BPM decimal fixture, all four standard subdivision counts, tick-zero starts, beat/rhythm sound roles, mute event and phase continuity, stop/reset behavior, and the absence of an implicit count-in. The same focused suite passes against debug and minified release-equivalent builds on the Android 17 emulator.
+
+The accent contract suite covers all 13 odd-meter definitions in both odd-quarter and odd-eighth timing units, every additive-group boundary, beat/rhythm sound selection, and alternate-sixteenth beat-sound and feedback roles. The focused suite passes against debug and minified release-equivalent builds on the Android 17 emulator.
+
+The polyrhythm contract suite exhaustively covers all 225 supported `M:N` ratios in JVM tests and runs representative boundary, equal, coprime, and shared-factor cycles through the real engine. It verifies the iOS-compatible `beats`/`against` meanings, cycle duration, shared origins, exact coincident-event identity, complete beat/rhythm index sequences, and queued sound counts. The focused engine suite passes against debug and minified release-equivalent builds on the Android 17 emulator.
+
+The tempo-ramp contract suite covers the iOS-compatible increment and interval choices, initial-beat counter semantics, subdivision exclusion, odd-meter accent counting, reset behavior, the 240 BPM cap, instant-only application, and restoration of the captured starting tempo.
+
 The recorded result is in [`benchmarks/2026-07-28-android-17-emulator.md`](../benchmarks/2026-07-28-android-17-emulator.md). It is a regression reference, not a physical-device audio benchmark.
 
 The first Pixel 8a engine result is in [`benchmarks/2026-07-28-pixel-8a-android-17.md`](../benchmarks/2026-07-28-pixel-8a-android-17.md). It exercises real hardware but still measures software callbacks rather than acoustic onset.
 
 The first microphone-recorded speaker result is in [`benchmarks/2026-07-28-pixel-8a-acoustic-240bpm.md`](../benchmarks/2026-07-28-pixel-8a-acoustic-240bpm.md). It measures audible onset intervals but not absolute input-to-sound latency.
+
+The pre-Phase-3 release comparator is in [`benchmarks/2026-07-28-pixel-8a-release-comparator.md`](../benchmarks/2026-07-28-pixel-8a-release-comparator.md). Its raw directory pins the commit, release-equivalent build, device fingerprint, route, settings, workloads, and exact commands required by TB-018.
+
+## Low-overhead resource protocol
+
+Resource comparisons use the non-debuggable, minified, resource-shrunk `benchmark` variant. This variant inherits `release`, has a separate application ID and local installation signature, and is profileable by shell so device-side aggregate counters can observe it without a debugger.
+
+Run the maximum-density workload at 240 BPM with sixteenth subdivisions. Use one continuous `simpleperf stat --app` interval for aggregate CPU, take memory and thermal snapshots only after warm-up and near the end, and collect the engine's buffered underrun and timing metrics after completion. Do not continuously poll `dumpsys` or attach Android Studio's interactive profiler.
+
+Battery is a separate physically unplugged run over wireless debugging. Record start and end charge counter, displayed percentage, battery temperature, Android thermal status, route, media volume, brightness mode and value, screen state, radio state, and the complete observation window. Restore changed settings after collection.
 
 ## Physical-device validation
 

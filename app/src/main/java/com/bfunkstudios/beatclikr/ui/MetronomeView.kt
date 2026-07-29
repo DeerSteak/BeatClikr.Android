@@ -210,11 +210,11 @@ fun MetronomeView(
                         label = stringResource(R.string.ramp_increase_by),
                         valueLabel = stringResource(R.string.ramp_bpm_value, viewModel.rampIncrement),
                         onDecrease = {
-                            val options = listOf(1, 2, 5, 10)
+                            val options = RampController.supportedIncrements
                             viewModel.updateRampIncrement(previousOption(viewModel.rampIncrement, options))
                         },
                         onIncrease = {
-                            val options = listOf(1, 2, 5, 10)
+                            val options = RampController.supportedIncrements
                             viewModel.updateRampIncrement(nextOption(viewModel.rampIncrement, options))
                         }
                     )
@@ -223,11 +223,11 @@ fun MetronomeView(
                         label = stringResource(R.string.ramp_every),
                         valueLabel = stringResource(R.string.ramp_beats_value, viewModel.rampInterval),
                         onDecrease = {
-                            val options = listOf(4, 8, 16, 32, 48, 64)
+                            val options = RampController.supportedIntervals
                             viewModel.updateRampInterval(previousOption(viewModel.rampInterval, options))
                         },
                         onIncrease = {
-                            val options = listOf(4, 8, 16, 32, 48, 64)
+                            val options = RampController.supportedIntervals
                             viewModel.updateRampInterval(nextOption(viewModel.rampInterval, options))
                         }
                     )

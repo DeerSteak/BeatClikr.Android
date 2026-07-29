@@ -228,7 +228,7 @@ class MetronomeViewModelTest {
     }
 
     @Test
-    fun `ramp only counts beats not subdivisions`() {
+    fun mt027_rampOnlyCountsBeatsNotSubdivisions() {
         viewModel.updateBPM(100f)
         viewModel.updateRampEnabled(true)
         viewModel.updateRampInterval(4)
@@ -238,7 +238,7 @@ class MetronomeViewModelTest {
     }
 
     @Test
-    fun `ramp fires after interval beats`() {
+    fun mt026_rampFiresAfterIntervalBeats() {
         viewModel.updateBPM(100f)
         viewModel.updateRampEnabled(true)
         viewModel.updateRampInterval(4)
@@ -248,7 +248,7 @@ class MetronomeViewModelTest {
     }
 
     @Test
-    fun `ramp caps at max BPM`() {
+    fun mt026_rampCapsAtMaximumBpm() {
         viewModel.updateBPM(MetronomeConstants.MAX_BPM - 5f)
         viewModel.updateRampEnabled(true)
         viewModel.updateRampInterval(4)
@@ -258,7 +258,7 @@ class MetronomeViewModelTest {
     }
 
     @Test
-    fun `stop restores starting BPM when ramp enabled`() {
+    fun mt029_stopRestoresStartingBpmWhenRampEnabled() {
         viewModel.updateBPM(100f)
         viewModel.updateRampEnabled(true)
         viewModel.updateRampInterval(4)
@@ -267,6 +267,28 @@ class MetronomeViewModelTest {
         repeat(5) { viewModel.metronomeBeatFired(isBeat = true, beatInterval = 0.5f) }
         assertEquals(105f, viewModel.beatsPerMinute)
         viewModel.stop()
+        assertEquals(100f, viewModel.beatsPerMinute)
+    }
+
+    @Test
+    fun mt024_rampDoesNotApplyToSongOrPlaylistPlayback() {
+        viewModel.updateRampEnabled(true)
+        viewModel.updateRampInterval(4)
+        viewModel.updateRampIncrement(5)
+        val song = Song(
+            title = "Test",
+            artist = "Artist",
+            beatsPerMinute = 100f,
+            beatsPerMeasure = 4,
+            groove = Groove.Quarter,
+            liveSequence = null,
+            rehearsalSequence = null
+        )
+        viewModel.loadSong(song, ClickerType.PLAYLIST)
+        viewModel.start()
+
+        repeat(10) { viewModel.metronomeBeatFired(isBeat = true, beatInterval = 0.5f) }
+
         assertEquals(100f, viewModel.beatsPerMinute)
     }
 
