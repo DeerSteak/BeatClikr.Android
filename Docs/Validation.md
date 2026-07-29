@@ -62,6 +62,15 @@ The Phase 2.4 command suite verifies stale-session rejection, strict same-bounda
 
 The Phase 2.5 recovery suite verifies multi-event stalls, direct future-event selection, constant-time range counts, exact deadline and drop counts, coincident polyrhythm drops, repeated recovery windows, overlapping render windows, immutable origins, and stale session or mode rejection. Expired events are counted but never enumerated or returned to the renderer, preventing recovery work and catch-up output from scaling with the duration of a stall.
 
+`PureCoreQualificationTest` is the permanent Phase 2 regression gate. It checks the twelve-hour fractional endpoint across every integer sample rate accepted by `AudioTrack`, streams twelve-hour minimum, fractional typical, maximum-density, and dense polyrhythm timelines at 44.1 and 48 kHz, injects stalls at every event position, and runs reproducible randomized standard and polyrhythm command batches. Together with the focused music-model tests, the suite contains executable coverage for MT-001 through MT-032 and TB-001 through TB-003, TB-009, and TB-010.
+
+Run that gate independently with:
+
+```bash
+./gradlew --no-daemon :app:testDebugUnitTest \
+  --tests 'com.bfunkstudios.beatclikr.music.PureCoreQualificationTest'
+```
+
 Run only the standard-metronome characterization suite on an attached emulator:
 
 ```bash

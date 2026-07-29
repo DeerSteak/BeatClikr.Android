@@ -36,6 +36,8 @@ Room version 4 is the supported migration baseline. Unknown versions 1–3 are d
 - `CommandBoundary` reduces a strictly sequenced batch into one atomic `PlaybackSnapshot`. Timeline restarts receive a new phase session while retaining `LogicalPlaybackID`; sound changes cannot publish until their preparation sequences are confirmed, and mute waits for the next start or restart.
 - `DeadlineRecovery` owns the first unprocessed frame for one timeline session and mode. Each timeline counts an expired range arithmetically without enumerating its events; recovery then returns only events inside the current render window, preserves the original origin, and rejects stale-session, moved-origin, or wrong-mode state.
 - `DeadlineDiagnostics` separates missed event deadlines, dropped events, committed events, and recovery-window counts. Its session and mode identity make aggregation unambiguous without adding Android dependencies to the timing core.
+
+The Phase 2 music package is deliberately Android-free. Its exact configurations, timelines, commands, boundary reducer, ramp state, and deadline recovery can therefore be simulated for hours and fuzzed with deterministic command sequences in ordinary JVM tests.
 - `Groove` defines quarter, eighth, triplet, sixteenth, and odd-meter modes.
 - `BeatPattern` converts additive groupings such as 3+2+2 into accent arrays.
 - `PolyrhythmGrid` maps two counts onto their least-common-multiple grid.
