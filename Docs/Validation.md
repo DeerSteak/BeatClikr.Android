@@ -58,6 +58,8 @@ The Android-free 2.2 model suite verifies exact decimal tempo normalization, exa
 
 The Phase 2.3 pure-timeline suite verifies iOS-compatible absolute rounding, exact awkward periods, first-event searches, every standard subdivision, additive accents, alternate-sixteenth sound roles, mute continuity, adjacent and overlapping range boundaries, session resets, a twelve-hour maximum-density endpoint, all 225 polyrhythm ratios, coincident-frame merging, complete-cycle voice indices, and deterministic tempo-ramp transitions. The timeline tests require no emulator and do not exercise production playback.
 
+The Phase 2.4 command suite verifies stale-session rejection, strict same-boundary ordering, atomic final configuration, standard and polyrhythm phase restarts, stable logical playback identity, deferred mute, and two-stage sound preparation and publication. These commands remain Android-free and are not connected to production playback until Phase 3.
+
 Run only the standard-metronome characterization suite on an attached emulator:
 
 ```bash
