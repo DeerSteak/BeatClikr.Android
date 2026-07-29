@@ -18,6 +18,10 @@ The `music/` package is a dependency leaf and cannot depend on Android classes, 
 
 The music domain uses `require()` to enforce internal value invariants. External values and commands must be constructed and reduced through `PlaybackInputBoundary` on the control path before any work is handed to a renderer. `IllegalArgumentException` from a rejected domain invariant becomes `PlaybackInputFailure.InvalidDomainInput`; it must be recorded and mapped to coordinator state or user-facing recovery rather than thrown on the render or audio thread. Unexpected implementation failures are not reclassified as input errors.
 
+`AudioRenderBackend` is the platform-output boundary for Phase 3. It owns stream open/start/render/stop operations, exposes obtained stream properties and presentation timestamps, and reports typed failures through a registered sink. Render buffers and timestamp holders are caller-owned so later implementations can reuse them on the real-time path.
+
+`FramePcmRenderer` requests each absolute output range from a real-time-safe event source, mixes prepared mono waveforms at their exact frame offsets, and retains unfinished voices across blocks. A fixed voice table and reusable integer accumulator keep the render call allocation-free; the final conversion saturates only after every overlapping voice is summed. Event-source implementations share the same prohibition on allocation, locks, logging, file or database access, and thread or UI callbacks.
+
 ## Runtime ownership
 
 `BeatClikrApplication` creates process-scoped dependencies. Activities and ViewModels own user-facing state; audio engines own active playback state and release native resources when playback stops.
