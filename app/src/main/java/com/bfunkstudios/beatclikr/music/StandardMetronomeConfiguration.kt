@@ -49,7 +49,7 @@ sealed interface StandardTiming {
 }
 
 data class StandardMetronomeConfiguration(
-    val tempo: ExactTempo,
+    val bpm: ExactTempo,
     val timing: StandardTiming,
     val alternateSixteenth: Boolean = false,
     val muteMetronome: Boolean = false

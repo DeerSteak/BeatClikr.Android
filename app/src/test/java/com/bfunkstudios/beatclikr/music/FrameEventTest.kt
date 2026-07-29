@@ -15,7 +15,11 @@ class FrameEventTest {
             beatIdentity = BeatIdentity.ACCENT,
             position = CyclePosition(cycleIndex = 12, index = 3)
         )
-        val event = FrameEvent(intendedFrame = 48_000, primary = voice)
+        val event = FrameEvent(
+            sequence = EventSequence(SessionID(1), 0),
+            intendedFrame = 48_000,
+            primary = voice
+        )
 
         assertEquals(48_000L, event.intendedFrame)
         assertEquals(voice, event.primary)
@@ -25,6 +29,7 @@ class FrameEventTest {
     @Test
     fun mt018_coincidentPolyrhythmVoicesShareOneIntendedFrame() {
         val event = FrameEvent(
+            sequence = EventSequence(SessionID(7), 12),
             intendedFrame = 96_000,
             primary = EventVoice(
                 role = MusicalEventRole.POLYRHYTHM_BEAT,
@@ -54,7 +59,7 @@ class FrameEventTest {
         )
 
         assertThrows(IllegalArgumentException::class.java) {
-            FrameEvent(-1, voice)
+            FrameEvent(EventSequence(SessionID(1), 0), -1, voice)
         }
         assertThrows(IllegalArgumentException::class.java) {
             CyclePosition(-1, 0)
@@ -63,7 +68,12 @@ class FrameEventTest {
             CyclePosition(0, -1)
         }
         assertThrows(IllegalArgumentException::class.java) {
-            FrameEvent(0, voice, voice.copy(soundRole = SoundRole.BEAT))
+            FrameEvent(
+                EventSequence(SessionID(1), 0),
+                0,
+                voice,
+                voice.copy(soundRole = SoundRole.BEAT)
+            )
         }
     }
 }

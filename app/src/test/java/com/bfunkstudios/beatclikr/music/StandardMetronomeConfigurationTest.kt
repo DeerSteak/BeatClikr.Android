@@ -54,7 +54,7 @@ class StandardMetronomeConfigurationTest {
     @Test
     fun configurationCopiesPreserveValueSemanticsWithoutMutation() {
         val original = StandardMetronomeConfiguration(
-            tempo = ExactTempo.parse("137.5"),
+            bpm = ExactTempo.parse("137.5"),
             timing = StandardTiming.Regular(StandardSubdivision.SIXTEENTH),
             alternateSixteenth = true,
             muteMetronome = false
@@ -64,7 +64,7 @@ class StandardMetronomeConfigurationTest {
 
         assertEquals(false, original.muteMetronome)
         assertEquals(true, mutedConfiguration.muteMetronome)
-        assertEquals(original.tempo, mutedConfiguration.tempo)
+        assertEquals(original.bpm, mutedConfiguration.bpm)
         assertEquals(original.timing, mutedConfiguration.timing)
     }
 }
