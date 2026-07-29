@@ -42,10 +42,39 @@ class PolyrhythmTimeline(
         return Math.subtractExact(eventCountBefore(endSlot), eventCountBefore(firstSlot))
     }
 
+    override fun visitEvents(
+        startFrame: Long,
+        endFrameExclusive: Long,
+        consumer: FrameRangeEventConsumer
+    ): Boolean {
+        if (endFrameExclusive <= origin.originFrame) return true
+        val relativeStart = (startFrame - origin.originFrame).coerceAtLeast(0)
+        var slotIndex = timeline.firstIntervalAtOrAfter(relativeStart)
+        while (true) {
+            val intendedFrame = Math.addExact(origin.originFrame, timeline.framePosition(slotIndex))
+            if (intendedFrame >= endFrameExclusive) return true
+            val slot = (slotIndex % slotsPerCycle).toInt()
+            if (intendedFrame >= startFrame && hasEventAt(slot)) {
+                val primary = primarySoundAt(slot)
+                val secondary = secondarySoundAt(slot)
+                if (!consumer.accept(
+                        intendedFrame,
+                        primary,
+                        secondary,
+                        configuration.muteMetronome
+                    )
+                ) {
+                    return true
+                }
+            }
+            slotIndex++
+        }
+    }
+
     private fun eventAt(slotIndex: Long, slot: Int, intendedFrame: Long): FrameEvent {
         val cycleIndex = slotIndex / slotsPerCycle
-        val beatFired = slot % beatSlotInterval == 0
-        val rhythmFired = slot % rhythmSlotInterval == 0
+        val beatFired = beatFiresAt(slot)
+        val rhythmFired = rhythmFiresAt(slot)
         val beatVoice = if (beatFired) {
             EventVoice(
                 role = MusicalEventRole.POLYRHYTHM_BEAT,
@@ -80,7 +109,17 @@ class PolyrhythmTimeline(
     }
 
     private fun hasEventAt(slot: Int): Boolean =
-        slot % beatSlotInterval == 0 || slot % rhythmSlotInterval == 0
+        beatFiresAt(slot) || rhythmFiresAt(slot)
+
+    private fun beatFiresAt(slot: Int): Boolean = slot % beatSlotInterval == 0
+
+    private fun rhythmFiresAt(slot: Int): Boolean = slot % rhythmSlotInterval == 0
+
+    private fun primarySoundAt(slot: Int): SoundRole =
+        if (beatFiresAt(slot)) SoundRole.BEAT else SoundRole.RHYTHM
+
+    private fun secondarySoundAt(slot: Int): SoundRole? =
+        if (beatFiresAt(slot) && rhythmFiresAt(slot)) SoundRole.RHYTHM else null
 
     private fun eventCountBefore(slotIndex: Long): Long {
         val completeCycles = slotIndex / slotsPerCycle

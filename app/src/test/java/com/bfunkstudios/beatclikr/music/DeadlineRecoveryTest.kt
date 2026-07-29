@@ -131,6 +131,12 @@ class DeadlineRecoveryTest {
                 assertEquals(FrameRange(1_000_000_000, 1_000_000_100), range)
                 return emptySequence()
             }
+
+            override fun visitEvents(
+                startFrame: Long,
+                endFrameExclusive: Long,
+                consumer: FrameRangeEventConsumer
+            ): Boolean = true
         }
 
         val result = DeadlineRecovery.process(
