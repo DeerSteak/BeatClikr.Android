@@ -17,6 +17,12 @@ class ExactFraction private constructor(
     operator fun times(other: Long): ExactFraction =
         create(numerator * BigInteger.valueOf(other), denominator)
 
+    operator fun plus(other: ExactFraction): ExactFraction =
+        create(
+            numerator * other.denominator + other.numerator * denominator,
+            denominator * other.denominator
+        )
+
     operator fun div(other: ExactFraction): ExactFraction {
         require(other.numerator != BigInteger.ZERO) { "Cannot divide by zero" }
         return create(numerator * other.denominator, denominator * other.numerator)
@@ -87,6 +93,12 @@ class ExactTempo private constructor(
     fun framesPerQuarter(sampleRate: Int): ExactFraction {
         require(sampleRate > 0) { "Sample rate must be positive" }
         return ExactFraction.of(sampleRate.toLong()) * quarterNoteDurationSeconds
+    }
+
+    fun increasedBy(increment: Int): ExactTempo {
+        require(increment > 0) { "Tempo increment must be positive" }
+        val increased = beatsPerMinute + ExactFraction.of(increment.toLong())
+        return ExactTempo(if (increased > maximumBpm) maximumBpm else increased)
     }
 
     override fun equals(other: Any?): Boolean =

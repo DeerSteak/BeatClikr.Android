@@ -56,7 +56,7 @@ Tests that enforce approved contracts begin their method name with the normalize
 
 The Android-free 2.2 model suite verifies exact decimal tempo normalization, exact frame periods, inclusive tempo bounds, all regular subdivision and odd-meter unit mappings, every existing additive pattern, defensive immutability, all 225 polyrhythm ratios, exact cycle and stream intervals, session origins, and monotonic event sequences. These are JVM tests and require no emulator or Android runtime.
 
-The 2.3a pure-timeline suite verifies iOS-compatible absolute rounding, exact awkward periods, first-event searches, every standard subdivision, additive accents, alternate-sixteenth sound roles, mute continuity, adjacent and overlapping range boundaries, session resets, and a twelve-hour maximum-density endpoint. The timeline tests require no emulator and do not exercise production playback.
+The Phase 2.3 pure-timeline suite verifies iOS-compatible absolute rounding, exact awkward periods, first-event searches, every standard subdivision, additive accents, alternate-sixteenth sound roles, mute continuity, adjacent and overlapping range boundaries, session resets, a twelve-hour maximum-density endpoint, all 225 polyrhythm ratios, coincident-frame merging, complete-cycle voice indices, and deterministic tempo-ramp transitions. The timeline tests require no emulator and do not exercise production playback.
 
 Run only the standard-metronome characterization suite on an attached emulator:
 
