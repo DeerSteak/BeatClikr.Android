@@ -3,8 +3,9 @@ package com.bfunkstudios.beatclikr.music
 class PolyrhythmTimeline(
     val configuration: PolyrhythmConfiguration,
     val sampleRate: Int,
-    val origin: SessionOrigin
-) {
+    override val origin: SessionOrigin
+) : FrameEventTimeline {
+    override val mode = TimelineMode.POLYRHYTHM
     private val slotsPerCycle = leastCommonMultiple(configuration.beats, configuration.against)
     private val beatSlotInterval = slotsPerCycle / configuration.against
     private val rhythmSlotInterval = slotsPerCycle / configuration.beats
@@ -16,7 +17,7 @@ class PolyrhythmTimeline(
             ExactFraction.of(configuration.against.toLong())
     )
 
-    fun eventsIn(range: FrameRange): Sequence<FrameEvent> = sequence {
+    override fun eventsIn(range: FrameRange): Sequence<FrameEvent> = sequence {
         if (range.endFrameExclusive <= origin.originFrame) return@sequence
         val relativeStart = (range.startFrame - origin.originFrame).coerceAtLeast(0)
         var slotIndex = timeline.firstIntervalAtOrAfter(relativeStart)
