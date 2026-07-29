@@ -14,6 +14,10 @@ BeatClikr is a single-module Kotlin application built with Jetpack Compose.
 
 The `music/` package is a dependency leaf and cannot depend on Android classes, clocks, resources, audio objects, persistence, or presentation models. Its configuration layer contains exact standard and polyrhythm inputs, session origins, monotonic event identity, and frame-event vocabulary. `StandardMetronomeTimeline` now provides the first pure frame-range scheduler, while production playback remains on the characterized engine until the controlled Phase 3 integration.
 
+### Music integration boundary
+
+The music domain uses `require()` to enforce internal value invariants. External values and commands must be constructed and reduced through `PlaybackInputBoundary` on the control path before any work is handed to a renderer. `IllegalArgumentException` from a rejected domain invariant becomes `PlaybackInputFailure.InvalidDomainInput`; it must be recorded and mapped to coordinator state or user-facing recovery rather than thrown on the render or audio thread. Unexpected implementation failures are not reclassified as input errors.
+
 ## Runtime ownership
 
 `BeatClikrApplication` creates process-scoped dependencies. Activities and ViewModels own user-facing state; audio engines own active playback state and release native resources when playback stops.
