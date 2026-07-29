@@ -28,6 +28,10 @@ Room version 4 is the supported migration baseline. Unknown versions 1–3 are d
 - `AccentPattern` defensively copies additive accents and requires an accented first step.
 - `SessionOrigin` binds a nonnegative `sessionID` to an `originFrame`, and `EventSequence` provides a strictly increasing event `index` within that session.
 - `FrameEvent` assigns a session sequence and one intended sample frame to one standard voice or two coincident polyrhythm voices. Each voice carries its musical role, abstract sound role, beat identity, and cycle position.
+- `AbsoluteAudioTimeline` mirrors the iOS timeline name while replacing floating-point sample positions with independently rounded exact rational frame positions.
+- `StandardMetronomeTimeline` generates immutable standard events intersecting an absolute `FrameRange`. Event frames and sequences derive only from the session origin and global musical index, so request boundaries cannot change phase.
+- `PolyrhythmTimeline` derives both streams from one exact cycle grid. Coincident voices share one `FrameEvent`, while each voice retains its own cycle position and every emitted event has one monotonic session sequence.
+- `TempoRampState` is an immutable instant-metronome reducer. It counts only standard beats and additive accents, preserves the starting tempo, caps exact increments at 240 BPM, and emits the BPM that must restart the standard timeline.
 - `Groove` defines quarter, eighth, triplet, sixteenth, and odd-meter modes.
 - `BeatPattern` converts additive groupings such as 3+2+2 into accent arrays.
 - `PolyrhythmGrid` maps two counts onto their least-common-multiple grid.
@@ -39,4 +43,4 @@ Where concepts already exist on iOS, the Android-free model uses the same termin
 
 Several enums currently contain display text. Moving presentation strings to localized resources remains remediation work.
 
-The Android-free models intentionally do not contain resource IDs, Android clocks, handlers, audio objects, or persistence annotations. The existing Android models remain the production inputs until Phase 3.
+The Android-free models intentionally do not contain resource IDs, Android clocks, handlers, audio objects, or persistence annotations. The existing Android engine remains the production timing source until Phase 3.

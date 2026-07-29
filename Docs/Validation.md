@@ -56,6 +56,8 @@ Tests that enforce approved contracts begin their method name with the normalize
 
 The Android-free 2.2 model suite verifies exact decimal tempo normalization, exact frame periods, inclusive tempo bounds, all regular subdivision and odd-meter unit mappings, every existing additive pattern, defensive immutability, all 225 polyrhythm ratios, exact cycle and stream intervals, session origins, and monotonic event sequences. These are JVM tests and require no emulator or Android runtime.
 
+The Phase 2.3 pure-timeline suite verifies iOS-compatible absolute rounding, exact awkward periods, first-event searches, every standard subdivision, additive accents, alternate-sixteenth sound roles, mute continuity, adjacent and overlapping range boundaries, session resets, a twelve-hour maximum-density endpoint, all 225 polyrhythm ratios, coincident-frame merging, complete-cycle voice indices, and deterministic tempo-ramp transitions. The timeline tests require no emulator and do not exercise production playback.
+
 Run only the standard-metronome characterization suite on an attached emulator:
 
 ```bash
@@ -89,7 +91,9 @@ The pre-commit hook runs `tools/format_markdown.py` across repository Markdown. 
 
 GitHub Actions pins JDK 17 and required Android SDK components. Since proprietary WAV files are absent, CI generates deterministic placeholder tones from the tracked requirements.
 
-CI must start from a clean checkout. Success means the public source, declared toolchain, generated resources, tests, lint, and debug build agree. It does not mean a publishable production bundle exists.
+The emulator matrix runs the bounded instrumentation and contract suites at the supported floor, Android 12/API 31, and the current target, Android 16/API 36. Android 17/API 37 remains a manual compatibility check until its CI emulator is stable. Long-duration stress, startup benchmark, and acoustic timing tests remain explicit physical-device or performance runs.
+
+CI must start from a clean checkout. Success means the public source, declared toolchain, generated resources, tests, lint, debug build, and supported-version emulator checks agree. It does not mean a publishable production bundle exists.
 
 ## Production bundle checklist
 
@@ -100,8 +104,9 @@ Build production artifacts locally or in a private release environment with auth
 3. Run the physical timing suite on the Pixel 8a reference environment.
 4. Generate the release Android App Bundle.
 5. Verify bundle contents, versions, package, signing, shrinker output, and acoustic resources.
-6. Distribute through an internal Play track and perform a smoke test.
-7. Record the commit, toolchains, device result, and artifact checksum.
+6. Review Play Console device and Android-version distribution before release, and record any remaining pre-Android 12 users who will no longer receive updates.
+7. Distribute through an internal Play track and perform a smoke test.
+8. Record the commit, toolchains, device result, and artifact checksum.
 
 Never commit signing keys, credentials, private audio, or private manifests.
 

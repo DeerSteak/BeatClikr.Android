@@ -1,0 +1,134 @@
+package com.bfunkstudios.beatclikr.music
+
+data class FrameRange(
+    val startFrame: Long,
+    val endFrameExclusive: Long
+) {
+    init {
+        require(startFrame >= 0) { "Start frame must not be negative" }
+        require(endFrameExclusive >= startFrame) { "End frame must not precede start frame" }
+    }
+}
+
+class AbsoluteAudioTimeline(
+    sampleRate: Int,
+    intervalsPerMinute: ExactFraction
+) {
+    val framesPerInterval: ExactFraction
+
+    init {
+        require(sampleRate > 0) { "Sample rate must be positive" }
+        require(intervalsPerMinute > ExactFraction.of(0)) { "Intervals per minute must be positive" }
+        framesPerInterval =
+            ExactFraction.of(sampleRate.toLong()) * ExactFraction.of(60) / intervalsPerMinute
+        require(framesPerInterval >= ExactFraction.of(1)) {
+            "Each interval must occupy at least one frame"
+        }
+    }
+
+    fun framePosition(intervalIndex: Long): Long {
+        require(intervalIndex >= 0) { "Interval index must not be negative" }
+        return (framesPerInterval * intervalIndex).roundedLong()
+    }
+
+    fun firstIntervalAtOrAfter(frame: Long): Long {
+        require(frame >= 0) { "Frame must not be negative" }
+        var candidate = (
+            ExactFraction.of(frame) / framesPerInterval
+        ).floorLong().coerceAtLeast(0)
+        while (candidate > 0 && framePosition(candidate - 1) >= frame) candidate--
+        while (framePosition(candidate) < frame) {
+            require(candidate < Long.MAX_VALUE) { "Interval index exhausted" }
+            candidate++
+        }
+        return candidate
+    }
+}
+
+class StandardMetronomeTimeline(
+    val configuration: StandardMetronomeConfiguration,
+    val sampleRate: Int,
+    val origin: SessionOrigin
+) {
+    private val patternSize: Int
+    private val subdivisions: Int
+    private val timeline: AbsoluteAudioTimeline
+
+    init {
+        when (val timing = configuration.timing) {
+            is StandardTiming.Regular -> {
+                patternSize = timing.subdivision.subdivisions
+                subdivisions = timing.subdivision.subdivisions
+            }
+            is StandardTiming.Additive -> {
+                patternSize = timing.accents.size
+                subdivisions = timing.stepUnit.subdivisions
+            }
+        }
+        val intervalsPerMinute =
+            configuration.bpm.beatsPerMinute * ExactFraction.of(subdivisions.toLong())
+        timeline = AbsoluteAudioTimeline(sampleRate, intervalsPerMinute)
+    }
+
+    fun eventsIn(range: FrameRange): Sequence<FrameEvent> = sequence {
+        if (range.endFrameExclusive <= origin.originFrame) return@sequence
+        val relativeStart = (range.startFrame - origin.originFrame).coerceAtLeast(0)
+        var intervalIndex = timeline.firstIntervalAtOrAfter(relativeStart)
+        while (true) {
+            val intendedFrame = Math.addExact(
+                origin.originFrame,
+                timeline.framePosition(intervalIndex)
+            )
+            if (intendedFrame >= range.endFrameExclusive) break
+            if (intendedFrame >= range.startFrame) {
+                yield(eventAt(intervalIndex, intendedFrame))
+            }
+            require(intervalIndex < Long.MAX_VALUE) { "Interval index exhausted" }
+            intervalIndex++
+        }
+    }
+
+    private fun eventAt(intervalIndex: Long, intendedFrame: Long): FrameEvent {
+        val index = (intervalIndex % patternSize).toInt()
+        val isBeat = isBeat(index)
+        val usesBeatSound = usesBeatSound(index, isBeat)
+        return FrameEvent(
+            sequence = EventSequence(origin.sessionID, intervalIndex),
+            intendedFrame = intendedFrame,
+            primary = EventVoice(
+                role = MusicalEventRole.STANDARD,
+                soundRole = if (usesBeatSound) SoundRole.BEAT else SoundRole.RHYTHM,
+                beatIdentity = beatIdentity(index, isBeat),
+                position = CyclePosition(
+                    cycleIndex = intervalIndex / patternSize,
+                    index = index
+                )
+            ),
+            muteMetronome = configuration.muteMetronome
+        )
+    }
+
+    private fun isBeat(index: Int): Boolean =
+        when (val timing = configuration.timing) {
+            is StandardTiming.Regular -> index == 0
+            is StandardTiming.Additive -> timing.accents[index]
+        }
+
+    private fun usesBeatSound(index: Int, isBeat: Boolean): Boolean =
+        when (configuration.timing) {
+            is StandardTiming.Additive -> isBeat
+            is StandardTiming.Regular ->
+                index == 0 ||
+                    configuration.alternateSixteenth &&
+                    subdivisions == StandardSubdivision.SIXTEENTH.subdivisions &&
+                    index % 2 == 0
+        }
+
+    private fun beatIdentity(index: Int, isBeat: Boolean): BeatIdentity =
+        when (configuration.timing) {
+            is StandardTiming.Additive ->
+                if (isBeat) BeatIdentity.ACCENT else BeatIdentity.SUBDIVISION
+            is StandardTiming.Regular ->
+                if (index == 0) BeatIdentity.BEAT else BeatIdentity.SUBDIVISION
+        }
+}

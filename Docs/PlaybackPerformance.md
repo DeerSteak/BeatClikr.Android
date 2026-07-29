@@ -12,6 +12,8 @@ intervalNs = 60,000,000,000 / bpm
 
 Subdivisions and polyrhythms derive deadlines from that interval. The replacement scheduler must meet contract clauses MT-030 through MT-032 by dropping expired events, avoiding catch-up bursts, preserving the session time base, and carrying fractional sample-frame remainder.
 
+The Android-free `AbsoluteAudioTimeline` derives every frame independently from an exact rational interval and global index, matching iOS’s absolute-rounding behavior without its `Double` representation. `StandardMetronomeTimeline` answers absolute frame-range requests without moving the origin or retaining a polling cursor. It is not connected to production audio yet.
+
 ## Output pipeline
 
 WAV files are decoded to PCM and cached in persistent internal storage. This avoids cache eviction causing an unexpected decode spike during playback. The mixer selects samples, combines coincident events, clips safely, and streams fixed-size chunks to `AudioTrack`.

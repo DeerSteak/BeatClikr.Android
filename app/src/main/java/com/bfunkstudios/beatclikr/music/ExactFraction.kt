@@ -14,6 +14,15 @@ class ExactFraction private constructor(
     operator fun times(other: ExactFraction): ExactFraction =
         create(numerator * other.numerator, denominator * other.denominator)
 
+    operator fun times(other: Long): ExactFraction =
+        create(numerator * BigInteger.valueOf(other), denominator)
+
+    operator fun plus(other: ExactFraction): ExactFraction =
+        create(
+            numerator * other.denominator + other.numerator * denominator,
+            denominator * other.denominator
+        )
+
     operator fun div(other: ExactFraction): ExactFraction {
         require(other.numerator != BigInteger.ZERO) { "Cannot divide by zero" }
         return create(numerator * other.denominator, denominator * other.numerator)
@@ -29,6 +38,25 @@ class ExactFraction private constructor(
 
     override fun toString(): String =
         if (denominator == BigInteger.ONE) numerator.toString() else "$numerator/$denominator"
+
+    fun roundedLong(): Long {
+        val division = numerator.divideAndRemainder(denominator)
+        val quotient = division[0]
+        val remainder = division[1]
+        val adjustment = when {
+            remainder.abs() * BigInteger.valueOf(2) < denominator -> BigInteger.ZERO
+            numerator.signum() >= 0 -> BigInteger.ONE
+            else -> BigInteger.ONE.negate()
+        }
+        return (quotient + adjustment).longValueExact()
+    }
+
+    fun floorLong(): Long {
+        val division = numerator.divideAndRemainder(denominator)
+        val quotient = division[0]
+        val hasNegativeRemainder = division[1].signum() < 0
+        return (if (hasNegativeRemainder) quotient - BigInteger.ONE else quotient).longValueExact()
+    }
 
     companion object {
         fun of(value: Long): ExactFraction = create(BigInteger.valueOf(value), BigInteger.ONE)
@@ -65,6 +93,12 @@ class ExactTempo private constructor(
     fun framesPerQuarter(sampleRate: Int): ExactFraction {
         require(sampleRate > 0) { "Sample rate must be positive" }
         return ExactFraction.of(sampleRate.toLong()) * quarterNoteDurationSeconds
+    }
+
+    fun increasedBy(increment: Int): ExactTempo {
+        require(increment > 0) { "Tempo increment must be positive" }
+        val increased = beatsPerMinute + ExactFraction.of(increment.toLong())
+        return ExactTempo(if (increased > maximumBpm) maximumBpm else increased)
     }
 
     override fun equals(other: Any?): Boolean =
