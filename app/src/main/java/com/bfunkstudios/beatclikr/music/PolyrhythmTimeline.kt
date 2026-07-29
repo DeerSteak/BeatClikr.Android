@@ -33,6 +33,15 @@ class PolyrhythmTimeline(
         }
     }
 
+    override fun eventCountIn(range: FrameRange): Long {
+        if (range.endFrameExclusive <= origin.originFrame) return 0
+        val relativeStart = (range.startFrame - origin.originFrame).coerceAtLeast(0)
+        val relativeEnd = range.endFrameExclusive - origin.originFrame
+        val firstSlot = timeline.firstIntervalAtOrAfter(relativeStart)
+        val endSlot = timeline.firstIntervalAtOrAfter(relativeEnd)
+        return Math.subtractExact(eventCountBefore(endSlot), eventCountBefore(firstSlot))
+    }
+
     private fun eventAt(slotIndex: Long, slot: Int, intendedFrame: Long): FrameEvent {
         val cycleIndex = slotIndex / slotsPerCycle
         val beatFired = slot % beatSlotInterval == 0
@@ -72,6 +81,17 @@ class PolyrhythmTimeline(
 
     private fun hasEventAt(slot: Int): Boolean =
         slot % beatSlotInterval == 0 || slot % rhythmSlotInterval == 0
+
+    private fun eventCountBefore(slotIndex: Long): Long {
+        val completeCycles = slotIndex / slotsPerCycle
+        val slotInCycle = (slotIndex % slotsPerCycle).toInt()
+        val insertion = eventSlots.binarySearch(slotInCycle)
+        val partialCount = if (insertion >= 0) insertion else -insertion - 1
+        return Math.addExact(
+            Math.multiplyExact(completeCycles, eventSlots.size.toLong()),
+            partialCount.toLong()
+        )
+    }
 
     private fun leastCommonMultiple(first: Int, second: Int): Int =
         first / greatestCommonDivisor(first, second) * second

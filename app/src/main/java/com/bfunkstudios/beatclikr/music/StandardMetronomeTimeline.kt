@@ -89,6 +89,15 @@ class StandardMetronomeTimeline(
         }
     }
 
+    override fun eventCountIn(range: FrameRange): Long {
+        if (range.endFrameExclusive <= origin.originFrame) return 0
+        val relativeStart = (range.startFrame - origin.originFrame).coerceAtLeast(0)
+        val relativeEnd = range.endFrameExclusive - origin.originFrame
+        val first = timeline.firstIntervalAtOrAfter(relativeStart)
+        val end = timeline.firstIntervalAtOrAfter(relativeEnd)
+        return Math.subtractExact(end, first)
+    }
+
     private fun eventAt(intervalIndex: Long, intendedFrame: Long): FrameEvent {
         val index = (intervalIndex % patternSize).toInt()
         val isBeat = isBeat(index)

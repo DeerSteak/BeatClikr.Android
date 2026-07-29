@@ -10,6 +10,7 @@ interface FrameEventTimeline {
     val mode: TimelineMode
 
     fun eventsIn(range: FrameRange): Sequence<FrameEvent>
+    fun eventCountIn(range: FrameRange): Long
 }
 
 data class DeadlineDiagnostics(
@@ -28,7 +29,7 @@ data class DeadlineDiagnostics(
     }
 }
 
-data class DeadlineRecoveryState(
+class DeadlineRecoveryState private constructor(
     val sessionID: SessionID,
     val mode: TimelineMode,
     val originFrame: Long,
@@ -57,6 +58,18 @@ data class DeadlineRecoveryState(
                 )
             )
     }
+
+    internal fun advanced(
+        nextUnprocessedFrame: Long,
+        diagnostics: DeadlineDiagnostics
+    ): DeadlineRecoveryState =
+        DeadlineRecoveryState(
+            sessionID = sessionID,
+            mode = mode,
+            originFrame = originFrame,
+            nextUnprocessedFrame = nextUnprocessedFrame,
+            diagnostics = diagnostics
+        )
 }
 
 data class DeadlineRecoveryResult(
@@ -84,7 +97,7 @@ object DeadlineRecovery {
         }
         val expiredEnd = minOf(renderWindow.startFrame, renderWindow.endFrameExclusive)
         val expiredCount = if (expiredEnd > searchStart) {
-            timeline.eventsIn(FrameRange(searchStart, expiredEnd)).countLong()
+            timeline.eventCountIn(FrameRange(searchStart, expiredEnd))
         } else {
             0
         }
@@ -92,10 +105,6 @@ object DeadlineRecovery {
         val events = timeline.eventsIn(
             FrameRange(futureStart, renderWindow.endFrameExclusive)
         ).toList()
-        require(events.zipWithNext().all { (first, second) ->
-            first.intendedFrame < second.intendedFrame &&
-                first.sequence.index < second.sequence.index
-        }) { "Committed events must be strictly ordered and unique" }
 
         val diagnostics = state.diagnostics.copy(
             deadlineMisses = Math.addExact(state.diagnostics.deadlineMisses, expiredCount),
@@ -108,13 +117,7 @@ object DeadlineRecovery {
         )
         return DeadlineRecoveryResult(
             events = events,
-            state = state.copy(
-                nextUnprocessedFrame = renderWindow.endFrameExclusive,
-                diagnostics = diagnostics
-            )
+            state = state.advanced(renderWindow.endFrameExclusive, diagnostics)
         )
     }
 }
-
-private fun Sequence<FrameEvent>.countLong(): Long =
-    fold(0L) { count, _ -> Math.incrementExact(count) }

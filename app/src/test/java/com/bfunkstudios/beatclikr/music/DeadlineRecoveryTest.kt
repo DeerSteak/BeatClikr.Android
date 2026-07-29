@@ -117,6 +117,78 @@ class DeadlineRecoveryTest {
     }
 
     @Test
+    fun expiredRangeUsesConstantTimeCountInsteadOfEnumeratingDroppedEvents() {
+        val timeline = object : FrameEventTimeline {
+            override val origin = SessionOrigin(SessionID(20), 0)
+            override val mode = TimelineMode.STANDARD
+
+            override fun eventCountIn(range: FrameRange): Long {
+                assertEquals(FrameRange(0, 1_000_000_000), range)
+                return 8_000_000
+            }
+
+            override fun eventsIn(range: FrameRange): Sequence<FrameEvent> {
+                assertEquals(FrameRange(1_000_000_000, 1_000_000_100), range)
+                return emptySequence()
+            }
+        }
+
+        val result = DeadlineRecovery.process(
+            timeline,
+            DeadlineRecoveryState.atOrigin(timeline),
+            FrameRange(1_000_000_000, 1_000_000_100)
+        )
+
+        assertTrue(result.events.isEmpty())
+        assertEquals(8_000_000L, result.state.diagnostics.deadlineMisses)
+        assertEquals(1_000_000_100L, result.state.nextUnprocessedFrame)
+    }
+
+    @Test
+    fun constantTimeCountsMatchEnumerationForEveryPolyrhythmRatio() {
+        for (beats in PolyrhythmConfiguration.SUPPORTED_COUNT) {
+            for (against in PolyrhythmConfiguration.SUPPORTED_COUNT) {
+                val timeline = PolyrhythmTimeline(
+                    PolyrhythmConfiguration(ExactTempo.parse("137.5"), beats, against),
+                    48_000,
+                    SessionOrigin(SessionID(30), 7_000)
+                )
+                val range = FrameRange(123_456, 987_654)
+
+                assertEquals(
+                    "$beats:$against",
+                    timeline.eventsIn(range).count().toLong(),
+                    timeline.eventCountIn(range)
+                )
+            }
+        }
+    }
+
+    @Test
+    fun constantTimeStandardCountsMatchEnumerationAcrossTimings() {
+        val timings = StandardSubdivision.entries.map { StandardTiming.Regular(it) } +
+            StandardTiming.Additive(
+                AdditiveStepUnit.EIGHTH,
+                AccentPattern.of(listOf(true, false, false, true, false, true, false))
+            )
+
+        timings.forEach { timing ->
+            val timeline = StandardMetronomeTimeline(
+                StandardMetronomeConfiguration(ExactTempo.parse("137.5"), timing),
+                48_000,
+                SessionOrigin(SessionID(31), 7_000)
+            )
+            val range = FrameRange(123_456, 987_654)
+
+            assertEquals(
+                timing.toString(),
+                timeline.eventsIn(range).count().toLong(),
+                timeline.eventCountIn(range)
+            )
+        }
+    }
+
+    @Test
     fun staleSessionModeAndMovedOriginAreRejected() {
         val timeline = standardTimeline()
         val state = DeadlineRecoveryState.atOrigin(timeline)
