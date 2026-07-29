@@ -42,6 +42,19 @@ Override the duration from 1–60 minutes with `-Pandroid.testInstrumentationRun
 
 Instrumentation writes timing metrics to test output. Preserve a baseline in `benchmarks/` when the environment or timing implementation changes.
 
+## Contract test convention
+
+Tests that enforce approved contracts begin their method name with the normalized lowercase contract IDs they cover, joined by underscores, such as `mt001_mt003_supportedTempoBoundsAndDecimalBpmAreScheduledWithoutRounding`. Keep the descriptive suffix readable in Gradle and Android test reports. Use the same convention for `PL-*`, `PH-*`, and `TB-*` clauses.
+
+`StandardMetronomeContractFixtures` contains resource-independent BPM, subdivision, tick, beat, and abstract sound-role cases corresponding to the representative iOS `MetronomeConstantsTests`, `GrooveTests`, and `MetronomeAudioBlockPlan` cases. `StandardMetronomeContractInstrumentedTest` runs those fixtures through the real Android engine.
+
+Run only the standard-metronome characterization suite on an attached emulator:
+
+```bash
+ANDROID_SERIAL="emulator-5554" ./gradlew --no-daemon connectedDebugAndroidTest \
+  -Pandroid.testInstrumentationRunnerArguments.class=com.bfunkstudios.beatclikr.StandardMetronomeContractInstrumentedTest
+```
+
 ## Git hooks
 
 Enable the tracked hooks once per checkout:

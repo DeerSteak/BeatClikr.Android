@@ -8,6 +8,8 @@ Services isolate audio, device feedback, reminder scheduling, and repository beh
 
 `MetronomeAudioEngine` manages audio focus, timing threads, standard beat scheduling, and the polyrhythm engine. `PolyrhythmTimingEngine` advances two rhythms on a shared monotonic timeline. `AudioTrackEngine` mixes cached mono PCM samples into a streaming `AudioTrack`; `PcmFileCache` decodes Android raw resources into persistent internal PCM files.
 
+`AudioTrackMetricsSnapshot` reports aggregate queued clicks and separate beat/rhythm enqueue counts so contract tests can verify sound roles without depending on Android resource IDs or inspecting proprietary waveforms.
+
 The current scheduler is polling-based and does not place events at exact sample offsets within render blocks. See [PlaybackPerformance.md](PlaybackPerformance.md) and the [adversarial review](../ADVERSARIAL_PROJECT_REVIEW.md) for the replacement requirements.
 
 ## Secondary output services

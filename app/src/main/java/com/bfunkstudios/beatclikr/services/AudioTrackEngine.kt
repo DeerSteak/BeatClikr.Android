@@ -21,6 +21,8 @@ data class AudioTrackMetricsSnapshot(
     val renderChunkFrames: Int,
     val estimatedOutputLatencyNanos: Long,
     val queuedClicks: Long,
+    val queuedBeatClicks: Long,
+    val queuedRhythmClicks: Long,
     val renderedChunks: Long,
     val writtenFrames: Long,
     val maxActiveClicks: Int,
@@ -60,6 +62,12 @@ class AudioTrackEngine(
     private var queuedClicks = 0L
 
     @Volatile
+    private var queuedBeatClicks = 0L
+
+    @Volatile
+    private var queuedRhythmClicks = 0L
+
+    @Volatile
     private var renderedChunks = 0L
 
     @Volatile
@@ -79,6 +87,8 @@ class AudioTrackEngine(
         renderChunkFrames = renderChunkFrames,
         estimatedOutputLatencyNanos = estimatedOutputLatencyNanos,
         queuedClicks = queuedClicks,
+        queuedBeatClicks = queuedBeatClicks,
+        queuedRhythmClicks = queuedRhythmClicks,
         renderedChunks = renderedChunks,
         writtenFrames = writtenFrames,
         maxActiveClicks = maxActiveClicks,
@@ -122,11 +132,11 @@ class AudioTrackEngine(
     }
 
     fun playBeat() {
-        enqueueWaveform(ensureWaveform(beatSound))
+        enqueueWaveform(ensureWaveform(beatSound), isBeat = true)
     }
 
     fun playRhythm() {
-        enqueueWaveform(ensureWaveform(rhythmSound))
+        enqueueWaveform(ensureWaveform(rhythmSound), isBeat = false)
     }
 
     fun playBeatAndRhythm() {
@@ -136,6 +146,8 @@ class AudioTrackEngine(
             pendingClicks.addLast(beatWaveform)
             pendingClicks.addLast(rhythmWaveform)
             queuedClicks += 2L
+            queuedBeatClicks++
+            queuedRhythmClicks++
         }
     }
 
@@ -170,10 +182,11 @@ class AudioTrackEngine(
         synchronized(waveformLock) { waveforms.clear() }
     }
 
-    private fun enqueueWaveform(waveform: ShortArray) {
+    private fun enqueueWaveform(waveform: ShortArray, isBeat: Boolean) {
         synchronized(pendingClicksLock) {
             pendingClicks.addLast(waveform)
             queuedClicks += 1L
+            if (isBeat) queuedBeatClicks++ else queuedRhythmClicks++
         }
     }
 

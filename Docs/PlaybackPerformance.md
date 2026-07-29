@@ -41,6 +41,8 @@ Release builds validate the real files. CI generates deterministic, non-propriet
 
 The emulator instrumentation harness exercises the real PCM decoder and audio engines. Its baseline covers every required sound, dense standard scheduling, polyrhythm scheduling, callback interval error, underruns, and output chunks.
 
+The standard-metronome contract suite additionally covers the 30–240 BPM bounds, a 137.5 BPM decimal fixture, all four standard subdivision counts, tick-zero starts, beat/rhythm sound roles, mute event and phase continuity, stop/reset behavior, and the absence of an implicit count-in. The same focused suite passes against debug and minified release-equivalent builds on the Android 17 emulator.
+
 The recorded result is in [`benchmarks/2026-07-28-android-17-emulator.md`](../benchmarks/2026-07-28-android-17-emulator.md). It is a regression reference, not a physical-device audio benchmark.
 
 The first Pixel 8a engine result is in [`benchmarks/2026-07-28-pixel-8a-android-17.md`](../benchmarks/2026-07-28-pixel-8a-android-17.md). It exercises real hardware but still measures software callbacks rather than acoustic onset.
