@@ -34,6 +34,53 @@ class FrameRangeEventSourceTest {
         assertVisitorMatchesEvents(timeline, 8_000, 300_000)
     }
 
+    @Test
+    fun adjacentRenderBlocksMatchOneWholeRange() {
+        val timeline = StandardMetronomeTimeline(
+            configuration = StandardMetronomeConfiguration(
+                bpm = ExactTempo.of(240),
+                timing = StandardTiming.Regular(StandardSubdivision.SIXTEENTH),
+                muteMetronome = true
+            ),
+            sampleRate = 48_000,
+            origin = SessionOrigin(SessionID(4), 0)
+        )
+        val whole = visit(timeline, 0, 12_800)
+        val blocks = mutableListOf<VisitedEvent>()
+
+        var startFrame = 0L
+        while (startFrame < 12_800) {
+            timeline.visitEvents(startFrame, startFrame + 64) { frame, primary, secondary, muted ->
+                blocks += VisitedEvent(frame, primary, secondary, muted)
+                true
+            }
+            startFrame += 64
+        }
+
+        assertEquals(whole, blocks)
+        assertEquals(true, blocks.all { it.muted })
+    }
+
+    @Test
+    fun consumerAbortStopsCurrentRangeImmediately() {
+        val timeline = StandardMetronomeTimeline(
+            configuration = StandardMetronomeConfiguration(
+                bpm = ExactTempo.of(240),
+                timing = StandardTiming.Regular(StandardSubdivision.SIXTEENTH)
+            ),
+            sampleRate = 48_000,
+            origin = SessionOrigin(SessionID(5), 0)
+        )
+        var visits = 0
+
+        timeline.visitEvents(0, 30_000) { _, _, _, _ ->
+            visits++
+            false
+        }
+
+        assertEquals(1, visits)
+    }
+
     private fun assertVisitorMatchesEvents(
         timeline: FrameEventTimeline,
         startFrame: Long,
@@ -57,6 +104,19 @@ class FrameRangeEventSourceTest {
         }
 
         assertEquals(expected, visited)
+    }
+
+    private fun visit(
+        timeline: FrameEventTimeline,
+        startFrame: Long,
+        endFrameExclusive: Long
+    ): List<VisitedEvent> {
+        val visited = mutableListOf<VisitedEvent>()
+        timeline.visitEvents(startFrame, endFrameExclusive) { frame, primary, secondary, muted ->
+            visited += VisitedEvent(frame, primary, secondary, muted)
+            true
+        }
+        return visited
     }
 
     private data class VisitedEvent(

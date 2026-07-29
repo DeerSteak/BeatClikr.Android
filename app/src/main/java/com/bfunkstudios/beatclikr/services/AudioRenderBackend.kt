@@ -47,7 +47,7 @@ data class AudioBackendStreamProperties(
 ) {
     init {
         require(sampleRate > 0) { "Sample rate must be positive" }
-        require(channelCount == 1) { "Phase 3 renderer requires mono output" }
+        require(channelCount > 0) { "Channel count must be positive" }
         require(burstFrames > 0) { "Burst frames must be positive" }
         require(bufferFrames >= burstFrames) { "Buffer must contain at least one burst" }
     }

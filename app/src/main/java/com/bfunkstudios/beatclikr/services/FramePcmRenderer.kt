@@ -13,12 +13,6 @@ class RenderWaveforms(
         require(beat.isNotEmpty()) { "Beat waveform must not be empty" }
         require(rhythm.isNotEmpty()) { "Rhythm waveform must not be empty" }
     }
-
-    fun waveform(role: SoundRole): ShortArray =
-        when (role) {
-            SoundRole.BEAT -> beat
-            SoundRole.RHYTHM -> rhythm
-        }
 }
 
 enum class FrameRenderResult {
@@ -33,7 +27,7 @@ class FramePcmRenderer(
     private val waveforms: RenderWaveforms,
     maximumActiveVoices: Int
 ) : FrameRangeEventConsumer {
-    private val activeWaveforms: Array<ShortArray?> = arrayOfNulls(maximumActiveVoices)
+    private val activeRoles = ByteArray(maximumActiveVoices)
     private val activePositions = IntArray(maximumActiveVoices)
     private var accumulator = IntArray(0)
     private var blockStartFrame = 0L
@@ -70,8 +64,8 @@ class FramePcmRenderer(
 
     fun reset() {
         var slot = 0
-        while (slot < activeWaveforms.size) {
-            activeWaveforms[slot] = null
+        while (slot < activeRoles.size) {
+            activeRoles[slot] = NO_VOICE
             activePositions[slot] = 0
             slot++
         }
@@ -118,26 +112,30 @@ class FramePcmRenderer(
             return
         }
         var slot = 0
-        while (slot < activeWaveforms.size && activeWaveforms[slot] != null) slot++
-        if (slot == activeWaveforms.size) {
+        while (slot < activeRoles.size && activeRoles[slot] != NO_VOICE) slot++
+        if (slot == activeRoles.size) {
             result = FrameRenderResult.VOICE_CAPACITY_EXCEEDED
             return
         }
-        activeWaveforms[slot] = waveforms.waveform(role)
+        activeRoles[slot] = if (role == SoundRole.BEAT) BEAT_VOICE else RHYTHM_VOICE
         activePositions[slot] = 0
         mixVoice(slot, offset.toInt())
     }
 
     private fun mixExistingVoices() {
         var slot = 0
-        while (slot < activeWaveforms.size) {
-            if (activeWaveforms[slot] != null) mixVoice(slot, 0)
+        while (slot < activeRoles.size) {
+            if (activeRoles[slot] != NO_VOICE) mixVoice(slot, 0)
             slot++
         }
     }
 
     private fun mixVoice(slot: Int, outputOffset: Int) {
-        val waveform = activeWaveforms[slot] ?: return
+        val waveform = when (activeRoles[slot]) {
+            BEAT_VOICE -> waveforms.beat
+            RHYTHM_VOICE -> waveforms.rhythm
+            else -> return
+        }
         var sourceIndex = activePositions[slot]
         var outputIndex = outputOffset
         while (sourceIndex < waveform.size && outputIndex < blockFrameCount) {
@@ -146,7 +144,7 @@ class FramePcmRenderer(
             outputIndex++
         }
         if (sourceIndex == waveform.size) {
-            activeWaveforms[slot] = null
+            activeRoles[slot] = NO_VOICE
             activePositions[slot] = 0
         } else {
             activePositions[slot] = sourceIndex
@@ -161,5 +159,11 @@ class FramePcmRenderer(
                 .toShort()
             index++
         }
+    }
+
+    private companion object {
+        const val NO_VOICE: Byte = 0
+        const val BEAT_VOICE: Byte = 1
+        const val RHYTHM_VOICE: Byte = 2
     }
 }

@@ -78,6 +78,18 @@ class AudioRenderBackendTest {
         assertEquals(AudioBackendFailureCode.START_REJECTED, failures.last().code)
     }
 
+    @Test
+    fun obtainedPropertiesCanReportDeviceSelectedStereo() {
+        val properties = AudioBackendStreamProperties(
+            sampleRate = 48_000,
+            channelCount = 2,
+            burstFrames = 192,
+            bufferFrames = 384
+        )
+
+        assertEquals(2, properties.channelCount)
+    }
+
     private class RecordingBackend : AudioRenderBackend {
         private var failureSink = AudioBackendFailureSink {}
         private var timestampAvailable = true

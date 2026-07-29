@@ -4,6 +4,8 @@ import com.bfunkstudios.beatclikr.music.ExactTempo
 import com.bfunkstudios.beatclikr.music.SoundRole
 import com.bfunkstudios.beatclikr.music.FrameRangeEventConsumer
 import com.bfunkstudios.beatclikr.music.FrameRangeEventSource
+import com.bfunkstudios.beatclikr.music.PolyrhythmConfiguration
+import com.bfunkstudios.beatclikr.music.PolyrhythmTimeline
 import com.bfunkstudios.beatclikr.music.SessionID
 import com.bfunkstudios.beatclikr.music.SessionOrigin
 import com.bfunkstudios.beatclikr.music.StandardMetronomeConfiguration
@@ -130,7 +132,7 @@ class FramePcmRendererTest {
     }
 
     @Test
-    fun invalidOverflowDoesNotConsumeActiveTail() {
+    fun discontinuousRangeDoesNotConsumeActiveTail() {
         val renderer = renderer(
             RecordingEventSource(Event(0, SoundRole.BEAT)),
             beat = shortArrayOf(1, 2, 3),
@@ -148,7 +150,20 @@ class FramePcmRendererTest {
     }
 
     @Test
-    fun preparedHappyPathAllocatesNoRenderThreadMemory() {
+    fun overflowingRangeIsRejectedBeforeEventSourceIsVisited() {
+        val source = CountingEventSource()
+        val renderer = renderer(source, shortArrayOf(1), shortArrayOf(1))
+        renderer.reset()
+
+        assertEquals(
+            FrameRenderResult.INVALID_RANGE,
+            renderer.render(Long.MAX_VALUE, ShortArray(1), 1)
+        )
+        assertEquals(0, source.visitCount)
+    }
+
+    @Test
+    fun standardTimelinePreparedRenderAllocatesNoMemory() {
         val timeline = StandardMetronomeTimeline(
             configuration = StandardMetronomeConfiguration(
                 bpm = ExactTempo.of(240),
@@ -158,6 +173,25 @@ class FramePcmRendererTest {
             origin = SessionOrigin(SessionID(1), 0)
         )
         val renderer = renderer(timeline, shortArrayOf(1), shortArrayOf(1))
+        assertPreparedRenderAllocatesNoMemory(renderer)
+    }
+
+    @Test
+    fun polyrhythmTimelinePreparedRenderAllocatesNoMemory() {
+        val timeline = PolyrhythmTimeline(
+            configuration = PolyrhythmConfiguration(
+                bpm = ExactTempo.of(173),
+                beats = 5,
+                against = 7
+            ),
+            sampleRate = 48_000,
+            origin = SessionOrigin(SessionID(2), 0)
+        )
+        val renderer = renderer(timeline, shortArrayOf(1), shortArrayOf(1))
+        assertPreparedRenderAllocatesNoMemory(renderer)
+    }
+
+    private fun assertPreparedRenderAllocatesNoMemory(renderer: FramePcmRenderer) {
         val output = ShortArray(64)
         var startFrame = 0L
         repeat(100_000) {
@@ -233,6 +267,19 @@ class FramePcmRendererTest {
         ): Boolean {
             consumer.accept(startFrame, SoundRole.BEAT, null, false)
             return false
+        }
+    }
+
+    private class CountingEventSource : FrameRangeEventSource {
+        var visitCount = 0
+
+        override fun visitEvents(
+            startFrame: Long,
+            endFrameExclusive: Long,
+            consumer: FrameRangeEventConsumer
+        ): Boolean {
+            visitCount++
+            return true
         }
     }
 }
