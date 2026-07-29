@@ -43,6 +43,8 @@ Room version 4 is the supported migration baseline. Unknown versions 1–3 are d
 - `SoundBank` selects acoustic or synthetic mappings.
 - `ClickerType` distinguishes instant and song playback contexts.
 
+The Phase 2 music package is deliberately Android-free. Its exact configurations, timelines, commands, boundary reducer, ramp state, and deadline recovery can therefore be simulated for hours and fuzzed with deterministic command sequences in ordinary JVM tests.
+
 Where concepts already exist on iOS, the Android-free model uses the same terminology: `bpm`, `beats`, `against`, `subdivisions`, `alternateSixteenth`, `muteMetronome`, `sessionID`, `cycleIndex`, and event `index`. New frame-domain concepts retain their contract-oriented names until both platforms adopt a shared replacement model.
 
 Several enums currently contain display text. Moving presentation strings to localized resources remains remediation work.
