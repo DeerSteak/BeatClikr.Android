@@ -62,7 +62,7 @@ The Phase 2.4 command suite verifies stale-session rejection, strict same-bounda
 
 `PlaybackInputBoundaryTest` verifies that invalid external configurations and command batches become typed failures before render handoff, valid values remain available to production consumers, and unexpected implementation exceptions are not mislabeled as recoverable input errors.
 
-The Phase 3.1 renderer suite verifies exact in-block offsets, adjacent-block waveform tails, coincident and overlapping voices, final-stage saturating conversion, mute handling, bounded voice-capacity failures, source failures, and zero measured JVM allocation across repeated prepared renders. Its architecture test rejects locking, sleeping, logging, file/database access, and thread handoff from the renderer source.
+The Phase 3.1 renderer suite verifies exact in-block offsets, adjacent-block waveform tails, reset and discontinuity handling, coincident and overlapping voices, final-stage saturating conversion, mute handling, silent failure blocks, and zero measured JVM allocation while rendering from a real Phase 2 timeline. Its architecture tripwire scans `FramePcmRenderer.kt` for common locking, sleeping, logging, file/database access, and thread-handoff tokens; it does not replace review of event-source implementations.
 
 The Phase 2.5 recovery suite verifies multi-event stalls, direct future-event selection, constant-time range counts, exact deadline and drop counts, coincident polyrhythm drops, repeated recovery windows, overlapping render windows, immutable origins, and stale session or mode rejection. Expired events are counted but never enumerated or returned to the renderer, preventing recovery work and catch-up output from scaling with the duration of a stall.
 

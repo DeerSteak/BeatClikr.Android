@@ -5,7 +5,24 @@ enum class TimelineMode {
     POLYRHYTHM
 }
 
-interface FrameEventTimeline {
+fun interface FrameRangeEventConsumer {
+    fun accept(
+        intendedFrame: Long,
+        primarySound: SoundRole,
+        secondarySound: SoundRole?,
+        muted: Boolean
+    ): Boolean
+}
+
+interface FrameRangeEventSource {
+    fun visitEvents(
+        startFrame: Long,
+        endFrameExclusive: Long,
+        consumer: FrameRangeEventConsumer
+    ): Boolean
+}
+
+interface FrameEventTimeline : FrameRangeEventSource {
     val origin: SessionOrigin
     val mode: TimelineMode
 

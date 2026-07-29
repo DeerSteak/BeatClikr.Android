@@ -15,6 +15,7 @@ class AbsoluteAudioTimeline(
     intervalsPerMinute: ExactFraction
 ) {
     val framesPerInterval: ExactFraction
+    private val renderPeriod: RenderFramePeriod
 
     init {
         require(sampleRate > 0) { "Sample rate must be positive" }
@@ -24,24 +25,49 @@ class AbsoluteAudioTimeline(
         require(framesPerInterval >= ExactFraction.of(1)) {
             "Each interval must occupy at least one frame"
         }
+        renderPeriod = RenderFramePeriod(framesPerInterval)
     }
 
     fun framePosition(intervalIndex: Long): Long {
         require(intervalIndex >= 0) { "Interval index must not be negative" }
-        return (framesPerInterval * intervalIndex).roundedLong()
+        return renderPeriod.framePosition(intervalIndex)
     }
 
     fun firstIntervalAtOrAfter(frame: Long): Long {
         require(frame >= 0) { "Frame must not be negative" }
-        var candidate = (
-            ExactFraction.of(frame) / framesPerInterval
-        ).floorLong().coerceAtLeast(0)
+        var candidate = renderPeriod.estimateInterval(frame)
         while (candidate > 0 && framePosition(candidate - 1) >= frame) candidate--
         while (framePosition(candidate) < frame) {
             require(candidate < Long.MAX_VALUE) { "Interval index exhausted" }
             candidate++
         }
         return candidate
+    }
+}
+
+private class RenderFramePeriod(period: ExactFraction) {
+    private val numerator = period.numerator.longValueExact()
+    private val denominator = period.denominator.longValueExact()
+    private val wholeFrames = numerator / denominator
+    private val remainder = numerator % denominator
+
+    fun estimateInterval(frame: Long): Long = (frame / wholeFrames).coerceAtLeast(0)
+
+    fun framePosition(intervalIndex: Long): Long {
+        val completeRemainderCycles = intervalIndex / denominator
+        val partialCycleIndex = intervalIndex % denominator
+        val partialProduct = Math.multiplyExact(partialCycleIndex, remainder)
+        val partialFrames = partialProduct / denominator
+        val partialRemainder = partialProduct % denominator
+        val roundingThreshold = denominator / 2 + denominator % 2
+        val roundedPartial = partialFrames + if (partialRemainder >= roundingThreshold) 1 else 0
+        return Math.addExact(
+            Math.addExact(
+                Math.multiplyExact(intervalIndex, wholeFrames),
+                Math.multiplyExact(completeRemainderCycles, remainder)
+            ),
+            roundedPartial
+        )
     }
 }
 
@@ -96,6 +122,29 @@ class StandardMetronomeTimeline(
         val first = timeline.firstIntervalAtOrAfter(relativeStart)
         val end = timeline.firstIntervalAtOrAfter(relativeEnd)
         return Math.subtractExact(end, first)
+    }
+
+    override fun visitEvents(
+        startFrame: Long,
+        endFrameExclusive: Long,
+        consumer: FrameRangeEventConsumer
+    ): Boolean {
+        if (endFrameExclusive <= origin.originFrame) return true
+        val relativeStart = (startFrame - origin.originFrame).coerceAtLeast(0)
+        var intervalIndex = timeline.firstIntervalAtOrAfter(relativeStart)
+        while (true) {
+            val intendedFrame = Math.addExact(origin.originFrame, timeline.framePosition(intervalIndex))
+            if (intendedFrame >= endFrameExclusive) return true
+            if (intendedFrame >= startFrame) {
+                val index = (intervalIndex % patternSize).toInt()
+                val isBeat = isBeat(index)
+                val role = if (usesBeatSound(index, isBeat)) SoundRole.BEAT else SoundRole.RHYTHM
+                if (!consumer.accept(intendedFrame, role, null, configuration.muteMetronome)) {
+                    return true
+                }
+            }
+            intervalIndex++
+        }
     }
 
     private fun eventAt(intervalIndex: Long, intendedFrame: Long): FrameEvent {

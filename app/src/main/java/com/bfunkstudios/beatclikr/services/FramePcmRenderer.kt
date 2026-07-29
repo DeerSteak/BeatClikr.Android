@@ -1,24 +1,8 @@
 package com.bfunkstudios.beatclikr.services
 
+import com.bfunkstudios.beatclikr.music.FrameRangeEventConsumer
+import com.bfunkstudios.beatclikr.music.FrameRangeEventSource
 import com.bfunkstudios.beatclikr.music.SoundRole
-
-fun interface RenderEventConsumer {
-    fun accept(
-        intendedFrame: Long,
-        primarySound: SoundRole,
-        secondarySound: SoundRole?,
-        muted: Boolean
-    ): Boolean
-}
-
-/** Visits a range without allocation, locks, I/O, logging, or thread handoff. */
-interface RenderEventSource {
-    fun visitEvents(
-        startFrame: Long,
-        endFrameExclusive: Long,
-        consumer: RenderEventConsumer
-    ): Boolean
-}
 
 /** Stable waveform references prepared and published before rendering begins. */
 class RenderWaveforms(
@@ -45,25 +29,32 @@ enum class FrameRenderResult {
 }
 
 class FramePcmRenderer(
-    private val eventSource: RenderEventSource,
+    private val eventSource: FrameRangeEventSource,
     private val waveforms: RenderWaveforms,
     maximumActiveVoices: Int
-) {
+) : FrameRangeEventConsumer {
     private val activeWaveforms: Array<ShortArray?> = arrayOfNulls(maximumActiveVoices)
     private val activePositions = IntArray(maximumActiveVoices)
     private var accumulator = IntArray(0)
     private var blockStartFrame = 0L
     private var blockFrameCount = 0
     private var result = FrameRenderResult.COMPLETE
+    private var hasExpectedFrame = false
+    private var nextExpectedFrame = 0L
 
-    private val eventConsumer = RenderEventConsumer { intendedFrame, primary, secondary, muted ->
+    override fun accept(
+        intendedFrame: Long,
+        primarySound: SoundRole,
+        secondarySound: SoundRole?,
+        muted: Boolean
+    ): Boolean {
         if (!muted) {
-            addVoice(primary, intendedFrame)
-            if (result == FrameRenderResult.COMPLETE && secondary != null) {
-                addVoice(secondary, intendedFrame)
+            addVoice(primarySound, intendedFrame)
+            if (result == FrameRenderResult.COMPLETE && secondarySound != null) {
+                addVoice(secondarySound, intendedFrame)
             }
         }
-        result == FrameRenderResult.COMPLETE
+        return result == FrameRenderResult.COMPLETE
     }
 
     init {
@@ -77,22 +68,46 @@ class FramePcmRenderer(
         }
     }
 
+    fun reset() {
+        var slot = 0
+        while (slot < activeWaveforms.size) {
+            activeWaveforms[slot] = null
+            activePositions[slot] = 0
+            slot++
+        }
+        hasExpectedFrame = false
+        nextExpectedFrame = 0
+    }
+
     fun render(startFrame: Long, output: ShortArray, frameCount: Int): FrameRenderResult {
-        if (startFrame < 0 || frameCount < 0 || frameCount > output.size || frameCount > accumulator.size) {
+        if (
+            startFrame < 0 ||
+            frameCount < 0 ||
+            frameCount > output.size ||
+            frameCount > accumulator.size ||
+            frameCount.toLong() > Long.MAX_VALUE - startFrame ||
+            hasExpectedFrame && startFrame != nextExpectedFrame
+        ) {
             return FrameRenderResult.INVALID_RANGE
         }
+        val endFrame = startFrame + frameCount
         blockStartFrame = startFrame
         blockFrameCount = frameCount
         result = FrameRenderResult.COMPLETE
         accumulator.fill(0, 0, frameCount)
 
         mixExistingVoices()
-        val endFrame = startFrame + frameCount
-        if (endFrame < startFrame) return FrameRenderResult.INVALID_RANGE
-        if (!eventSource.visitEvents(startFrame, endFrame, eventConsumer)) {
+        if (!eventSource.visitEvents(startFrame, endFrame, this)) {
             result = FrameRenderResult.EVENT_SOURCE_FAILED
         }
+        if (result != FrameRenderResult.COMPLETE) {
+            output.fill(0, 0, frameCount)
+            reset()
+            return result
+        }
         writeSaturatedOutput(output, frameCount)
+        hasExpectedFrame = true
+        nextExpectedFrame = endFrame
         return result
     }
 

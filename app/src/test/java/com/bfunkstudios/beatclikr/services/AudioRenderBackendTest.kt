@@ -17,7 +17,7 @@ class AudioRenderBackendTest {
             preferredBufferFrames = 384
         )
 
-        val properties = backend.open(request, failures::add)
+        val properties = requireNotNull(backend.open(request, failures::add))
         assertEquals(48_000, properties.sampleRate)
         assertEquals(192, properties.burstFrames)
         assertTrue(backend.start())
@@ -56,11 +56,33 @@ class AudioRenderBackendTest {
             failures.single()
         )
         assertFalse(backend.timestamp(AudioFrameTimestamp()))
+        assertEquals(AudioBackendFailureCode.TIMESTAMP_UNAVAILABLE, failures.last().code)
+    }
+
+    @Test
+    fun unsuccessfulOpenAndBooleanOperationsReportTypedFailures() {
+        val backend = RecordingBackend()
+        val failures = mutableListOf<AudioBackendFailure>()
+        backend.openSucceeds = false
+
+        assertEquals(
+            null,
+            backend.open(AudioBackendOpenRequest(48_000, 1, 384), failures::add)
+        )
+        assertEquals(AudioBackendFailureCode.STREAM_UNAVAILABLE, failures.single().code)
+
+        backend.openSucceeds = true
+        backend.open(AudioBackendOpenRequest(48_000, 1, 384), failures::add)
+        backend.startSucceeds = false
+        assertFalse(backend.start())
+        assertEquals(AudioBackendFailureCode.START_REJECTED, failures.last().code)
     }
 
     private class RecordingBackend : AudioRenderBackend {
         private var failureSink = AudioBackendFailureSink {}
         private var timestampAvailable = true
+        var openSucceeds = true
+        var startSucceeds = true
         var lastPcm: ShortArray? = null
         var lastFrameOffset = -1
         var lastFrameCount = -1
@@ -69,8 +91,12 @@ class AudioRenderBackendTest {
         override fun open(
             request: AudioBackendOpenRequest,
             failureSink: AudioBackendFailureSink
-        ): AudioBackendStreamProperties {
+        ): AudioBackendStreamProperties? {
             this.failureSink = failureSink
+            if (!openSucceeds) {
+                fail(AudioBackendOperation.OPEN, AudioBackendFailureCode.STREAM_UNAVAILABLE)
+                return null
+            }
             return AudioBackendStreamProperties(
                 sampleRate = request.preferredSampleRate,
                 channelCount = request.preferredChannelCount,
@@ -79,7 +105,13 @@ class AudioRenderBackendTest {
             )
         }
 
-        override fun start(): Boolean = true
+        override fun start(): Boolean {
+            if (!startSucceeds) {
+                fail(AudioBackendOperation.START, AudioBackendFailureCode.START_REJECTED)
+                return false
+            }
+            return true
+        }
 
         override fun render(
             interleavedPcm: ShortArray,
@@ -97,7 +129,15 @@ class AudioRenderBackendTest {
         override fun stop(): Boolean = true
 
         override fun timestamp(destination: AudioFrameTimestamp): Boolean {
-            if (!timestampAvailable) return false
+            if (!timestampAvailable) {
+                failureSink.report(
+                    AudioBackendFailure(
+                        AudioBackendOperation.TIMESTAMP,
+                        AudioBackendFailureCode.TIMESTAMP_UNAVAILABLE
+                    )
+                )
+                return false
+            }
             destination.framePosition = 12_096
             destination.monotonicTimeNanos = 900_000
             return true

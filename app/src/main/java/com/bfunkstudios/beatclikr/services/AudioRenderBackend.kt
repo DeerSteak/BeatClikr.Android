@@ -34,7 +34,7 @@ data class AudioBackendOpenRequest(
 ) {
     init {
         require(preferredSampleRate > 0) { "Preferred sample rate must be positive" }
-        require(preferredChannelCount > 0) { "Preferred channel count must be positive" }
+        require(preferredChannelCount == 1) { "Phase 3 renderer requires mono output" }
         require(preferredBufferFrames > 0) { "Preferred buffer frames must be positive" }
     }
 }
@@ -47,18 +47,18 @@ data class AudioBackendStreamProperties(
 ) {
     init {
         require(sampleRate > 0) { "Sample rate must be positive" }
-        require(channelCount > 0) { "Channel count must be positive" }
+        require(channelCount == 1) { "Phase 3 renderer requires mono output" }
         require(burstFrames > 0) { "Burst frames must be positive" }
         require(bufferFrames >= burstFrames) { "Buffer must contain at least one burst" }
     }
 }
 
-data class AudioFrameTimestamp(
+class AudioFrameTimestamp(
     var framePosition: Long = 0,
     var monotonicTimeNanos: Long = 0
 )
 
-/** Backend-neutral PCM output with reusable caller-owned buffers and timestamps. */
+/** Backend-neutral PCM output; every unsuccessful operation reports through the failure sink. */
 interface AudioRenderBackend {
     fun open(
         request: AudioBackendOpenRequest,

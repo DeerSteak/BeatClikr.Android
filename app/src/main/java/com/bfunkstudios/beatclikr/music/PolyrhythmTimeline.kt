@@ -42,6 +42,40 @@ class PolyrhythmTimeline(
         return Math.subtractExact(eventCountBefore(endSlot), eventCountBefore(firstSlot))
     }
 
+    override fun visitEvents(
+        startFrame: Long,
+        endFrameExclusive: Long,
+        consumer: FrameRangeEventConsumer
+    ): Boolean {
+        if (endFrameExclusive <= origin.originFrame) return true
+        val relativeStart = (startFrame - origin.originFrame).coerceAtLeast(0)
+        var slotIndex = timeline.firstIntervalAtOrAfter(relativeStart)
+        while (true) {
+            val intendedFrame = Math.addExact(origin.originFrame, timeline.framePosition(slotIndex))
+            if (intendedFrame >= endFrameExclusive) return true
+            val slot = (slotIndex % slotsPerCycle).toInt()
+            if (intendedFrame >= startFrame && hasEventAt(slot)) {
+                val beatFired = slot % beatSlotInterval == 0
+                val primary = if (beatFired) SoundRole.BEAT else SoundRole.RHYTHM
+                val secondary = if (beatFired && slot % rhythmSlotInterval == 0) {
+                    SoundRole.RHYTHM
+                } else {
+                    null
+                }
+                if (!consumer.accept(
+                        intendedFrame,
+                        primary,
+                        secondary,
+                        configuration.muteMetronome
+                    )
+                ) {
+                    return true
+                }
+            }
+            slotIndex++
+        }
+    }
+
     private fun eventAt(slotIndex: Long, slot: Int, intendedFrame: Long): FrameEvent {
         val cycleIndex = slotIndex / slotsPerCycle
         val beatFired = slot % beatSlotInterval == 0

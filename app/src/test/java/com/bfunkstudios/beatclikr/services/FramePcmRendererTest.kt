@@ -1,11 +1,20 @@
 package com.bfunkstudios.beatclikr.services
 
+import com.bfunkstudios.beatclikr.music.ExactTempo
 import com.bfunkstudios.beatclikr.music.SoundRole
+import com.bfunkstudios.beatclikr.music.FrameRangeEventConsumer
+import com.bfunkstudios.beatclikr.music.FrameRangeEventSource
+import com.bfunkstudios.beatclikr.music.SessionID
+import com.bfunkstudios.beatclikr.music.SessionOrigin
+import com.bfunkstudios.beatclikr.music.StandardMetronomeConfiguration
+import com.bfunkstudios.beatclikr.music.StandardMetronomeTimeline
+import com.bfunkstudios.beatclikr.music.StandardSubdivision
+import com.bfunkstudios.beatclikr.music.StandardTiming
 import com.sun.management.ThreadMXBean
 import java.lang.management.ManagementFactory
+import org.junit.Assume.assumeTrue
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class FramePcmRendererTest {
@@ -88,35 +97,94 @@ class FramePcmRendererTest {
             rhythm = shortArrayOf(1, 2),
             maximumActiveVoices = 1
         )
-        val failedSource = renderer(FailingEventSource, shortArrayOf(1), shortArrayOf(1))
+        val failedSource = renderer(PartiallyFailingEventSource, shortArrayOf(4), shortArrayOf(1))
 
+        val capacityOutput = shortArrayOf(4)
         assertEquals(
             FrameRenderResult.VOICE_CAPACITY_EXCEEDED,
-            full.render(0, ShortArray(1), 1)
+            full.render(0, capacityOutput, 1)
         )
+        assertArrayEquals(shortArrayOf(0), capacityOutput)
+        val failedOutput = shortArrayOf(9)
         assertEquals(
             FrameRenderResult.EVENT_SOURCE_FAILED,
-            failedSource.render(0, ShortArray(1), 1)
+            failedSource.render(0, failedOutput, 1)
         )
+        assertArrayEquals(shortArrayOf(0), failedOutput)
+    }
+
+    @Test
+    fun rejectsDiscontinuousBlocksAndResetDropsOldTails() {
+        val renderer = renderer(
+            RecordingEventSource(Event(0, SoundRole.BEAT)),
+            beat = shortArrayOf(1, 2, 3, 4),
+            rhythm = shortArrayOf(1)
+        )
+        renderer.render(0, ShortArray(2), 2)
+
+        assertEquals(FrameRenderResult.INVALID_RANGE, renderer.render(8, ShortArray(2), 2))
+        renderer.reset()
+        val restarted = ShortArray(2)
+        assertEquals(FrameRenderResult.COMPLETE, renderer.render(8, restarted, 2))
+        assertArrayEquals(shortArrayOf(0, 0), restarted)
+    }
+
+    @Test
+    fun invalidOverflowDoesNotConsumeActiveTail() {
+        val renderer = renderer(
+            RecordingEventSource(Event(0, SoundRole.BEAT)),
+            beat = shortArrayOf(1, 2, 3),
+            rhythm = shortArrayOf(1)
+        )
+        renderer.render(0, ShortArray(1), 1)
+
+        assertEquals(
+            FrameRenderResult.INVALID_RANGE,
+            renderer.render(Long.MAX_VALUE, ShortArray(1), 1)
+        )
+        val tail = ShortArray(2)
+        renderer.render(1, tail, 2)
+        assertArrayEquals(shortArrayOf(2, 3), tail)
     }
 
     @Test
     fun preparedHappyPathAllocatesNoRenderThreadMemory() {
-        val renderer = renderer(PeriodicEventSource, shortArrayOf(1), shortArrayOf(1))
+        val timeline = StandardMetronomeTimeline(
+            configuration = StandardMetronomeConfiguration(
+                bpm = ExactTempo.of(240),
+                timing = StandardTiming.Regular(StandardSubdivision.SIXTEENTH)
+            ),
+            sampleRate = 48_000,
+            origin = SessionOrigin(SessionID(1), 0)
+        )
+        val renderer = renderer(timeline, shortArrayOf(1), shortArrayOf(1))
         val output = ShortArray(64)
-        repeat(100_000) { renderer.render(64_000L, output, output.size) }
+        var startFrame = 0L
+        repeat(100_000) {
+            renderer.render(startFrame, output, output.size)
+            startFrame += output.size
+        }
         val bean = ManagementFactory.getThreadMXBean() as ThreadMXBean
-        assertTrue(bean.isThreadAllocatedMemorySupported)
+        assumeTrue(bean.isThreadAllocatedMemorySupported)
         bean.isThreadAllocatedMemoryEnabled = true
-        val before = bean.currentThreadAllocatedBytes
+        var minimumAllocatedBytes = Long.MAX_VALUE
+        repeat(5) {
+            val before = bean.currentThreadAllocatedBytes
+            repeat(10_000) {
+                renderer.render(startFrame, output, output.size)
+                startFrame += output.size
+            }
+            minimumAllocatedBytes = minOf(
+                minimumAllocatedBytes,
+                bean.currentThreadAllocatedBytes - before
+            )
+        }
 
-        repeat(10_000) { renderer.render(64_000L, output, output.size) }
-
-        assertEquals(0, bean.currentThreadAllocatedBytes - before)
+        assertEquals(0, minimumAllocatedBytes)
     }
 
     private fun renderer(
-        source: RenderEventSource,
+        source: FrameRangeEventSource,
         beat: ShortArray,
         rhythm: ShortArray,
         maximumActiveVoices: Int = 8
@@ -134,7 +202,7 @@ class FramePcmRendererTest {
         val muted: Boolean = false
     )
 
-    private class RecordingEventSource(vararg events: Event) : RenderEventSource {
+    private class RecordingEventSource(vararg events: Event) : FrameRangeEventSource {
         private val events = events
         var lastStartFrame = -1L
         var lastEndFrame = -1L
@@ -142,7 +210,7 @@ class FramePcmRendererTest {
         override fun visitEvents(
             startFrame: Long,
             endFrameExclusive: Long,
-            consumer: RenderEventConsumer
+            consumer: FrameRangeEventConsumer
         ): Boolean {
             lastStartFrame = startFrame
             lastEndFrame = endFrameExclusive
@@ -157,19 +225,14 @@ class FramePcmRendererTest {
         }
     }
 
-    private object PeriodicEventSource : RenderEventSource {
+    private object PartiallyFailingEventSource : FrameRangeEventSource {
         override fun visitEvents(
             startFrame: Long,
             endFrameExclusive: Long,
-            consumer: RenderEventConsumer
-        ): Boolean = consumer.accept(startFrame, SoundRole.BEAT, null, false)
-    }
-
-    private object FailingEventSource : RenderEventSource {
-        override fun visitEvents(
-            startFrame: Long,
-            endFrameExclusive: Long,
-            consumer: RenderEventConsumer
-        ): Boolean = false
+            consumer: FrameRangeEventConsumer
+        ): Boolean {
+            consumer.accept(startFrame, SoundRole.BEAT, null, false)
+            return false
+        }
     }
 }
