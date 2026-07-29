@@ -24,6 +24,7 @@ The timing values describe the existing polling implementation, not accuracy gua
 
 - `ExactTempo` enforces the inclusive 30–240 BPM contract and converts decimal BPM to normalized rational values.
 - `StandardSubdivision` and `AdditiveStepUnit` own the approved subdivision and odd-meter timing mappings.
+- `AbsoluteAudioTimeline` converts exact interval rates to independently rounded absolute frame positions without accumulated remainder loss.
 - `BeatPattern.accentArray` expands additive meter groups into accented ticks.
 - `PolyrhythmGrid` uses GCD/LCM arithmetic to identify coincident events.
 - `RampController` advances tempo after a configured number of beats.

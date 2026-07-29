@@ -14,6 +14,9 @@ class ExactFraction private constructor(
     operator fun times(other: ExactFraction): ExactFraction =
         create(numerator * other.numerator, denominator * other.denominator)
 
+    operator fun times(other: Long): ExactFraction =
+        create(numerator * BigInteger.valueOf(other), denominator)
+
     operator fun div(other: ExactFraction): ExactFraction {
         require(other.numerator != BigInteger.ZERO) { "Cannot divide by zero" }
         return create(numerator * other.denominator, denominator * other.numerator)
@@ -29,6 +32,25 @@ class ExactFraction private constructor(
 
     override fun toString(): String =
         if (denominator == BigInteger.ONE) numerator.toString() else "$numerator/$denominator"
+
+    fun roundedLong(): Long {
+        val division = numerator.divideAndRemainder(denominator)
+        val quotient = division[0]
+        val remainder = division[1]
+        val adjustment = when {
+            remainder.abs() * BigInteger.valueOf(2) < denominator -> BigInteger.ZERO
+            numerator.signum() >= 0 -> BigInteger.ONE
+            else -> BigInteger.ONE.negate()
+        }
+        return (quotient + adjustment).toLongExact()
+    }
+
+    fun floorLong(): Long {
+        val division = numerator.divideAndRemainder(denominator)
+        val quotient = division[0]
+        val hasNegativeRemainder = division[1].signum() < 0
+        return (if (hasNegativeRemainder) quotient - BigInteger.ONE else quotient).toLongExact()
+    }
 
     companion object {
         fun of(value: Long): ExactFraction = create(BigInteger.valueOf(value), BigInteger.ONE)
@@ -54,6 +76,14 @@ class ExactFraction private constructor(
             return ExactFraction(signedNumerator / divisor, positiveDenominator / divisor)
         }
     }
+}
+
+private fun BigInteger.toLongExact(): Long {
+    val converted = toLong()
+    if (BigInteger.valueOf(converted) != this) {
+        throw ArithmeticException("Value does not fit in Long")
+    }
+    return converted
 }
 
 class ExactTempo private constructor(

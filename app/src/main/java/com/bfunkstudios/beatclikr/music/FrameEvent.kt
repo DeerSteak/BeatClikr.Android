@@ -70,7 +70,8 @@ data class FrameEvent(
     val sequence: EventSequence,
     val intendedFrame: Long,
     val primary: EventVoice,
-    val secondary: EventVoice? = null
+    val secondary: EventVoice? = null,
+    val muteMetronome: Boolean = false
 ) {
     init {
         require(intendedFrame >= 0) { "Intended frame must not be negative" }
