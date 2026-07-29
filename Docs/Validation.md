@@ -50,6 +50,8 @@ Tests that enforce approved contracts begin their method name with the normalize
 
 `AccentContractFixtures` covers every Android odd-meter definition using groupings independently ported from the representative iOS `BeatPatternTests`, `GrooveTests`, and `MetronomeAudioBlockPlan` cases. `AccentContractInstrumentedTest` verifies both odd-meter timing units, additive-group accents, beat/rhythm sound selection, and alternate-sixteenth feedback against the real engine. `AccentContractTest` separately guards the Android pattern definitions on the JVM.
 
+`PolyrhythmContractFixtures` represents expected events independently of `PolyrhythmGrid` and uses the same `beats` and `against` business meanings as iOS: `beats` is the displayed Rhythm count and `against` is the displayed Beat count. `PolyrhythmContractTest` exhaustively verifies all 225 supported ratios, event indices, shared origins, exact coincidences, and representative iOS duration formulas. `PolyrhythmContractInstrumentedTest` verifies complete real-engine cycles for boundary, equal, coprime, and shared-factor ratios.
+
 Run only the standard-metronome characterization suite on an attached emulator:
 
 ```bash
@@ -61,6 +63,12 @@ Run only the accent characterization suite:
 
 ```bash
 ANDROID_SERIAL="emulator-5554" ./gradlew --no-daemon connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.bfunkstudios.beatclikr.AccentContractInstrumentedTest
+```
+
+Run only the polyrhythm characterization suite:
+
+```bash
+ANDROID_SERIAL="emulator-5554" ./gradlew --no-daemon connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.bfunkstudios.beatclikr.PolyrhythmContractInstrumentedTest
 ```
 
 ## Git hooks

@@ -45,6 +45,8 @@ The standard-metronome contract suite additionally covers the 30–240 BPM bound
 
 The accent contract suite covers all 13 odd-meter definitions in both odd-quarter and odd-eighth timing units, every additive-group boundary, beat/rhythm sound selection, and alternate-sixteenth beat-sound and feedback roles. The focused suite passes against debug and minified release-equivalent builds on the Android 17 emulator.
 
+The polyrhythm contract suite exhaustively covers all 225 supported `M:N` ratios in JVM tests and runs representative boundary, equal, coprime, and shared-factor cycles through the real engine. It verifies the iOS-compatible `beats`/`against` meanings, cycle duration, shared origins, exact coincident-event identity, complete beat/rhythm index sequences, and queued sound counts.
+
 The recorded result is in [`benchmarks/2026-07-28-android-17-emulator.md`](../benchmarks/2026-07-28-android-17-emulator.md). It is a regression reference, not a physical-device audio benchmark.
 
 The first Pixel 8a engine result is in [`benchmarks/2026-07-28-pixel-8a-android-17.md`](../benchmarks/2026-07-28-pixel-8a-android-17.md). It exercises real hardware but still measures software callbacks rather than acoustic onset.
