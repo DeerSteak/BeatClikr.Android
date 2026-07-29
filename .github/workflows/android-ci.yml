@@ -52,13 +52,17 @@ jobs:
         run: ./gradlew --no-daemon testDebugUnitTest lintDebug assembleDebug
 
   instrumentation:
-    name: Instrumentation (API ${{ matrix.api-level }})
+    name: Instrumentation (API ${{ matrix.api-label }})
     runs-on: ubuntu-latest
     timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
-        api-level: [31, 37]
+        include:
+          - api-level: "31"
+            api-label: "31"
+          - api-level: "37.0"
+            api-label: "37"
 
     steps:
       - name: Check out repository
@@ -84,7 +88,7 @@ jobs:
 
       - name: Run emulator contract tests
         # v2.37.0
-        uses: reactivecircus/android-emulator-runner@b530d96654c385303d652368551fb075bc2f0b6b
+        uses: reactivecircus/android-emulator-runner@e89f39f1abbbd05b1113a29cf4db69e7540cae5a
         with:
           api-level: ${{ matrix.api-level }}
           arch: x86_64
