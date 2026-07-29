@@ -6,7 +6,9 @@ Services isolate audio, device feedback, reminder scheduling, and repository beh
 
 `AudioPlayerService` is the application-facing implementation of `IAudioPlayerService`. It owns `MetronomeAudioEngine`, forwards delegate events, and exposes standard and polyrhythm setup, start, stop, sound-bank, and metrics operations.
 
-`MetronomeAudioEngine` manages audio focus, timing threads, standard beat scheduling, and the polyrhythm engine. `PolyrhythmTimingEngine` advances two rhythms on a shared monotonic timeline. `AudioTrackEngine` mixes cached mono PCM samples into a streaming `AudioTrack`; `PcmFileCache` decodes Android raw resources into persistent internal PCM files.
+`MetronomeAudioEngine` manages audio focus, timing threads, standard beat scheduling, and the polyrhythm engine. `PolyrhythmTimingEngine` advances two rhythms on a shared monotonic timeline. `AudioTrackEngine` mixes prepared mono PCM samples into a streaming `AudioTrack`; `PcmFileCache` reads versioned generated PCM while `SoundBankPreparer` decodes and validates Android raw resources on the control context.
+
+Prepared sound banks are immutable snapshots keyed by sound bank and `SoundFile`. A complete replacement is published atomically only after every required resource succeeds. WAV decoding preserves leading silence, downmixes supported channel layouts to mono, resamples before publication, and returns typed missing, corrupt, empty, or incompatible failures.
 
 `AudioTrackMetricsSnapshot` reports aggregate queued clicks and separate beat/rhythm enqueue counts so contract tests can verify sound roles without depending on Android resource IDs or inspecting proprietary waveforms.
 

@@ -161,8 +161,7 @@ class MetronomeAudioEngine(private val context: Context) {
 
     fun prepareAudioTrackSounds(soundFiles: Collection<SoundFile>) {
         handler.post {
-            pcmFileCache.prepare(soundFiles, soundBank)
-            audioTrackEngine?.prepareSounds(soundFiles)
+            getOrCreateAudioTrackEngine().prepareSounds(soundFiles)
         }
     }
 

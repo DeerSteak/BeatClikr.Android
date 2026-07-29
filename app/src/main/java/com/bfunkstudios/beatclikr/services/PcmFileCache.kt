@@ -1,7 +1,6 @@
 package com.bfunkstudios.beatclikr.services
 
 import android.content.Context
-import android.util.Log
 import com.bfunkstudios.beatclikr.data.SoundBank
 import com.bfunkstudios.beatclikr.data.SoundFile
 import java.io.File
@@ -14,204 +13,113 @@ class PcmFileCache(
     val sampleRate: Int
 ) {
     private val appContext = context.applicationContext
-    private var cleanedOldVersions = false
-
-    fun prepare(soundFiles: Collection<SoundFile>, bank: SoundBank) {
-        soundFiles.distinct().forEach { load(it, bank) }
-    }
-
-    @Synchronized
-    fun load(soundFile: SoundFile, bank: SoundBank): ShortArray? {
-        val resourceId = soundFile.resourceIdFor(bank) ?: return null
-        val cacheFile = cacheFileFor(soundFile, bank)
-        return runCatching {
-            if (!cacheFile.exists()) {
-                cacheFile.parentFile?.mkdirs()
-                writeCachedWaveform(cacheFile, decodeResourceWaveform(resourceId))
-            }
-            readCachedWaveform(cacheFile)
-        }.onFailure { error ->
-            Log.w(TAG, "Unable to prepare cached PCM for ${soundFile.name} (${bank.name}).", error)
-        }.getOrNull()
-    }
-
-    private fun cacheFileFor(soundFile: SoundFile, bank: SoundBank): File {
-        val fileName = soundFile.fileNameFor(bank)
-            .lowercase(Locale.US)
-            .replace(Regex("[^a-z0-9_]+"), "_")
-        return File(audioCacheDir(), "${fileName}_${sampleRate}hz_mono16.pcm")
-    }
-
-    private fun audioCacheDir(): File {
-        cleanupOldVersionsIfNeeded()
-        // Use filesDir rather than cacheDir so OS eviction cannot cause a decode spike mid-session.
-        return File(appContext.filesDir, AUDIO_CACHE_VERSION)
-    }
-
-    private fun cleanupOldVersionsIfNeeded() {
-        if (cleanedOldVersions) return
-        appContext.filesDir.listFiles()
-            ?.filter { it.isDirectory && it.name.startsWith(AUDIO_CACHE_PREFIX) && it.name != AUDIO_CACHE_VERSION }
-            ?.forEach { it.deleteRecursively() }
-        cleanedOldVersions = true
-    }
-
-    private fun writeCachedWaveform(file: File, waveform: ShortArray) {
-        val tempFile = File(file.parentFile, "${file.name}.tmp")
-        val bytes = ByteBuffer.allocate(waveform.size * BYTES_PER_SAMPLE)
-            .order(ByteOrder.LITTLE_ENDIAN)
-        waveform.forEach { bytes.putShort(it) }
-        tempFile.writeBytes(bytes.array())
-        if (!tempFile.renameTo(file)) {
-            file.writeBytes(bytes.array())
-            tempFile.delete()
-        }
-    }
-
-    private fun readCachedWaveform(file: File): ShortArray {
-        val bytes = file.readBytes()
-        val buffer = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN)
-        return ShortArray(bytes.size / BYTES_PER_SAMPLE) { buffer.short }
-    }
-
-    private fun decodeResourceWaveform(resourceId: Int): ShortArray {
-        val bytes = appContext.resources.openRawResource(resourceId).use { it.readBytes() }
-        val wav = parseWav(bytes)
-        return applyFadeIn(trimLeadingSilence(resampleIfNeeded(downmixToMono(wav), wav.sampleRate)))
-    }
-
-    private fun parseWav(bytes: ByteArray): WavData {
-        require(bytes.size >= WAV_HEADER_SIZE)
-        require(bytes.ascii(0, 4) == "RIFF")
-        require(bytes.ascii(8, 4) == "WAVE")
-
-        var offset = 12
-        var channels = 0
-        var sourceSampleRate = 0
-        var bitsPerSample = 0
-        var audioFormat = 0
-        var dataStart = -1
-        var dataSize = 0
-
-        while (offset + 8 <= bytes.size) {
-            val chunkId = bytes.ascii(offset, 4)
-            val chunkSize = bytes.intLe(offset + 4)
-            val chunkStart = offset + 8
-            val chunkEnd = chunkStart + chunkSize
-            if (chunkEnd > bytes.size) break
-
-            when (chunkId) {
-                "fmt " -> {
-                    audioFormat = bytes.shortLe(chunkStart).toInt()
-                    channels = bytes.shortLe(chunkStart + 2).toInt()
-                    sourceSampleRate = bytes.intLe(chunkStart + 4)
-                    bitsPerSample = bytes.shortLe(chunkStart + 14).toInt()
-                }
-                "data" -> {
-                    dataStart = chunkStart
-                    dataSize = chunkSize
-                }
-            }
-
-            offset = chunkEnd + (chunkSize and 1)
-        }
-
-        require(audioFormat == WAV_FORMAT_PCM)
-        require(channels > 0)
-        require(sourceSampleRate > 0)
-        require(bitsPerSample == 16)
-        require(dataStart >= 0 && dataSize > 0)
-        return WavData(
-            bytes = bytes,
-            dataStart = dataStart,
-            dataSize = dataSize,
-            channels = channels,
-            sampleRate = sourceSampleRate
-        )
-    }
-
-    private fun downmixToMono(wav: WavData): ShortArray {
-        val bytesPerFrame = wav.channels * BYTES_PER_SAMPLE
-        val frameCount = wav.dataSize / bytesPerFrame
-        return ShortArray(frameCount) { frameIndex ->
-            var sum = 0
-            val frameStart = wav.dataStart + frameIndex * bytesPerFrame
-            repeat(wav.channels) { channel ->
-                sum += wav.bytes.shortLe(frameStart + channel * BYTES_PER_SAMPLE)
-            }
-            (sum / wav.channels).toShort()
-        }
-    }
-
-    private fun resampleIfNeeded(source: ShortArray, sourceSampleRate: Int): ShortArray {
-        if (sourceSampleRate == sampleRate || source.isEmpty()) return source
-
-        val targetSize = (source.size.toLong() * sampleRate / sourceSampleRate).toInt().coerceAtLeast(1)
-        return ShortArray(targetSize) { index ->
-            val sourcePosition = index.toDouble() * sourceSampleRate / sampleRate
-            val leftIndex = sourcePosition.toInt().coerceIn(0, source.lastIndex)
-            val rightIndex = (leftIndex + 1).coerceAtMost(source.lastIndex)
-            val fraction = sourcePosition - leftIndex
-            val sample = source[leftIndex] * (1.0 - fraction) + source[rightIndex] * fraction
-            sample.toInt().coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt()).toShort()
-        }
-    }
-
-    private fun trimLeadingSilence(source: ShortArray): ShortArray {
-        val firstAudibleSample = source.indexOfFirst { sample ->
-            kotlin.math.abs(sample.toInt()) > LEADING_SILENCE_THRESHOLD
-        }
-        return when (firstAudibleSample) {
-            -1, 0 -> source
-            else -> source.copyOfRange(firstAudibleSample, source.size)
-        }
-    }
-
-    private fun applyFadeIn(source: ShortArray): ShortArray {
-        if (source.isEmpty()) return source
-
-        val fadeSampleCount = (sampleRate * FADE_IN_DURATION_MS / 1_000)
-            .coerceIn(1, source.size)
-        return source.copyOf().also { faded ->
-            for (index in 0 until fadeSampleCount) {
-                val gain = index.toDouble() / fadeSampleCount
-                faded[index] = (faded[index] * gain)
-                    .toInt()
-                    .coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt())
-                    .toShort()
-            }
-        }
-    }
-
-    private class WavData(
-        val bytes: ByteArray,
-        val dataStart: Int,
-        val dataSize: Int,
-        val channels: Int,
-        val sampleRate: Int
+    private val store = PreparedSoundBankStore()
+    private val cache = FilePreparedWaveformCache(appContext.filesDir)
+    private val preparer = SoundBankPreparer(
+        sampleRate = sampleRate,
+        resourceReader = SoundResourceReader { bank, sound ->
+            val resourceID = sound.resourceIdFor(bank) ?: return@SoundResourceReader null
+            appContext.resources.openRawResource(resourceID).use { it.readBytes() }
+        },
+        cache = cache,
+        store = store
     )
 
-    private companion object {
-        const val TAG = "PcmFileCache"
-        const val AUDIO_CACHE_PREFIX = "audio_track_pcm_"
-        const val AUDIO_CACHE_VERSION = "audio_track_pcm_v3"
-        const val BYTES_PER_SAMPLE = 2
-        const val FADE_IN_DURATION_MS = 1
-        const val LEADING_SILENCE_THRESHOLD = 32
-        const val WAV_HEADER_SIZE = 44
-        const val WAV_FORMAT_PCM = 1
+    fun prepare(
+        soundFiles: Collection<SoundFile>,
+        bank: SoundBank
+    ): SoundPreparationResult<PreparedSoundBank> = preparer.prepare(bank, soundFiles)
 
-        fun ByteArray.ascii(offset: Int, length: Int): String =
-            String(this, offset, length, Charsets.US_ASCII)
+    fun preparedBank(bank: SoundBank): PreparedSoundBank? = store.current(bank)
 
-        fun ByteArray.shortLe(offset: Int): Short =
-            ((this[offset].toInt() and 0xff) or
-                ((this[offset + 1].toInt() and 0xff) shl 8)).toShort()
+    fun load(soundFile: SoundFile, bank: SoundBank): ShortArray? {
+        val result = prepare(listOf(soundFile), bank)
+        return if (result is SoundPreparationResult.Success) {
+            result.value.waveform(soundFile)?.copySamples()
+        } else {
+            null
+        }
+    }
 
-        fun ByteArray.intLe(offset: Int): Int =
-            (this[offset].toInt() and 0xff) or
-                ((this[offset + 1].toInt() and 0xff) shl 8) or
-                ((this[offset + 2].toInt() and 0xff) shl 16) or
-                ((this[offset + 3].toInt() and 0xff) shl 24)
+    private class FilePreparedWaveformCache(
+        private val filesDir: File
+    ) : PreparedWaveformCache {
+        private var cleanedOldVersions = false
+
+        override fun read(key: PreparedWaveformCacheKey): CachedPreparedWaveform? {
+            val file = fileFor(key)
+            if (!file.exists()) return null
+            val bytes = file.readBytes()
+            if (bytes.size < HEADER_BYTES) error("Cached waveform header is truncated")
+            val buffer = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN)
+            val magic = buffer.int
+            val version = buffer.int
+            val sampleRate = buffer.int
+            val sampleCount = buffer.int
+            if (
+                magic != CACHE_MAGIC ||
+                sampleCount <= 0 ||
+                bytes.size.toLong() != HEADER_BYTES.toLong() + sampleCount.toLong() * 2
+            ) {
+                error("Cached waveform is corrupt")
+            }
+            val samples = ShortArray(sampleCount) { buffer.short }
+            return CachedPreparedWaveform(version, sampleRate, samples)
+        }
+
+        override fun write(
+            key: PreparedWaveformCacheKey,
+            waveform: CachedPreparedWaveform
+        ) {
+            val file = fileFor(key)
+            file.parentFile?.mkdirs()
+            val bytes = ByteBuffer.allocate(HEADER_BYTES + waveform.samples.size * 2)
+                .order(ByteOrder.LITTLE_ENDIAN)
+                .putInt(CACHE_MAGIC)
+                .putInt(waveform.version)
+                .putInt(waveform.sampleRate)
+                .putInt(waveform.samples.size)
+            waveform.samples.forEach(bytes::putShort)
+            val temporary = File(file.parentFile, "${file.name}.tmp")
+            temporary.writeBytes(bytes.array())
+            if (!temporary.renameTo(file)) {
+                file.writeBytes(bytes.array())
+                temporary.delete()
+            }
+        }
+
+        override fun remove(key: PreparedWaveformCacheKey) {
+            fileFor(key).delete()
+        }
+
+        private fun fileFor(key: PreparedWaveformCacheKey): File {
+            cleanupOldVersions()
+            val baseName = key.sound.fileNameFor(key.bank)
+                .lowercase(Locale.US)
+                .replace(Regex("[^a-z0-9_]+"), "_")
+            return File(
+                File(filesDir, CACHE_DIRECTORY),
+                "${key.bank.name.lowercase(Locale.US)}_${baseName}_${key.sampleRate}hz.pcm"
+            )
+        }
+
+        private fun cleanupOldVersions() {
+            if (cleanedOldVersions) return
+            filesDir.listFiles()
+                ?.filter {
+                    it.isDirectory &&
+                        it.name.startsWith(CACHE_PREFIX) &&
+                        it.name != CACHE_DIRECTORY
+                }
+                ?.forEach { it.deleteRecursively() }
+            cleanedOldVersions = true
+        }
+
+        private companion object {
+            const val CACHE_MAGIC = 0x42434B52
+            const val HEADER_BYTES = 16
+            const val CACHE_PREFIX = "audio_track_pcm_"
+            const val CACHE_DIRECTORY = "audio_track_pcm_v4"
+        }
     }
 }
