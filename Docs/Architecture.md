@@ -7,12 +7,12 @@ This document describes the implementation as it exists today. Deficiencies and 
 BeatClikr is a single-module Kotlin application built with Jetpack Compose.
 
 - `ui/` contains screens, reusable views, navigation, and ViewModels.
-- `domain/` contains timing abstractions, session models, and use cases.
+- `music/` contains Android-free exact musical values, immutable configurations, and frame-event vocabulary.
 - `data/` contains Room, repositories, preferences, and file-backed data.
-- `audio/` contains PCM decoding, scheduling, mixing, and `AudioTrack` output.
+- `services/` contains PCM decoding, scheduling, mixing, `AudioTrack` output, and platform integrations.
 - `di/` wires the application graph with Hilt.
 
-The intended dependency direction is UI to domain to data or audio. Android framework details should remain behind domain interfaces so timing and session logic can be tested without a device.
+The `music/` package is a dependency leaf and cannot depend on Android classes, clocks, resources, audio objects, persistence, or presentation models. Its completed configuration layer contains exact standard and polyrhythm inputs, session origins, monotonic event identity, and frame-event vocabulary. Phase 2 builds the replacement scheduler against these types while production playback remains on the characterized engine until the controlled Phase 3 integration.
 
 ## Runtime ownership
 
