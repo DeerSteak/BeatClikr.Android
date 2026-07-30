@@ -456,7 +456,7 @@ class MetronomeViewModel @Inject constructor(
         val configuration =
             playing.context.configuration as CommittedPlaybackConfiguration.Standard
         val index = rendered.roleIndex
-        val isBeat = configuration.accentPattern?.get(index) ?: (index == 0)
+        val isBeat = configuration.accentPattern?.getOrNull(index) ?: (index == 0)
         val beatInterval = 60f / configuration.bpm
         val presentationTime = (rendered.presentation as? EventPresentation.Correlated)
             ?.presentationNanoTime

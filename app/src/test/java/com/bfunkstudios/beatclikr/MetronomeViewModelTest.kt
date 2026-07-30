@@ -185,6 +185,38 @@ class MetronomeViewModelTest {
         verify { haptics.playBeatHaptic() }
     }
 
+    @Test
+    fun `in-flight role index tolerates a shorter amended accent pattern`() {
+        every { prefs.useVibration } returns true
+        val playing = standardPlaying().copy(
+            context = standardPlaying().context.copy(
+                configuration = CommittedPlaybackConfiguration.Standard(
+                    120f,
+                    4,
+                    listOf(true, false, false, false),
+                    false,
+                    false
+                )
+            )
+        )
+        transportState.value = playing
+
+        committedEvents.tryEmit(
+            PlaybackCommittedEvent.Rendered(
+                1,
+                playing.context.sessionId,
+                1,
+                MusicalEventRole.STANDARD,
+                0,
+                false,
+                EventPresentation.Unavailable,
+                roleIndex = 6
+            )
+        )
+
+        verify { haptics.playRhythmHaptic() }
+    }
+
     private fun standardPreparing(): PlaybackTransportState.Preparing =
         PlaybackTransportState.Preparing(
             PlaybackSessionContext(
