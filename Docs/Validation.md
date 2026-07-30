@@ -66,6 +66,8 @@ The Phase 3.1 renderer suite verifies exact in-block offsets, adjacent-block wav
 
 The Phase 3.2 sound suite verifies WAV structure and format failures, empty resources, leading-silence preservation, stereo downmixing, resampling, immutable snapshots, atomic replacement, cache regeneration and versioning, bank switching, concurrent preparation, and failure without partial publication. Its architecture test prevents decoder or cache access from returning to the current `AudioTrack` render loop.
 
+The Phase 3.3 backend boundary suite verifies that mono and stereo obtained layouts preserve one renderer frame per output frame, duplicate mono samples into every channel, reject invalid ranges, and reuse the prepared interleaving buffer.
+
 The Phase 2.5 recovery suite verifies multi-event stalls, direct future-event selection, constant-time range counts, exact deadline and drop counts, coincident polyrhythm drops, repeated recovery windows, overlapping render windows, immutable origins, and stale session or mode rejection. Expired events are counted but never enumerated or returned to the renderer, preventing recovery work and catch-up output from scaling with the duration of a stall.
 
 `PureCoreQualificationTest` is the permanent Phase 2 regression gate. It checks the twelve-hour fractional endpoint across every integer sample rate accepted by `AudioTrack`, streams twelve-hour minimum, fractional typical, maximum-density, and dense polyrhythm timelines at 44.1 and 48 kHz, injects stalls at every event position, and runs reproducible randomized standard and polyrhythm command batches. Together with the focused music-model tests, the suite contains executable coverage for MT-001 through MT-032 and TB-001 through TB-003, TB-009, and TB-010.

@@ -18,9 +18,11 @@ The `music/` package is a dependency leaf and cannot depend on Android classes, 
 
 The music domain uses `require()` to enforce internal value invariants. External values and commands must be constructed and reduced through `PlaybackInputBoundary` on the control path before any work is handed to a renderer. `IllegalArgumentException` from a rejected domain invariant becomes `PlaybackInputFailure.InvalidDomainInput`; it must be recorded and mapped to coordinator state or user-facing recovery rather than thrown on the render or audio thread. Unexpected implementation failures are not reclassified as input errors.
 
-`AudioRenderBackend` is the platform-output boundary for Phase 3. It owns stream open/start/render/stop operations, exposes obtained stream properties and presentation timestamps, and reports typed failures through a registered sink. Render buffers and timestamp holders are caller-owned so later implementations can reuse them on the real-time path.
+`AudioRenderBackend` is the platform-output boundary for Phase 3. It owns stream open/start/render/stop operations, exposes obtained stream properties and presentation timestamps, and reports typed failures through a registered sink. `AudioTrackRenderBackend` is the first implementation and reports the stream's obtained sample rate, channel count, burst, buffer, and performance mode. Render buffers and timestamp holders are caller-owned so later implementations can reuse them on the real-time path.
 
 `FramePcmRenderer` requests each absolute output range through the visitor implemented by the Phase 2 timelines, mixes prepared mono waveforms at their exact frame offsets, and retains unfinished voices across contiguous blocks. A fixed voice table and reusable integer accumulator keep the render call allocation-free; the final conversion saturates only after every overlapping voice is summed. Stop, restart, and discontinuity recovery reset retained voices, while any partial render failure produces a silent block.
+
+The backend's channel adapter duplicates each mono frame across the obtained channel layout in a reusable buffer. Frame offsets and return values remain measured in frames, so stereo interleaving cannot change duration or event position.
 
 ## Runtime ownership
 

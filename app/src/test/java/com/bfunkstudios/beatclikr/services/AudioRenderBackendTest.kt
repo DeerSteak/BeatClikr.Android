@@ -20,6 +20,7 @@ class AudioRenderBackendTest {
         val properties = requireNotNull(backend.open(request, failures::add))
         assertEquals(48_000, properties.sampleRate)
         assertEquals(192, properties.burstFrames)
+        assertEquals(AudioBackendPerformanceMode.UNKNOWN, properties.performanceMode)
         assertTrue(backend.start())
 
         val pcm = ShortArray(384)
@@ -126,12 +127,12 @@ class AudioRenderBackendTest {
         }
 
         override fun render(
-            interleavedPcm: ShortArray,
+            monoPcm: ShortArray,
             frameOffset: Int,
             frameCount: Int,
             startFrame: Long
         ): Int {
-            lastPcm = interleavedPcm
+            lastPcm = monoPcm
             lastFrameOffset = frameOffset
             lastFrameCount = frameCount
             lastStartFrame = startFrame

@@ -18,6 +18,13 @@ enum class AudioBackendFailureCode {
     INTERNAL_ERROR
 }
 
+enum class AudioBackendPerformanceMode {
+    NONE,
+    LOW_LATENCY,
+    POWER_SAVING,
+    UNKNOWN
+}
+
 data class AudioBackendFailure(
     val operation: AudioBackendOperation,
     val code: AudioBackendFailureCode
@@ -43,7 +50,8 @@ data class AudioBackendStreamProperties(
     val sampleRate: Int,
     val channelCount: Int,
     val burstFrames: Int,
-    val bufferFrames: Int
+    val bufferFrames: Int,
+    val performanceMode: AudioBackendPerformanceMode = AudioBackendPerformanceMode.UNKNOWN
 ) {
     init {
         require(sampleRate > 0) { "Sample rate must be positive" }
@@ -58,7 +66,7 @@ class AudioFrameTimestamp(
     var monotonicTimeNanos: Long = 0
 )
 
-/** Backend-neutral PCM output; every unsuccessful operation reports through the failure sink. */
+/** Backend-neutral mono PCM output; the backend expands channels and reports unsuccessful operations. */
 interface AudioRenderBackend {
     fun open(
         request: AudioBackendOpenRequest,
@@ -67,8 +75,9 @@ interface AudioRenderBackend {
 
     fun start(): Boolean
 
+    /** Offsets, counts, start positions, and results are renderer frames, never interleaved samples. */
     fun render(
-        interleavedPcm: ShortArray,
+        monoPcm: ShortArray,
         frameOffset: Int,
         frameCount: Int,
         startFrame: Long
@@ -77,4 +86,44 @@ interface AudioRenderBackend {
     fun stop(): Boolean
 
     fun timestamp(destination: AudioFrameTimestamp): Boolean
+}
+
+/** Expands mono renderer frames into an obtained interleaved output layout. */
+class MonoPcmChannelAdapter(maximumFrames: Int, val channelCount: Int) {
+    init {
+        require(maximumFrames > 0) { "Maximum frames must be positive" }
+        require(channelCount > 0) { "Channel count must be positive" }
+    }
+
+    private val interleaved = ShortArray(
+        Math.multiplyExact(maximumFrames, channelCount)
+    )
+
+    fun adapt(
+        monoPcm: ShortArray,
+        frameOffset: Int,
+        frameCount: Int
+    ): ShortArray? {
+        if (
+            frameOffset < 0 ||
+            frameCount < 0 ||
+            frameOffset > monoPcm.size - frameCount ||
+            frameCount > interleaved.size / channelCount
+        ) {
+            return null
+        }
+        var frame = 0
+        var outputIndex = 0
+        while (frame < frameCount) {
+            val sample = monoPcm[frameOffset + frame]
+            var channel = 0
+            while (channel < channelCount) {
+                interleaved[outputIndex] = sample
+                outputIndex++
+                channel++
+            }
+            frame++
+        }
+        return interleaved
+    }
 }
