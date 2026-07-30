@@ -98,6 +98,8 @@ The Phase 4.2 transport suite verifies immutable lifecycle transitions, same-ses
 
 Phase 4.3 projects metronome and polyrhythm UI state from the coordinator. ViewModel tests cover mode-specific playing state, transition-state control enablement, renderer-committed pulse and feedback events, and rapid start/stop/start submission without installing engine delegates or recording practice from start requests.
 
+Phase 4.4 requests long-duration audio focus before opening playback, rejects denied or unavailable delayed focus as a typed start failure, and stops without automatic resume on permanent, transient, or duck-capable loss. Focus leases are released idempotently on stop, failed start, interruption, and engine release.
+
 New practice requests are intentionally not written through the legacy request-counting repository during this transition. Phase 5 introduces confirmed duration, the cumulative 30-second threshold, stable item identity, and transactional accounting; restoring a write on the first committed event would still violate that accepted contract.
 
 Renderer records cross a fixed primitive ring without render-path allocation and are materialized on the coordinator control context with session, event sequence, musical role, intended frame, mute state, and explicit correlated or unavailable presentation time. Ring overwrite is observable, runtime terminal backend failures enter authoritative `Failed`, and audio-focus loss reports a tagged interruption instead of letting the engine independently authorize teardown.

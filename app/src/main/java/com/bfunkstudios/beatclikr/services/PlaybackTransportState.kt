@@ -80,6 +80,8 @@ sealed interface PlaybackInterruptionReason {
 }
 
 sealed interface PlaybackFailureReason {
+    data object AudioFocusUnavailable : PlaybackFailureReason
+
     data class PrerequisiteUnavailable(
         val missing: Set<PlaybackPrerequisite>
     ) : PlaybackFailureReason

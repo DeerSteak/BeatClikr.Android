@@ -244,6 +244,7 @@ data class PlaybackEngineStartEvidence(
 
 interface PlaybackEngineTransportObserver {
     fun engineStarted(evidence: PlaybackEngineStartEvidence)
+    fun audioFocusUnavailable(sessionId: PlaybackSessionId)
     fun engineStartFailed(sessionId: PlaybackSessionId, diagnostic: String)
     fun engineStopped(sessionId: PlaybackSessionId)
     fun engineInterrupted(
@@ -535,6 +536,10 @@ class PlaybackCoordinator(
 
     override fun engineStartFailed(sessionId: PlaybackSessionId, diagnostic: String) {
         onControlContext { applyEngineStartFailed(sessionId, diagnostic) }
+    }
+
+    override fun audioFocusUnavailable(sessionId: PlaybackSessionId) {
+        onControlContext { applyAudioFocusUnavailable(sessionId) }
     }
 
     override fun engineStopped(sessionId: PlaybackSessionId) {
@@ -1023,6 +1028,19 @@ class PlaybackCoordinator(
         transitionTo(PlaybackTransportState.Playing(committed))
         publishRenderedEvents()
         mutateOwnership { it.copy(activeMode = committed.mode) }
+    }
+
+    private fun applyAudioFocusUnavailable(sessionId: PlaybackSessionId) {
+        val current = transportState.value as? PlaybackTransportState.Starting ?: return
+        if (current.context.sessionId != sessionId) return
+        transitionTo(
+            PlaybackTransportState.Failed(
+                current.context,
+                PlaybackFailureReason.AudioFocusUnavailable
+            )
+        )
+        mutateOwnership { it.copy(activeMode = PlaybackMode.NONE) }
+        engine.stopSession(current.context.sessionId, current.context.mode)
     }
 
     private fun publishRenderedEvents() {
