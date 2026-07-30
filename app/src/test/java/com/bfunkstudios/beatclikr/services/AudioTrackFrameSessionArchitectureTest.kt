@@ -60,6 +60,17 @@ class AudioTrackFrameSessionArchitectureTest {
         assertTrue(source.contains("owner.resync(recoveryFrame)"))
     }
 
+    @Test
+    fun missingRenderPropertiesBecomeTypedFailure() {
+        val renderLoop = locateSource().readText().substringAfter("private val renderRunnable")
+
+        assertFalse(renderLoop.contains("requireNotNull(owner.properties)"))
+        assertTrue(renderLoop.contains("if (properties == null)"))
+        assertTrue(renderLoop.contains("AudioBackendOperation.RENDER"))
+        assertTrue(renderLoop.contains("AudioBackendFailureCode.INTERNAL_ERROR"))
+        assertTrue(renderLoop.contains("canContinue = false"))
+    }
+
     private fun locateSource(): Path {
         val relative = Path.of(
             "src/main/java/com/bfunkstudios/beatclikr/services/AudioTrackFrameSession.kt"

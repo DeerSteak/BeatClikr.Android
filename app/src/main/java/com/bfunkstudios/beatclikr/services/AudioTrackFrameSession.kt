@@ -313,26 +313,37 @@ class AudioTrackFrameSession(
             snapshotSequence++
             writtenFrame = owner.nextFrame
             if (result == FrameStreamRenderResult.COMPLETE) {
-                renderedBeatEvents = owner.renderedBeatEvents
-                renderedRhythmEvents = owner.renderedRhythmEvents
-                val observedUnderruns = owner.underrunCount
-                val missingFrames = captureFrameCorrelation()
-                if (observedUnderruns > underrunCount) {
-                    val recoveryFrame = Math.addExact(owner.nextFrame, missingFrames)
-                    canContinue = owner.resync(recoveryFrame)
-                    if (canContinue) {
-                        underrunSkippedFrames = Math.addExact(
-                            underrunSkippedFrames,
-                            missingFrames
+                val properties = owner.properties
+                if (properties == null) {
+                    failureRing.record(
+                        AudioBackendFailure(
+                            AudioBackendOperation.RENDER,
+                            AudioBackendFailureCode.INTERNAL_ERROR
                         )
+                    )
+                    canContinue = false
+                } else {
+                    renderedBeatEvents = owner.renderedBeatEvents
+                    renderedRhythmEvents = owner.renderedRhythmEvents
+                    val observedUnderruns = owner.underrunCount
+                    val missingFrames = captureFrameCorrelation(properties.sampleRate)
+                    if (observedUnderruns > underrunCount) {
+                        val recoveryFrame = Math.addExact(owner.nextFrame, missingFrames)
+                        canContinue = owner.resync(recoveryFrame)
+                        if (canContinue) {
+                            underrunSkippedFrames = Math.addExact(
+                                underrunSkippedFrames,
+                                missingFrames
+                            )
+                        }
                     }
+                    underrunCount = observedUnderruns
+                    writtenFrames = Math.addExact(
+                        writtenFrames,
+                        properties.burstFrames.toLong()
+                    )
+                    renderedBlocks++
                 }
-                underrunCount = observedUnderruns
-                writtenFrames = Math.addExact(
-                    writtenFrames,
-                    requireNotNull(owner.properties).burstFrames.toLong()
-                )
-                renderedBlocks++
             }
             snapshotSequence++
             if (canContinue) {
@@ -357,7 +368,7 @@ class AudioTrackFrameSession(
         snapshotSequence++
     }
 
-    private fun captureFrameCorrelation(): Long {
+    private fun captureFrameCorrelation(sampleRate: Int): Long {
         if (!owner.timestamp(timestamp)) return 0
         val missingFrames = if (hasFrameCorrelation) {
             missingPresentationFrames(
@@ -365,7 +376,7 @@ class AudioTrackFrameSession(
                 presentationNanoTime,
                 timestamp.framePosition,
                 timestamp.monotonicTimeNanos,
-                requireNotNull(owner.properties).sampleRate
+                sampleRate
             )
         } else {
             0
