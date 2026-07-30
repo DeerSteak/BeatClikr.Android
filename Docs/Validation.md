@@ -86,6 +86,10 @@ The same tripwire prohibits the former check-interval polling fields and methods
 
 The frame-session tripwire requires one reusable timestamp holder, captures written/presented frame correlation into the consistent snapshot, and requires an advancing underrun count to skip timestamp-estimated missing presentation frames before owner resynchronization. Pure policy tests cover timestamp-gap conversion and constant-time visual event dropping.
 
+Phase 3.5 diagnostics time mixing separately from the required blocking `AudioTrack.write`. Fixed-memory histograms use 5 µs buckets through 500 µs and progressively wider buckets above that range; reported p50, p95, and p99 values are bucket upper bounds, while maxima are exact. Snapshots also distinguish intended, rendered, written, and nullable estimated-presented frames and report route changes without allocating on the per-block record path.
+
+The release-equivalent five-minute Pixel 8a decision run is recorded in `benchmarks/2026-07-30-phase-3.5-pixel-8a.md`. It is the current evidence for retaining `AudioTrack`; AAudio or Oboe comparison is conditional on a reproducible approved-gate failure that remains after `AudioTrack` tuning or on unmet required device coverage.
+
 Renderer regressions also cover live mute changes and a delayed first event derived from the obtained sample rate. Recovery before that delayed timeline origin remains valid and clamps its event cursor without changing output-frame ownership.
 
 The standard-update regression changes tempo after rendering has begun and requires the replacement's first event to remain on the next old-tempo boundary. It also requires the pattern role and `EventSequence` index to continue across that boundary, proving that ramps do not restart the stream or reset musical phase.

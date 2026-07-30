@@ -16,11 +16,19 @@ data class AudioTrackFrameSessionSnapshot(
     val firstOutputFrame: Long,
     val nextFrame: Long,
     val writtenFrames: Long,
+    val renderedFrames: Long,
+    val estimatedPresentedFrames: Long?,
     val renderedBlocks: Long,
     val renderedBeatEvents: Long,
     val renderedRhythmEvents: Long,
     val underrunCount: Int,
     val underrunSkippedFrames: Long,
+    val deadlineMisses: Long,
+    val droppedEvents: Long,
+    val mixDuration: RenderDurationPercentiles,
+    val writeDuration: RenderDurationPercentiles,
+    val route: AudioOutputRoute,
+    val routeChangeCount: Long,
     val frameCorrelation: AudioFrameCorrelation?,
     val failures: List<AudioBackendFailure>
 )
@@ -83,6 +91,9 @@ class AudioTrackFrameSession(
     private var writtenFrames = 0L
 
     @Volatile
+    private var renderedFrames = 0L
+
+    @Volatile
     private var firstOutputFrame = 0L
 
     @Volatile
@@ -96,6 +107,21 @@ class AudioTrackFrameSession(
 
     @Volatile
     private var underrunSkippedFrames = 0L
+
+    @Volatile
+    private var deadlineMisses = 0L
+
+    @Volatile
+    private var droppedEvents = 0L
+
+    private val mixDurations = RenderDurationHistogram()
+    private val writeDurations = RenderDurationHistogram()
+
+    @Volatile
+    private var currentRoute = AudioOutputRoute.UNKNOWN
+
+    @Volatile
+    private var routeChangeCount = 0L
 
     private val timestamp = AudioFrameTimestamp()
 
@@ -254,11 +280,18 @@ class AudioTrackFrameSession(
         var firstFrame: Long
         var nextFrame: Long
         var completedWrittenFrames: Long
+        var completedRenderedFrames: Long
         var blocks: Long
         var beatEvents: Long
         var rhythmEvents: Long
         var underruns: Int
         var skippedFrames: Long
+        var missedDeadlines: Long
+        var expiredEvents: Long
+        var mixDurationPercentiles: RenderDurationPercentiles
+        var writeDurationPercentiles: RenderDurationPercentiles
+        var route: AudioOutputRoute
+        var routeChanges: Long
         var hasCorrelation: Boolean
         var correlationWrittenFrame: Long
         var correlationPresentedFrame: Long
@@ -270,11 +303,18 @@ class AudioTrackFrameSession(
             firstFrame = firstOutputFrame
             nextFrame = writtenFrame
             completedWrittenFrames = writtenFrames
+            completedRenderedFrames = renderedFrames
             blocks = renderedBlocks
             beatEvents = renderedBeatEvents
             rhythmEvents = renderedRhythmEvents
             underruns = underrunCount
             skippedFrames = underrunSkippedFrames
+            missedDeadlines = deadlineMisses
+            expiredEvents = droppedEvents
+            mixDurationPercentiles = mixDurations.percentiles()
+            writeDurationPercentiles = writeDurations.percentiles()
+            route = currentRoute
+            routeChanges = routeChangeCount
             hasCorrelation = hasFrameCorrelation
             correlationWrittenFrame = correlatedWrittenFrame
             correlationPresentedFrame = presentedFrame
@@ -287,11 +327,19 @@ class AudioTrackFrameSession(
             firstFrame,
             nextFrame,
             completedWrittenFrames,
+            completedRenderedFrames,
+            if (hasCorrelation) correlationPresentedFrame else null,
             blocks,
             beatEvents,
             rhythmEvents,
             underruns,
             skippedFrames,
+            missedDeadlines,
+            expiredEvents,
+            mixDurationPercentiles,
+            writeDurationPercentiles,
+            route,
+            routeChanges,
             if (hasCorrelation) {
                 AudioFrameCorrelation(
                     correlationWrittenFrame,
@@ -311,6 +359,13 @@ class AudioTrackFrameSession(
             val result = owner.renderNextBlock()
             var canContinue = result == FrameStreamRenderResult.COMPLETE
             snapshotSequence++
+            mixDurations.record(owner.lastMixDurationNanos)
+            writeDurations.record(owner.lastWriteDurationNanos)
+            val observedRoute = owner.route
+            if (observedRoute != currentRoute) {
+                if (currentRoute != AudioOutputRoute.UNKNOWN) routeChangeCount++
+                currentRoute = observedRoute
+            }
             writtenFrame = owner.nextFrame
             if (result == FrameStreamRenderResult.COMPLETE) {
                 val properties = owner.properties
@@ -325,6 +380,8 @@ class AudioTrackFrameSession(
                 } else {
                     renderedBeatEvents = owner.renderedBeatEvents
                     renderedRhythmEvents = owner.renderedRhythmEvents
+                    deadlineMisses = owner.deadlineMisses
+                    droppedEvents = owner.droppedEvents
                     val observedUnderruns = owner.underrunCount
                     val missingFrames = captureFrameCorrelation(properties.sampleRate)
                     if (observedUnderruns > underrunCount) {
@@ -340,6 +397,10 @@ class AudioTrackFrameSession(
                     underrunCount = observedUnderruns
                     writtenFrames = Math.addExact(
                         writtenFrames,
+                        properties.burstFrames.toLong()
+                    )
+                    renderedFrames = Math.addExact(
+                        renderedFrames,
                         properties.burstFrames.toLong()
                     )
                     renderedBlocks++
@@ -401,10 +462,17 @@ class AudioTrackFrameSession(
         firstOutputFrame = 0
         writtenFrame = 0
         writtenFrames = 0
+        renderedFrames = 0
         renderedBeatEvents = 0
         renderedRhythmEvents = 0
         underrunCount = 0
         underrunSkippedFrames = 0
+        deadlineMisses = 0
+        droppedEvents = 0
+        mixDurations.reset()
+        writeDurations.reset()
+        currentRoute = AudioOutputRoute.UNKNOWN
+        routeChangeCount = 0
         hasFrameCorrelation = false
         correlatedWrittenFrame = 0
         presentedFrame = 0

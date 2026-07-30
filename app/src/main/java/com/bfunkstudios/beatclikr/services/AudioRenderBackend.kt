@@ -26,6 +26,21 @@ enum class AudioBackendPerformanceMode {
     UNKNOWN
 }
 
+enum class AudioBackendType {
+    AUDIO_TRACK,
+    UNKNOWN
+}
+
+enum class AudioOutputRoute {
+    BUILT_IN,
+    WIRED,
+    USB,
+    BLUETOOTH,
+    HDMI,
+    REMOTE,
+    UNKNOWN
+}
+
 data class AudioBackendFailure(
     val operation: AudioBackendOperation,
     val code: AudioBackendFailureCode
@@ -86,7 +101,9 @@ data class AudioBackendStreamProperties(
     val channelCount: Int,
     val burstFrames: Int,
     val bufferFrames: Int,
-    val performanceMode: AudioBackendPerformanceMode = AudioBackendPerformanceMode.UNKNOWN
+    val performanceMode: AudioBackendPerformanceMode = AudioBackendPerformanceMode.UNKNOWN,
+    val backend: AudioBackendType = AudioBackendType.UNKNOWN,
+    val route: AudioOutputRoute = AudioOutputRoute.UNKNOWN
 ) {
     init {
         require(sampleRate > 0) { "Sample rate must be positive" }
@@ -123,6 +140,11 @@ interface AudioRenderBackend {
     fun timestamp(destination: AudioFrameTimestamp): Boolean
 
     fun underrunCount(): Int = 0
+
+    fun streamProperties(): AudioBackendStreamProperties? = null
+
+    fun currentRoute(): AudioOutputRoute =
+        streamProperties()?.route ?: AudioOutputRoute.UNKNOWN
 }
 
 /** Expands mono renderer frames into an obtained interleaved output layout. */

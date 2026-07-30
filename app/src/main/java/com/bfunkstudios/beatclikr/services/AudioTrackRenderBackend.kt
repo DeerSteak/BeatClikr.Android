@@ -5,6 +5,8 @@ import android.media.AudioFormat
 import android.media.AudioManager
 import android.media.AudioTimestamp
 import android.media.AudioTrack
+import android.media.AudioDeviceInfo
+import android.media.AudioRouting
 
 class AudioTrackRenderBackend(
     private val audioManager: AudioManager? = null
@@ -12,6 +14,12 @@ class AudioTrackRenderBackend(
     private var failureSink = AudioBackendFailureSink {}
     private var track: AudioTrack? = null
     private var channelAdapter: MonoPcmChannelAdapter? = null
+    private var streamProperties: AudioBackendStreamProperties? = null
+    @Volatile
+    private var currentRoute = AudioOutputRoute.UNKNOWN
+    private val routingListener = AudioRouting.OnRoutingChangedListener { routing ->
+        currentRoute = (routing as? AudioTrack)?.routedDevice.toOutputRoute()
+    }
     private val platformTimestamp = AudioTimestamp()
 
     override fun open(
@@ -35,13 +43,17 @@ class AudioTrackRenderBackend(
                 val burstFrames = resolveBurstFrames().coerceAtMost(bufferFrames)
                 track = opened
                 channelAdapter = MonoPcmChannelAdapter(bufferFrames, channelCount)
+                currentRoute = opened.routedDevice.toOutputRoute()
+                opened.addOnRoutingChangedListener(routingListener, null)
                 AudioBackendStreamProperties(
                     sampleRate = opened.sampleRate,
                     channelCount = channelCount,
                     burstFrames = burstFrames,
                     bufferFrames = bufferFrames,
-                    performanceMode = opened.performanceMode.toBackendPerformanceMode()
-                )
+                    performanceMode = opened.performanceMode.toBackendPerformanceMode(),
+                    backend = AudioBackendType.AUDIO_TRACK,
+                    route = currentRoute
+                ).also { streamProperties = it }
             }
         } catch (_: IllegalArgumentException) {
             report(AudioBackendOperation.OPEN, AudioBackendFailureCode.INVALID_CONFIGURATION)
@@ -63,6 +75,7 @@ class AudioTrackRenderBackend(
         }
         return try {
             opened.play()
+            currentRoute = opened.routedDevice.toOutputRoute()
             true
         } catch (_: IllegalStateException) {
             report(AudioBackendOperation.START, AudioBackendFailureCode.START_REJECTED)
@@ -104,6 +117,8 @@ class AudioTrackRenderBackend(
         val opened = track ?: return true
         track = null
         channelAdapter = null
+        streamProperties = null
+        opened.removeOnRoutingChangedListener(routingListener)
         return try {
             if (opened.playState == AudioTrack.PLAYSTATE_PLAYING) opened.pause()
             opened.flush()
@@ -133,6 +148,10 @@ class AudioTrackRenderBackend(
     }
 
     override fun underrunCount(): Int = track?.underrunCount ?: 0
+
+    override fun streamProperties(): AudioBackendStreamProperties? = streamProperties
+
+    override fun currentRoute(): AudioOutputRoute = currentRoute
 
     @Suppress("DEPRECATION")
     private fun buildTrack(request: AudioBackendOpenRequest): AudioTrack {
@@ -185,6 +204,27 @@ class AudioTrackRenderBackend(
         AudioTrack.PERFORMANCE_MODE_LOW_LATENCY -> AudioBackendPerformanceMode.LOW_LATENCY
         AudioTrack.PERFORMANCE_MODE_POWER_SAVING -> AudioBackendPerformanceMode.POWER_SAVING
         else -> AudioBackendPerformanceMode.UNKNOWN
+    }
+
+    private fun AudioDeviceInfo?.toOutputRoute(): AudioOutputRoute = when (this?.type) {
+        AudioDeviceInfo.TYPE_BUILTIN_EARPIECE,
+        AudioDeviceInfo.TYPE_BUILTIN_SPEAKER -> AudioOutputRoute.BUILT_IN
+        AudioDeviceInfo.TYPE_WIRED_HEADSET,
+        AudioDeviceInfo.TYPE_WIRED_HEADPHONES,
+        AudioDeviceInfo.TYPE_LINE_ANALOG -> AudioOutputRoute.WIRED
+        AudioDeviceInfo.TYPE_USB_DEVICE,
+        AudioDeviceInfo.TYPE_USB_ACCESSORY,
+        AudioDeviceInfo.TYPE_USB_HEADSET -> AudioOutputRoute.USB
+        AudioDeviceInfo.TYPE_BLUETOOTH_A2DP,
+        AudioDeviceInfo.TYPE_BLUETOOTH_SCO,
+        AudioDeviceInfo.TYPE_BLE_HEADSET,
+        AudioDeviceInfo.TYPE_BLE_SPEAKER,
+        AudioDeviceInfo.TYPE_BLE_BROADCAST -> AudioOutputRoute.BLUETOOTH
+        AudioDeviceInfo.TYPE_HDMI,
+        AudioDeviceInfo.TYPE_HDMI_ARC,
+        AudioDeviceInfo.TYPE_HDMI_EARC -> AudioOutputRoute.HDMI
+        AudioDeviceInfo.TYPE_REMOTE_SUBMIX -> AudioOutputRoute.REMOTE
+        else -> AudioOutputRoute.UNKNOWN
     }
 
     private companion object {

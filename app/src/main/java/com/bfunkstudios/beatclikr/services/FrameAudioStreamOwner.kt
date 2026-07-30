@@ -119,6 +119,21 @@ class FrameAudioStreamOwner(
     val underrunCount: Int
         get() = backend.underrunCount()
 
+    val route: AudioOutputRoute
+        get() = backend.currentRoute()
+
+    var lastMixDurationNanos: Long = 0L
+        private set
+
+    var lastWriteDurationNanos: Long = 0L
+        private set
+
+    val deadlineMisses: Long
+        get() = (recovery as? TimelineFrameStreamRecovery)?.snapshot?.diagnostics?.deadlineMisses ?: 0L
+
+    val droppedEvents: Long
+        get() = (recovery as? TimelineFrameStreamRecovery)?.snapshot?.diagnostics?.droppedEvents ?: 0L
+
     fun open(
         request: AudioBackendOpenRequest,
         rendererFactory: PcmFrameRendererFactory,
@@ -204,6 +219,7 @@ class FrameAudioStreamOwner(
             publishedRenderer.reset()
             return false
         }
+        properties = backend.streamProperties() ?: properties
         backendStarted = true
         running = true
         return true
@@ -267,11 +283,13 @@ class FrameAudioStreamOwner(
             report(AudioBackendOperation.RENDER, AudioBackendFailureCode.INVALID_CONFIGURATION)
             return FrameStreamRenderResult.FRAME_RANGE_EXHAUSTED
         }
+        val mixStartedNanos = System.nanoTime()
         val renderResult = publishedRenderer.render(
             nextFrame,
             renderBuffer,
             renderBuffer.size
         )
+        lastMixDurationNanos = System.nanoTime() - mixStartedNanos
         if (renderResult != FrameRenderResult.COMPLETE) {
             publishedRenderer.reset()
             running = false
@@ -280,6 +298,7 @@ class FrameAudioStreamOwner(
         }
 
         var writtenFrames = 0
+        val writeStartedNanos = System.nanoTime()
         while (writtenFrames < renderBuffer.size) {
             val remainingFrames = renderBuffer.size - writtenFrames
             val written = backend.render(
@@ -293,10 +312,12 @@ class FrameAudioStreamOwner(
                 publishedRenderer.reset()
                 running = false
                 report(AudioBackendOperation.RENDER, AudioBackendFailureCode.WRITE_FAILED)
+                lastWriteDurationNanos = System.nanoTime() - writeStartedNanos
                 return FrameStreamRenderResult.WRITE_FAILED
             }
             writtenFrames += written
         }
+        lastWriteDurationNanos = System.nanoTime() - writeStartedNanos
         nextFrame += writtenFrames
         return FrameStreamRenderResult.COMPLETE
     }
