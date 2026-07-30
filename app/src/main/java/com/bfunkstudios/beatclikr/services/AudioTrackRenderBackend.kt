@@ -9,7 +9,11 @@ import android.media.AudioDeviceInfo
 import android.media.AudioRouting
 
 class AudioTrackRenderBackend(
-    private val audioManager: AudioManager? = null
+    private val audioManager: AudioManager? = null,
+    private val routeChangeObserver: (
+        previous: AudioOutputRoute,
+        current: AudioOutputRoute
+    ) -> Unit = { _, _ -> }
 ) : AudioRenderBackend {
     private var failureSink = AudioBackendFailureSink {}
     private var track: AudioTrack? = null
@@ -18,7 +22,12 @@ class AudioTrackRenderBackend(
     @Volatile
     private var currentRoute = AudioOutputRoute.UNKNOWN
     private val routingListener = AudioRouting.OnRoutingChangedListener { routing ->
-        currentRoute = (routing as? AudioTrack)?.routedDevice.toOutputRoute()
+        val previous = currentRoute
+        val current = (routing as? AudioTrack)?.routedDevice.toOutputRoute()
+        currentRoute = current
+        if (previous != AudioOutputRoute.UNKNOWN && current != previous) {
+            routeChangeObserver(previous, current)
+        }
     }
     private val platformTimestamp = AudioTimestamp()
 

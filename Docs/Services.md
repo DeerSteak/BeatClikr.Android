@@ -14,6 +14,8 @@ Sound preparation APIs perform blocking resource and cache work and may only be 
 
 Playback requests long-duration audio focus with `AUDIOFOCUS_GAIN`. Focus denial fails startup, every focus-loss class stops the active session without automatic resume, and teardown abandons a held focus lease. Backing-track coexistence is not guaranteed; reliable metronome ownership takes priority over mixing with another media application.
 
+The active `AudioTrack` observes routing changes while the engine also observes audio-device additions and removals. A committed route change interrupts the current session, closes its stream, and requires an explicit restart; that restart opens a new stream and rebuilds rendering from the new route's obtained properties. Bluetooth routes are exposed to UI projections as latency-variable.
+
 `FrameAudioMetricsSnapshot` preserves its existing field schema for instrumentation compatibility, but role counts now come from successfully rendered frame events rather than enqueue operations.
 
 Audio events are positioned by absolute frames inside render blocks. Secondary-output callbacks use one-shot monotonic scheduling and drop expired intervals rather than producing catch-up bursts.

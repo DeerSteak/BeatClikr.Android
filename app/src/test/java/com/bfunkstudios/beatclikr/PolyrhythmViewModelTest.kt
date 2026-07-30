@@ -121,6 +121,15 @@ class PolyrhythmViewModelTest {
     }
 
     @Test
+    fun `bluetooth session exposes variable output latency`() {
+        transportState.value = polyrhythmPlaying().copy(
+            context = polyrhythmPlaying().context.copy(route = AudioOutputRoute.BLUETOOTH)
+        )
+
+        assertTrue(viewModel.hasVariableOutputLatency)
+    }
+
+    @Test
     fun `committed polyrhythm event uses authoritative role index after a drop`() {
         val playing = polyrhythmPlaying()
         transportState.value = playing

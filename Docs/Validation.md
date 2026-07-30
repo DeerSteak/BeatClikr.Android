@@ -102,6 +102,8 @@ Phase 4.4 requests long-duration audio focus before opening playback, rejects de
 
 Manual Pixel 8a interoperability testing with Spotify verified that Spotify ducks and pauses when BeatClikr acquires focus, recovers after BeatClikr releases focus, and causes BeatClikr to duck briefly and then stop when Spotify retakes focus.
 
+Phase 4.5 observes both audio-device topology and the active `AudioTrack` route. Coordinator tests preserve the typed old/new route interruption, stop exactly once, and require explicit restart; transport and ViewModel tests identify Bluetooth sessions as latency-variable.
+
 New practice requests are intentionally not written through the legacy request-counting repository during this transition. Phase 5 introduces confirmed duration, the cumulative 30-second threshold, stable item identity, and transactional accounting; restoring a write on the first committed event would still violate that accepted contract.
 
 Renderer records cross a fixed primitive ring without render-path allocation and are materialized on the coordinator control context with session, event sequence, musical role, intended frame, mute state, and explicit correlated or unavailable presentation time. Ring overwrite is observable, runtime terminal backend failures enter authoritative `Failed`, and audio-focus loss reports a tagged interruption instead of letting the engine independently authorize teardown.

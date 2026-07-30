@@ -2,6 +2,7 @@ package com.bfunkstudios.beatclikr.ui
 
 import com.bfunkstudios.beatclikr.services.PlaybackMode
 import com.bfunkstudios.beatclikr.services.PlaybackTransportState
+import com.bfunkstudios.beatclikr.services.hasVariableOutputLatency
 
 internal fun PlaybackTransportState.isModeActive(mode: PlaybackMode): Boolean {
     val session = this as? PlaybackTransportState.SessionState ?: return false
@@ -17,4 +18,9 @@ internal fun PlaybackTransportState.isModeTransitioning(mode: PlaybackMode): Boo
         (this is PlaybackTransportState.Preparing ||
             this is PlaybackTransportState.Starting ||
             this is PlaybackTransportState.Stopping)
+}
+
+internal fun PlaybackTransportState.hasVariableOutputLatency(mode: PlaybackMode): Boolean {
+    val session = this as? PlaybackTransportState.SessionState ?: return false
+    return session.context.mode == mode && session.context.hasVariableOutputLatency
 }

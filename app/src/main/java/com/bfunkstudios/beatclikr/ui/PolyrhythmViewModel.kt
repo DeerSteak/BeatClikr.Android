@@ -54,6 +54,9 @@ class PolyrhythmViewModel @Inject constructor(
     val controlsEnabled: Boolean
         get() = !transportState.isModeTransitioning(PlaybackMode.POLYRHYTHM)
 
+    val hasVariableOutputLatency: Boolean
+        get() = transportState.hasVariableOutputLatency(PlaybackMode.POLYRHYTHM)
+
     var lastPlaybackFailure by mutableStateOf<String?>(null)
         private set
 

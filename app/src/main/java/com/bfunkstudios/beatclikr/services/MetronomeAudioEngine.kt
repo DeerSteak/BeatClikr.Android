@@ -2,6 +2,8 @@ package com.bfunkstudios.beatclikr.services
 
 import android.content.Context
 import android.media.AudioAttributes
+import android.media.AudioDeviceCallback
+import android.media.AudioDeviceInfo
 import android.media.AudioFocusRequest
 import android.media.AudioManager
 import android.os.Build
@@ -67,6 +69,8 @@ class MetronomeAudioEngine(private val context: Context) {
     private var polyrhythmPlaying = false
     private var audioFocusHeld = false
     @Volatile
+    private var activeOutputRoute = AudioOutputRoute.UNKNOWN
+    @Volatile
     private var activeCoordinatorSessionId: PlaybackSessionId? = null
 
     private var delegate: MetronomeAudioEngineDelegate? = null
@@ -127,12 +131,26 @@ class MetronomeAudioEngine(private val context: Context) {
                 .build()
         } else null
 
+    private val audioDeviceCallback = object : AudioDeviceCallback() {
+        override fun onAudioDevicesAdded(addedDevices: Array<out AudioDeviceInfo>) {
+            checkRouteAfterDeviceTopologyChange()
+        }
+
+        override fun onAudioDevicesRemoved(removedDevices: Array<out AudioDeviceInfo>) {
+            checkRouteAfterDeviceTopologyChange()
+        }
+    }
+
     private val polyrhythmEngine = PolyrhythmTimingEngine(
         handler = handler,
         outputLatencyNanos = { if (!isMuted) frameAudioEngine?.estimatedOutputLatencyNanos ?: 0L else 0L },
         firstBeatDelayMs = firstBeatDelayMs,
         lookaheadToleranceMs = lookaheadToleranceMs
     )
+
+    init {
+        audioManager.registerAudioDeviceCallback(audioDeviceCallback, handler)
+    }
 
     fun loadSounds(
         beatResourceId: Int,
@@ -252,6 +270,7 @@ class MetronomeAudioEngine(private val context: Context) {
                 }
                 return@post
             }
+            activeOutputRoute = evidence.route
             polyrhythmEngine.start(bpm, beats, against)
             polyrhythmPlaying = true
             sessionId?.let {
@@ -289,6 +308,7 @@ class MetronomeAudioEngine(private val context: Context) {
             framePolyrhythmActive = false
             subdivisionCounter = 0
             activeCoordinatorSessionId = null
+            activeOutputRoute = AudioOutputRoute.UNKNOWN
             abandonAudioFocus()
             completion()
         }
@@ -376,6 +396,7 @@ class MetronomeAudioEngine(private val context: Context) {
             polyrhythmEngine.stop()
             polyrhythmEngine.delegate = null
             delegate = null
+            audioManager.unregisterAudioDeviceCallback(audioDeviceCallback)
             abandonAudioFocus()
             latch.countDown()
         }
@@ -470,6 +491,7 @@ class MetronomeAudioEngine(private val context: Context) {
             }
             return
         }
+        activeOutputRoute = evidence.route
         this.isPlaying = true
         startTimer()
         sessionId?.let {
@@ -547,13 +569,44 @@ class MetronomeAudioEngine(private val context: Context) {
     }
 
     private fun getOrCreateFrameAudioEngine(): FrameAudioEngine {
-        return frameAudioEngine ?: FrameAudioEngine(audioManager, pcmFileCache).also { engine ->
+        return frameAudioEngine ?: FrameAudioEngine(
+            audioManager,
+            pcmFileCache,
+            ::onOutputRouteChanged
+        ).also { engine ->
             frameAudioEngine = engine
             engine.soundBank = soundBank
             val beatResource = beatResourceId
             val rhythmResource = rhythmResourceId
             if (beatResource != null && rhythmResource != null) {
                 engine.setSounds(beatResource, rhythmResource)
+            }
+        }
+    }
+
+    private fun onOutputRouteChanged(
+        previous: AudioOutputRoute,
+        current: AudioOutputRoute
+    ) {
+        activeOutputRoute = current
+        val sessionId = activeCoordinatorSessionId ?: return
+        playbackInterruptionObserver?.invoke(
+            sessionId,
+            PlaybackInterruptionReason.RouteChanged(previous, current)
+        )
+    }
+
+    private fun checkRouteAfterDeviceTopologyChange() {
+        handler.post {
+            val sessionId = activeCoordinatorSessionId ?: return@post
+            val current = frameAudioEngine?.metricsSnapshot()?.route ?: return@post
+            val previous = activeOutputRoute
+            if (previous != AudioOutputRoute.UNKNOWN && current != previous) {
+                activeOutputRoute = current
+                playbackInterruptionObserver?.invoke(
+                    sessionId,
+                    PlaybackInterruptionReason.RouteChanged(previous, current)
+                )
             }
         }
     }

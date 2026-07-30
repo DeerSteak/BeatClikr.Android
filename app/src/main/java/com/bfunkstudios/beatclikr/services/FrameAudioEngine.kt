@@ -59,7 +59,11 @@ data class FrameAudioRenderedEventBatch(
 
 class FrameAudioEngine(
     private val audioManager: AudioManager? = null,
-    private val pcmFileCache: PcmFileCache
+    private val pcmFileCache: PcmFileCache,
+    private val routeChangeObserver: (
+        previous: AudioOutputRoute,
+        current: AudioOutputRoute
+    ) -> Unit = { _, _ -> }
 ) {
     private val sampleRate = pcmFileCache.sampleRate
     private val outputFramesPerBuffer = resolveOutputFramesPerBuffer()
@@ -342,7 +346,8 @@ class FrameAudioEngine(
         frameSession ?: AudioTrackFrameSession(
             audioManager,
             preferredSampleRate = sampleRate,
-            preferredBurstFrames = outputFramesPerBuffer
+            preferredBurstFrames = outputFramesPerBuffer,
+            routeChangeObserver = routeChangeObserver
         ).also { frameSession = it }
 
     private fun nextOrigin(sessionId: PlaybackSessionId?): SessionOrigin {

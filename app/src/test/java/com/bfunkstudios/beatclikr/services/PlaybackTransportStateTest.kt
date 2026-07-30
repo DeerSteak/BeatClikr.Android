@@ -155,6 +155,20 @@ class PlaybackTransportStateTest {
     }
 
     @Test
+    fun bluetoothRouteExposesVariableLatency() {
+        assertTrue(
+            requestedContext(1)
+                .copy(route = AudioOutputRoute.BLUETOOTH)
+                .hasVariableOutputLatency
+        )
+        assertFalse(
+            requestedContext(1)
+                .copy(route = AudioOutputRoute.USB)
+                .hasVariableOutputLatency
+        )
+    }
+
+    @Test
     fun startingCanAmendBackendFactsBeforePlaying() {
         val startingContext = requestedContext(1).copy(
             audibleSounds = sounds()

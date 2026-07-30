@@ -76,8 +76,15 @@ data class PlaybackSessionContext(
 sealed interface PlaybackInterruptionReason {
     data object AudioFocusLost : PlaybackInterruptionReason
     data object RouteLost : PlaybackInterruptionReason
+    data class RouteChanged(
+        val previous: AudioOutputRoute,
+        val current: AudioOutputRoute
+    ) : PlaybackInterruptionReason
     data class EngineStopped(val diagnostic: String) : PlaybackInterruptionReason
 }
+
+val PlaybackSessionContext.hasVariableOutputLatency: Boolean
+    get() = route == AudioOutputRoute.BLUETOOTH
 
 sealed interface PlaybackFailureReason {
     data object AudioFocusUnavailable : PlaybackFailureReason
