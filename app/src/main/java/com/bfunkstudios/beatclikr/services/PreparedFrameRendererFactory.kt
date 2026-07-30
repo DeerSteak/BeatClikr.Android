@@ -124,6 +124,7 @@ private fun preparedPublication(
         renderer,
         TimelineFrameStreamRecovery(timeline),
         firstOutputFrame = firstOutputFrame,
+        firstEventFrame = timeline.origin.originFrame,
         standardUpdater = standardUpdater,
         polyrhythmUpdater = polyrhythmUpdater
     )

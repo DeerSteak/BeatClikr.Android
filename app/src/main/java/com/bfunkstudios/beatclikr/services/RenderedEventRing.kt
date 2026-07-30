@@ -48,30 +48,58 @@ class RenderedEventRing(private val capacity: Int) {
         role: MusicalEventRole,
         intendedFrame: Long,
         isMuted: Boolean
+    ) = recordOrdinal(
+        sessionId,
+        eventSequence,
+        role.ordinal,
+        intendedFrame,
+        isMuted
+    )
+
+    internal fun recordOrdinal(
+        sessionId: Long,
+        eventSequence: Long,
+        roleOrdinal: Int,
+        intendedFrame: Long,
+        isMuted: Boolean
     ) {
         val sequence = producerSequence
         val index = (sequence % capacity).toInt()
+        slotSequences.lazySet(index, UNPUBLISHED)
         sessionIds[index] = sessionId
         eventSequences[index] = eventSequence
         intendedFrames[index] = intendedFrame
-        roles[index] = role.ordinal.toByte()
+        roles[index] = roleOrdinal.toByte()
         muted[index] = isMuted
         slotSequences.lazySet(index, sequence)
         producerSequence = sequence + 1
         publishedSequence = producerSequence
     }
 
-    fun drain(afterCaptureSequence: Long): RenderedEventBatch {
+    fun drop() {
+        producerSequence++
+        publishedSequence = producerSequence
+    }
+
+    fun drain(afterCaptureSequence: Long): RenderedEventBatch =
+        drain(afterCaptureSequence, null)
+
+    internal fun drain(
+        afterCaptureSequence: Long,
+        afterSlotValidation: (() -> Unit)?
+    ): RenderedEventBatch {
         require(afterCaptureSequence >= 0) { "Capture sequence must not be negative" }
         val end = publishedSequence
         val oldest = (end - capacity).coerceAtLeast(0)
         val start = maxOf(afterCaptureSequence, oldest)
         val records = ArrayList<RenderedFrameEvent>((end - start).toInt())
+        var dropped = (oldest - afterCaptureSequence).coerceAtLeast(0)
         var sequence = start
         while (sequence < end) {
             val index = (sequence % capacity).toInt()
             if (slotSequences.get(index) == sequence) {
-                records += RenderedFrameEvent(
+                afterSlotValidation?.invoke()
+                val record = RenderedFrameEvent(
                     sequence,
                     sessionIds[index],
                     eventSequences[index],
@@ -79,13 +107,20 @@ class RenderedEventRing(private val capacity: Int) {
                     intendedFrames[index],
                     muted[index]
                 )
+                if (slotSequences.get(index) == sequence) {
+                    records += record
+                } else {
+                    dropped++
+                }
+            } else {
+                dropped++
             }
             sequence++
         }
         return RenderedEventBatch(
             records,
             end,
-            (oldest - afterCaptureSequence).coerceAtLeast(0)
+            dropped
         )
     }
 

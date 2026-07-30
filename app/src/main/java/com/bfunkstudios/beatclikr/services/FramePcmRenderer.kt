@@ -55,7 +55,7 @@ class FramePcmRenderer(
     private val blockSessionIds = LongArray(maximumBlockEvents)
     private val blockEventSequences = LongArray(maximumBlockEvents)
     private val blockIntendedFrames = LongArray(maximumBlockEvents)
-    private val blockRoles = arrayOfNulls<MusicalEventRole>(maximumBlockEvents)
+    private val blockRoleOrdinals = ByteArray(maximumBlockEvents)
     private val blockMuted = BooleanArray(maximumBlockEvents)
     private var blockCapturedEvents = 0
 
@@ -187,12 +187,15 @@ class FramePcmRenderer(
         role: MusicalEventRole,
         muted: Boolean
     ) {
-        if (blockCapturedEvents >= blockSessionIds.size) return
+        if (blockCapturedEvents >= blockSessionIds.size) {
+            eventCapture?.drop()
+            return
+        }
         val index = blockCapturedEvents++
         blockSessionIds[index] = sessionId
         blockEventSequences[index] = eventSequence
         blockIntendedFrames[index] = intendedFrame
-        blockRoles[index] = role
+        blockRoleOrdinals[index] = role.ordinal.toByte()
         blockMuted[index] = liveMuted ?: muted
     }
 
@@ -200,10 +203,10 @@ class FramePcmRenderer(
         val capture = eventCapture ?: return
         var index = 0
         while (index < blockCapturedEvents) {
-            capture.record(
+            capture.recordOrdinal(
                 blockSessionIds[index],
                 blockEventSequences[index],
-                checkNotNull(blockRoles[index]),
+                blockRoleOrdinals[index].toInt(),
                 blockIntendedFrames[index],
                 blockMuted[index]
             )

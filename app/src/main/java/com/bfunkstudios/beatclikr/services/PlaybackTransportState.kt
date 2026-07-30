@@ -65,10 +65,10 @@ data class PlaybackSessionContext(
     init {
         require(mode != PlaybackMode.NONE) { "Playback session requires an active mode" }
         require(
-            mode == PlaybackMode.STANDARD &&
-                configuration is CommittedPlaybackConfiguration.Standard ||
-                mode == PlaybackMode.POLYRHYTHM &&
-                configuration is CommittedPlaybackConfiguration.Polyrhythm
+            (mode == PlaybackMode.STANDARD &&
+                configuration is CommittedPlaybackConfiguration.Standard) ||
+                (mode == PlaybackMode.POLYRHYTHM &&
+                    configuration is CommittedPlaybackConfiguration.Polyrhythm)
         ) { "Playback mode and configuration must match" }
     }
 }

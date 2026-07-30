@@ -5,6 +5,9 @@ import com.bfunkstudios.beatclikr.data.SoundFile
 import com.bfunkstudios.beatclikr.music.MusicalEventRole
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
+import java.util.concurrent.RejectedExecutionException
+import java.util.concurrent.ScheduledExecutorService
+import java.util.concurrent.ScheduledFuture
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -140,6 +143,12 @@ sealed interface PlaybackControlEvent {
         val failure: SoundPreparationFailure
     ) : PlaybackControlEvent
 
+    data class SystemInputRejected(
+        val commandSequence: Long,
+        val input: PlaybackSystemInput,
+        val failure: PlaybackCoordinatorFailure
+    ) : PlaybackControlEvent
+
     data class UnexpectedFailure(val diagnostic: String) : PlaybackControlEvent
 }
 
@@ -246,7 +255,11 @@ class PlaybackCoordinator(
     private val engine: PlaybackEnginePort,
     private val executor: ExecutorService = Executors.newSingleThreadExecutor { runnable ->
         Thread(runnable, "PlaybackCoordinatorControl")
-    }
+    },
+    private val eventDrainScheduler: ScheduledExecutorService =
+        Executors.newSingleThreadScheduledExecutor { runnable ->
+            Thread(runnable, "PlaybackCoordinatorEvents")
+        }
 ) : IAudioPlayerService, MetronomeAudioEngineDelegate, PolyrhythmAudioEngineDelegate,
     PlaybackEngineTransportObserver {
     private val mutableOwnership = MutableStateFlow(PlaybackOwnershipSnapshot())
@@ -274,6 +287,7 @@ class PlaybackCoordinator(
     private var nextCommittedEventSequence = 1L
     private var nextEngineCaptureSequence = 0L
     private var lastBackendFailure: AudioBackendFailure? = null
+    private var eventDrainFuture: ScheduledFuture<*>? = null
     private var pendingReplacement: PendingStart? = null
     private var prerequisites = PlaybackPrerequisites.READY
     private var latestSoundRequestSequence = 0L
@@ -342,7 +356,18 @@ class PlaybackCoordinator(
     @Synchronized
     fun submitSystemInput(input: PlaybackSystemInput): Long {
         val sequence = nextCommandSequence++
-        if (!released) {
+        if (released) {
+            mutableControlEvents.tryEmit(
+                PlaybackControlEvent.SystemInputRejected(
+                    sequence,
+                    input,
+                    PlaybackCoordinatorFailure(
+                        PlaybackCoordinatorFailureCode.RELEASED,
+                        "Playback coordinator is released"
+                    )
+                )
+            )
+        } else {
             executeControl("Playback system input failed") {
                 applySystemInput(input)
             }
@@ -421,17 +446,32 @@ class PlaybackCoordinator(
         released = true
         val sequence = nextCommandSequence++
         executeControl("Playback release failed") {
-            applyStop(sequence)
-            engine.soundPreparationObserver = null
-            engine.transportObserver = null
-            engine.delegate = null
-            engine.polyrhythmDelegate = null
-            engine.release()
-            if (transportState.value is PlaybackTransportState.Stopping) {
-                transitionTo(PlaybackTransportState.Idle)
+            try {
+                try {
+                    applyStop(sequence)
+                } catch (failure: RuntimeException) {
+                    handleTransportFailure(
+                        failure.message ?: "Playback engine rejected the stop"
+                    )
+                }
+                engine.release()
+            } finally {
+                val current = transportState.value
+                if (current is PlaybackTransportState.SessionState) {
+                    publishRenderedEvents(
+                        current.context.sessionId,
+                        detectRuntimeFailure = false
+                    )
+                }
+                engine.soundPreparationObserver = null
+                engine.transportObserver = null
+                engine.delegate = null
+                engine.polyrhythmDelegate = null
+                settleReleasedTransport()
             }
         }
         executor.shutdown()
+        eventDrainScheduler.shutdownNow()
         delegate = null
         polyrhythmDelegate = null
     }
@@ -663,18 +703,9 @@ class PlaybackCoordinator(
             }
             PlaybackIntentOutcome.Accepted(sequence)
         } catch (failure: RuntimeException) {
-            val starting = transportState.value as? PlaybackTransportState.Starting
-            if (starting != null) {
-                transitionTo(
-                    PlaybackTransportState.Failed(
-                        starting.context,
-                        PlaybackFailureReason.Engine(
-                            failure.message ?: "Playback engine rejected the command"
-                        )
-                    )
-                )
-                mutateOwnership { it.copy(activeMode = PlaybackMode.NONE) }
-            }
+            handleTransportFailure(
+                failure.message ?: "Playback engine rejected the command"
+            )
             rejectedOutcome(
                 sequence,
                 PlaybackCoordinatorFailureCode.ENGINE_FAILURE,
@@ -795,6 +826,7 @@ class PlaybackCoordinator(
                 engine.stopSession(current.context.sessionId, current.context.mode)
             is PlaybackTransportState.Failed -> transitionTo(PlaybackTransportState.Idle)
             is PlaybackTransportState.SessionState -> {
+                publishRenderedEvents(current.context.sessionId, detectRuntimeFailure = false)
                 transitionTo(PlaybackTransportState.Stopping(current.context))
                 engine.stopSession(current.context.sessionId, current.context.mode)
             }
@@ -805,6 +837,7 @@ class PlaybackCoordinator(
     private fun applySystemInput(input: PlaybackSystemInput) {
         when (input) {
             is PlaybackSystemInput.PrerequisitesChanged -> {
+                // Prerequisites are global facts; the session ID guards only transitions.
                 prerequisites = input.prerequisites
                 val current = transportState.value as? PlaybackTransportState.SessionState
                 if (input.expectedSessionId != null &&
@@ -878,6 +911,7 @@ class PlaybackCoordinator(
         current: PlaybackTransportState.Playing,
         reason: PlaybackInterruptionReason
     ) {
+        publishRenderedEvents(current.context.sessionId, detectRuntimeFailure = false)
         transitionTo(PlaybackTransportState.Interrupted(current.context, reason))
         mutateOwnership { it.copy(activeMode = PlaybackMode.NONE) }
         engine.stopSession(current.context.sessionId, current.context.mode)
@@ -901,6 +935,12 @@ class PlaybackCoordinator(
             }
             is PlaybackTransportState.Stopping -> pendingReplacement = start
             is PlaybackTransportState.SessionState -> {
+                if (current is PlaybackTransportState.Playing) {
+                    publishRenderedEvents(
+                        current.context.sessionId,
+                        detectRuntimeFailure = false
+                    )
+                }
                 pendingReplacement = start
                 transitionTo(PlaybackTransportState.Stopping(current.context))
                 engine.stopSession(current.context.sessionId, current.context.mode)
@@ -986,6 +1026,13 @@ class PlaybackCoordinator(
 
     private fun publishRenderedEvents() {
         val current = transportState.value as? PlaybackTransportState.Playing ?: return
+        publishRenderedEvents(current.context.sessionId, detectRuntimeFailure = true)
+    }
+
+    private fun publishRenderedEvents(
+        sessionId: PlaybackSessionId,
+        detectRuntimeFailure: Boolean
+    ) {
         val batch = engine.drainRenderedEvents(nextEngineCaptureSequence) ?: return
         nextEngineCaptureSequence = batch.events.nextCaptureSequence
         if (batch.events.droppedRecords > 0) {
@@ -997,11 +1044,11 @@ class PlaybackCoordinator(
             )
         }
         batch.events.records.forEach { record ->
-            if (record.sessionId != current.context.sessionId.value) return@forEach
+            if (record.sessionId != sessionId.value) return@forEach
             mutableCommittedEvents.tryEmit(
                 PlaybackCommittedEvent.Rendered(
                     nextCommittedEventSequence++,
-                    current.context.sessionId,
+                    sessionId,
                     record.eventSequence,
                     record.role,
                     record.intendedFrame,
@@ -1010,7 +1057,10 @@ class PlaybackCoordinator(
                 )
             )
         }
-        publishRuntimeFailure(current)
+        if (detectRuntimeFailure) {
+            val current = transportState.value as? PlaybackTransportState.Playing ?: return
+            if (current.context.sessionId == sessionId) publishRuntimeFailure(current)
+        }
     }
 
     private fun publishRuntimeFailure(current: PlaybackTransportState.Playing) {
@@ -1072,6 +1122,7 @@ class PlaybackCoordinator(
     private fun applyEngineStopped(sessionId: PlaybackSessionId) {
         val current = transportState.value as? PlaybackTransportState.SessionState ?: return
         if (current.context.sessionId != sessionId) return
+        publishRenderedEvents(sessionId, detectRuntimeFailure = false)
         if (current is PlaybackTransportState.Interrupted) {
             transitionTo(PlaybackTransportState.Idle)
             return
@@ -1119,6 +1170,11 @@ class PlaybackCoordinator(
             }
         }
         PlaybackTransportTransitions.requireLegal(previous, next)
+        if (previous is PlaybackTransportState.Playing &&
+            next !is PlaybackTransportState.Playing) {
+            eventDrainFuture?.cancel(false)
+            eventDrainFuture = null
+        }
         mutableTransportState.value = next
         mutateOwnership {
             it.copy(
@@ -1136,6 +1192,16 @@ class PlaybackCoordinator(
             )
         )
         mutableStateTransitions.tryEmit(transition)
+        if (previous !is PlaybackTransportState.Playing &&
+            next is PlaybackTransportState.Playing &&
+            !released) {
+            eventDrainFuture = eventDrainScheduler.scheduleAtFixedRate(
+                { onControlContext(::publishRenderedEvents) },
+                0,
+                EVENT_DRAIN_PERIOD_MILLIS,
+                TimeUnit.MILLISECONDS
+            )
+        }
     }
 
     private fun newSessionId(): PlaybackSessionId =
@@ -1150,9 +1216,19 @@ class PlaybackCoordinator(
     }
 
     private fun executeControl(diagnostic: String, operation: () -> Unit) {
-        executor.execute {
-            controlThread = Thread.currentThread()
-            runControlSafely(diagnostic, operation)
+        try {
+            executor.execute {
+                controlThread = Thread.currentThread()
+                runControlSafely(diagnostic, operation)
+            }
+        } catch (_: RejectedExecutionException) {
+            if (!released) {
+                mutableControlEvents.tryEmit(
+                    PlaybackControlEvent.UnexpectedFailure(
+                        "$diagnostic: control executor rejected work"
+                    )
+                )
+            }
         }
     }
 
@@ -1162,18 +1238,38 @@ class PlaybackCoordinator(
         } catch (failure: RuntimeException) {
             val detail = failure.message?.let { "$diagnostic: $it" } ?: diagnostic
             mutableControlEvents.tryEmit(PlaybackControlEvent.UnexpectedFailure(detail))
-            val current = transportState.value
-            if (current is PlaybackTransportState.Preparing ||
-                current is PlaybackTransportState.Starting ||
-                current is PlaybackTransportState.Playing) {
-                transitionTo(
-                    PlaybackTransportState.Failed(
-                        current.context,
-                        PlaybackFailureReason.Engine(detail)
-                    )
+            handleTransportFailure(detail)
+        }
+    }
+
+    private fun handleTransportFailure(diagnostic: String) {
+        val current = transportState.value
+        if (current is PlaybackTransportState.Preparing ||
+            current is PlaybackTransportState.Starting ||
+            current is PlaybackTransportState.Playing) {
+            transitionTo(
+                PlaybackTransportState.Failed(
+                    current.context,
+                    PlaybackFailureReason.Engine(diagnostic)
                 )
-                mutateOwnership { it.copy(activeMode = PlaybackMode.NONE) }
-            }
+            )
+        }
+    }
+
+    private fun settleReleasedTransport() {
+        val current = transportState.value
+        if (current is PlaybackTransportState.Preparing ||
+            current is PlaybackTransportState.Starting ||
+            current is PlaybackTransportState.Playing) {
+            transitionTo(
+                PlaybackTransportState.Failed(
+                    current.context,
+                    PlaybackFailureReason.Engine("Playback coordinator released")
+                )
+            )
+        }
+        if (transportState.value is PlaybackTransportState.SessionState) {
+            transitionTo(PlaybackTransportState.Idle)
         }
     }
 
@@ -1300,5 +1396,6 @@ class PlaybackCoordinator(
         const val CONTROL_EVENT_CAPACITY = 64
         const val TRANSPORT_EVENT_CAPACITY = 64
         const val NANOS_PER_SECOND = 1_000_000_000L
+        const val EVENT_DRAIN_PERIOD_MILLIS = 10L
     }
 }

@@ -223,11 +223,11 @@ class MetronomeAudioEngine(private val context: Context) {
                 sessionId?.let { completion?.invoke(it, null) }
                 return@post
             }
+            activeCoordinatorSessionId = sessionId
             polyrhythmEngine.start(bpm, beats, against)
             polyrhythmPlaying = true
-            activeCoordinatorSessionId = sessionId
             sessionId?.let {
-                completion?.invoke(it, engine.startEvidence(firstBeatDelayMs))
+                completion?.invoke(it, engine.startEvidence())
             }
         }
     }
@@ -424,7 +424,7 @@ class MetronomeAudioEngine(private val context: Context) {
         activeCoordinatorSessionId = sessionId
         startTimer()
         sessionId?.let {
-            completion?.invoke(it, engine.startEvidence(firstBeatDelayMs))
+            completion?.invoke(it, engine.startEvidence())
         }
     }
 

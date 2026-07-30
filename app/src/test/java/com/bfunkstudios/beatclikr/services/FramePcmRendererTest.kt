@@ -296,6 +296,28 @@ class FramePcmRendererTest {
         assertPreparedRenderAllocatesNoMemory(renderer)
     }
 
+    @Test
+    fun captureCapacityOverflowIsReportedAsDroppedRecords() {
+        val capture = RenderedEventRing(8)
+        val renderer = FramePcmRenderer(
+            RecordingEventSource(
+                Event(0, SoundRole.BEAT, muted = true),
+                Event(1, SoundRole.BEAT, muted = true),
+                Event(2, SoundRole.BEAT, muted = true)
+            ),
+            RenderWaveforms(shortArrayOf(1), shortArrayOf(1)),
+            maximumActiveVoices = 1,
+            eventCapture = capture,
+            maximumBlockEvents = 2
+        ).also { it.prepare(3) }
+
+        assertEquals(FrameRenderResult.COMPLETE, renderer.render(0, ShortArray(3), 3))
+
+        val batch = capture.drain(0)
+        assertEquals(listOf(0L, 1L), batch.records.map { it.eventSequence })
+        assertEquals(1, batch.droppedRecords)
+    }
+
     private fun assertPreparedRenderAllocatesNoMemory(renderer: FramePcmRenderer) {
         val output = ShortArray(64)
         var startFrame = 0L

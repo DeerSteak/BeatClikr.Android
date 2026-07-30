@@ -289,17 +289,13 @@ class FrameAudioEngine(
         frameSession?.stop()
     }
 
-    fun startEvidence(startDelayMillis: Long): FrameAudioStartEvidence? {
+    fun startEvidence(): FrameAudioStartEvidence? {
         val snapshot = frameSession?.snapshot() ?: return null
         val properties = snapshot.properties ?: return null
         return FrameAudioStartEvidence(
             route = snapshot.route,
             backend = properties.backend,
-            firstEventFrame = delayedEventOriginFrame(
-                snapshot.firstOutputFrame,
-                startDelayMillis,
-                properties.sampleRate
-            )
+            firstEventFrame = snapshot.firstEventFrame
         )
     }
 

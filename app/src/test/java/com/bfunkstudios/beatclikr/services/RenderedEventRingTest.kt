@@ -2,6 +2,8 @@ package com.bfunkstudios.beatclikr.services
 
 import com.bfunkstudios.beatclikr.music.MusicalEventRole
 import org.junit.Assert.assertEquals
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 import org.junit.Test
 
 class RenderedEventRingTest {
@@ -36,5 +38,41 @@ class RenderedEventRingTest {
         assertEquals(listOf(2L, 3L), batch.records.map { it.eventSequence })
         assertEquals(2, batch.droppedRecords)
         assertEquals(4, batch.nextCaptureSequence)
+    }
+
+    @Test
+    fun overwriteDuringDrainCannotPublishTornRecord() {
+        val ring = RenderedEventRing(1)
+        ring.record(1, 10, MusicalEventRole.STANDARD, 100, false)
+        val validated = CountDownLatch(1)
+        val overwritten = CountDownLatch(1)
+        val producer = Thread {
+            assertEquals(true, validated.await(2, TimeUnit.SECONDS))
+            ring.record(2, 20, MusicalEventRole.STANDARD, 200, false)
+            overwritten.countDown()
+        }
+        producer.start()
+
+        val batch = ring.drain(0) {
+            validated.countDown()
+            assertEquals(true, overwritten.await(2, TimeUnit.SECONDS))
+        }
+        producer.join()
+
+        assertEquals(emptyList<RenderedFrameEvent>(), batch.records)
+        assertEquals(1, batch.droppedRecords)
+    }
+
+    @Test
+    fun explicitProducerDropIsObservable() {
+        val ring = RenderedEventRing(4)
+        ring.record(1, 0, MusicalEventRole.STANDARD, 0, false)
+        ring.drop()
+        ring.record(1, 2, MusicalEventRole.STANDARD, 2, false)
+
+        val batch = ring.drain(0)
+
+        assertEquals(listOf(0L, 2L), batch.records.map { it.eventSequence })
+        assertEquals(1, batch.droppedRecords)
     }
 }
