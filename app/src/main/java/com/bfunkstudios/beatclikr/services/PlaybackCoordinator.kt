@@ -244,6 +244,7 @@ data class PlaybackEngineStartEvidence(
 
 interface PlaybackEngineTransportObserver {
     fun engineStarted(evidence: PlaybackEngineStartEvidence)
+    fun audioFocusUnavailable(sessionId: PlaybackSessionId)
     fun engineStartFailed(sessionId: PlaybackSessionId, diagnostic: String)
     fun engineStopped(sessionId: PlaybackSessionId)
     fun engineInterrupted(
@@ -535,6 +536,10 @@ class PlaybackCoordinator(
 
     override fun engineStartFailed(sessionId: PlaybackSessionId, diagnostic: String) {
         onControlContext { applyEngineStartFailed(sessionId, diagnostic) }
+    }
+
+    override fun audioFocusUnavailable(sessionId: PlaybackSessionId) {
+        onControlContext { applyAudioFocusUnavailable(sessionId) }
     }
 
     override fun engineStopped(sessionId: PlaybackSessionId) {
@@ -884,9 +889,18 @@ class PlaybackCoordinator(
                 }
             }
             is PlaybackSystemInput.Interrupted -> {
-                val current = transportState.value as? PlaybackTransportState.Playing ?: return
+                val current =
+                    transportState.value as? PlaybackTransportState.SessionState ?: return
                 if (current.context.sessionId != input.sessionId) return
-                interrupt(current, input.reason)
+                when (current) {
+                    is PlaybackTransportState.Playing -> interrupt(current, input.reason)
+                    is PlaybackTransportState.Preparing,
+                    is PlaybackTransportState.Starting -> failInterruptedStart(
+                        current,
+                        input.reason
+                    )
+                    else -> Unit
+                }
             }
             is PlaybackSystemInput.EngineFailed -> {
                 val current = transportState.value as? PlaybackTransportState.SessionState ?: return
@@ -914,6 +928,20 @@ class PlaybackCoordinator(
     ) {
         publishRenderedEvents(current.context.sessionId, detectRuntimeFailure = false)
         transitionTo(PlaybackTransportState.Interrupted(current.context, reason))
+        mutateOwnership { it.copy(activeMode = PlaybackMode.NONE) }
+        engine.stopSession(current.context.sessionId, current.context.mode)
+    }
+
+    private fun failInterruptedStart(
+        current: PlaybackTransportState.SessionState,
+        reason: PlaybackInterruptionReason
+    ) {
+        val failure = when (reason) {
+            PlaybackInterruptionReason.AudioFocusLost ->
+                PlaybackFailureReason.AudioFocusUnavailable
+            else -> PlaybackFailureReason.Engine("Playback interrupted during startup: $reason")
+        }
+        transitionTo(PlaybackTransportState.Failed(current.context, failure))
         mutateOwnership { it.copy(activeMode = PlaybackMode.NONE) }
         engine.stopSession(current.context.sessionId, current.context.mode)
     }
@@ -1025,6 +1053,19 @@ class PlaybackCoordinator(
         mutateOwnership { it.copy(activeMode = committed.mode) }
     }
 
+    private fun applyAudioFocusUnavailable(sessionId: PlaybackSessionId) {
+        val current = transportState.value as? PlaybackTransportState.Starting ?: return
+        if (current.context.sessionId != sessionId) return
+        transitionTo(
+            PlaybackTransportState.Failed(
+                current.context,
+                PlaybackFailureReason.AudioFocusUnavailable
+            )
+        )
+        mutateOwnership { it.copy(activeMode = PlaybackMode.NONE) }
+        engine.stopSession(current.context.sessionId, current.context.mode)
+    }
+
     private fun publishRenderedEvents() {
         val current = transportState.value as? PlaybackTransportState.Playing ?: return
         publishRenderedEvents(current.context.sessionId, detectRuntimeFailure = true)
@@ -1119,6 +1160,7 @@ class PlaybackCoordinator(
             )
         )
         mutateOwnership { it.copy(activeMode = PlaybackMode.NONE) }
+        engine.stopSession(current.context.sessionId, current.context.mode)
     }
 
     private fun applyEngineStopped(sessionId: PlaybackSessionId) {

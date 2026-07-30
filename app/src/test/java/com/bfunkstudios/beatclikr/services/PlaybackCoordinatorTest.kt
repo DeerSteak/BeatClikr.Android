@@ -837,6 +837,55 @@ class PlaybackCoordinatorTest {
     }
 
     @Test
+    fun audioFocusDenialPublishesTypedStartFailureAndStopsSession() {
+        val engine = FakePlaybackEngine().apply {
+            autoStartAcknowledgement = false
+            autoStopAcknowledgement = false
+        }
+        val coordinator = PlaybackCoordinator(engine)
+        try {
+            coordinator.submit(PlaybackIntent.StartStandard(120f, 4, null, false))
+            assertTrue(coordinator.awaitControlIdle())
+            val starting = coordinator.transportState.value as PlaybackTransportState.Starting
+
+            engine.transportObserver?.audioFocusUnavailable(starting.context.sessionId)
+            assertTrue(coordinator.awaitControlIdle())
+
+            val failed = coordinator.transportState.value as PlaybackTransportState.Failed
+            assertEquals(PlaybackFailureReason.AudioFocusUnavailable, failed.reason)
+            assertTrue(engine.operations.contains("stopStandard"))
+        } finally {
+            coordinator.release()
+        }
+    }
+
+    @Test
+    fun audioFocusLossDuringStartingFailsAndStopsSession() {
+        val engine = FakePlaybackEngine().apply {
+            autoStartAcknowledgement = false
+            autoStopAcknowledgement = false
+        }
+        val coordinator = PlaybackCoordinator(engine)
+        try {
+            coordinator.submit(PlaybackIntent.StartStandard(120f, 4, null, false))
+            assertTrue(coordinator.awaitControlIdle())
+            val starting = coordinator.transportState.value as PlaybackTransportState.Starting
+
+            engine.transportObserver?.engineInterrupted(
+                starting.context.sessionId,
+                PlaybackInterruptionReason.AudioFocusLost
+            )
+            assertTrue(coordinator.awaitControlIdle())
+
+            val failed = coordinator.transportState.value as PlaybackTransportState.Failed
+            assertEquals(PlaybackFailureReason.AudioFocusUnavailable, failed.reason)
+            assertTrue(engine.operations.contains("stopStandard"))
+        } finally {
+            coordinator.release()
+        }
+    }
+
+    @Test
     fun systemInputAfterReleasePublishesRejection() {
         val coordinator = PlaybackCoordinator(FakePlaybackEngine())
         coordinator.release()

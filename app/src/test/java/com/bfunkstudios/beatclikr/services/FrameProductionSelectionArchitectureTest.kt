@@ -15,7 +15,7 @@ class FrameProductionSelectionArchitectureTest {
 
         assertTrue(engine.contains("frameAudioActive = engine.startStandard("))
         assertTrue(engine.contains("frameAudioActive = engine.startPolyrhythm("))
-        assertTrue(engine.contains("if (!requestAudioFocus()) return@post"))
+        assertTrue(engine.contains("if (!requestAudioFocus()) {"))
         listOf("pendingClicks", "enqueueWaveform", "fun playBeat(", "renderRunnable").forEach {
             assertFalse("Production output contains legacy token: $it", output.contains(it))
         }
@@ -43,6 +43,28 @@ class FrameProductionSelectionArchitectureTest {
             startBody.indexOf("engine.updatePolyrhythm(") <
                 startBody.indexOf("engine.startPolyrhythm(")
         )
+    }
+
+    @Test
+    fun coordinatorStopReleasesAHeldAudioFocusLease() {
+        val source = locateSource("MetronomeAudioEngine.kt").readText()
+        val stopBody = source.substringAfter("fun stopSession(").substringBefore("fun prewarm()")
+        val releaseBody = source.substringAfter("fun release()")
+            .substringBefore("private fun requestAudioFocus()")
+        val abandonBody = source.substringAfter("private fun abandonAudioFocus()")
+            .substringBefore("private fun doStart(")
+
+        assertTrue(stopBody.contains("abandonAudioFocus()"))
+        assertTrue(
+            releaseBody.substringBefore("latch.countDown()").contains("abandonAudioFocus()")
+        )
+        assertFalse(
+            source.substringAfter("private fun requestAudioFocus(): Boolean {")
+                .substringBefore("val result")
+                .contains("audioFocusHeld")
+        )
+        assertTrue(abandonBody.contains("if (!audioFocusHeld) return"))
+        assertTrue(abandonBody.contains("audioFocusHeld = false"))
     }
 
     @Test

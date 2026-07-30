@@ -157,12 +157,17 @@ internal class AudioPlayerService(context: Context) : PlaybackEnginePort, Metron
 
     private fun publishStartResult(
         sessionId: PlaybackSessionId,
-        evidence: FrameAudioStartEvidence?
+        result: AudioEngineStartResult
     ) {
-        if (evidence == null) {
+        if (result is AudioEngineStartResult.AudioFocusUnavailable) {
+            transportObserver?.audioFocusUnavailable(sessionId)
+            return
+        }
+        if (result is AudioEngineStartResult.StreamFailed) {
             transportObserver?.engineStartFailed(sessionId, "Audio stream failed to start")
             return
         }
+        val evidence = (result as AudioEngineStartResult.Started).evidence
         val sounds = activeSoundConfiguration()
         if (sounds == null) {
             transportObserver?.engineStartFailed(
