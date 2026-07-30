@@ -153,6 +153,15 @@ class MetronomeViewModelTest {
     }
 
     @Test
+    fun `bluetooth session exposes variable output latency`() {
+        transportState.value = standardPlaying().copy(
+            context = standardPlaying().context.copy(route = AudioOutputRoute.BLUETOOTH)
+        )
+
+        assertTrue(viewModel.hasVariableOutputLatency)
+    }
+
+    @Test
     fun `rapid toggle sequence submits one command per user intent`() {
         viewModel.togglePlayPause()
         viewModel.togglePlayPause()

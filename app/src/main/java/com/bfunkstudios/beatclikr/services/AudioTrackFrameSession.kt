@@ -62,7 +62,8 @@ internal fun missingPresentationFrames(
 class AudioTrackFrameSession(
     audioManager: AudioManager?,
     private val preferredSampleRate: Int,
-    preferredBurstFrames: Int
+    preferredBurstFrames: Int,
+    routeChangeObserver: (AudioOutputRoute) -> Unit = {}
 ) {
     init {
         require(preferredSampleRate > 0) { "Preferred sample rate must be positive" }
@@ -71,7 +72,9 @@ class AudioTrackFrameSession(
 
     private val thread = HandlerThread("AudioTrackFrameRenderThread").also { it.start() }
     private val handler = Handler(thread.looper)
-    private val owner = FrameAudioStreamOwner(AudioTrackRenderBackend(audioManager))
+    private val owner = FrameAudioStreamOwner(
+        AudioTrackRenderBackend(audioManager) { _, current -> routeChangeObserver(current) }
+    )
     private val preferredBufferFrames = Math.multiplyExact(preferredBurstFrames, 2)
     @Volatile
     private var renderRunning = false
@@ -277,6 +280,8 @@ class AudioTrackFrameSession(
         thread.quitSafely()
         return stopped
     }
+
+    fun currentRoute(): AudioOutputRoute = owner.route
 
     fun snapshot(): AudioTrackFrameSessionSnapshot {
         var before: Int

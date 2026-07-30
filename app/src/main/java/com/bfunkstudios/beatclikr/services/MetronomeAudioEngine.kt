@@ -2,6 +2,8 @@ package com.bfunkstudios.beatclikr.services
 
 import android.content.Context
 import android.media.AudioAttributes
+import android.media.AudioDeviceCallback
+import android.media.AudioDeviceInfo
 import android.media.AudioFocusRequest
 import android.media.AudioManager
 import android.os.Build
@@ -66,6 +68,7 @@ class MetronomeAudioEngine(private val context: Context) {
     private var framePolyrhythmActive = false
     private var polyrhythmPlaying = false
     private var audioFocusHeld = false
+    private val activeOutputRoute = ActiveOutputRouteTracker()
     @Volatile
     private var activeCoordinatorSessionId: PlaybackSessionId? = null
 
@@ -127,12 +130,26 @@ class MetronomeAudioEngine(private val context: Context) {
                 .build()
         } else null
 
+    private val audioDeviceCallback = object : AudioDeviceCallback() {
+        override fun onAudioDevicesAdded(addedDevices: Array<out AudioDeviceInfo>) {
+            checkRouteAfterDeviceTopologyChange()
+        }
+
+        override fun onAudioDevicesRemoved(removedDevices: Array<out AudioDeviceInfo>) {
+            checkRouteAfterDeviceTopologyChange()
+        }
+    }
+
     private val polyrhythmEngine = PolyrhythmTimingEngine(
         handler = handler,
         outputLatencyNanos = { if (!isMuted) frameAudioEngine?.estimatedOutputLatencyNanos ?: 0L else 0L },
         firstBeatDelayMs = firstBeatDelayMs,
         lookaheadToleranceMs = lookaheadToleranceMs
     )
+
+    init {
+        audioManager.registerAudioDeviceCallback(audioDeviceCallback, handler)
+    }
 
     fun loadSounds(
         beatResourceId: Int,
@@ -191,6 +208,8 @@ class MetronomeAudioEngine(private val context: Context) {
             frameAudioActive = false
             framePolyrhythmActive = false
             subdivisionCounter = 0
+            activeCoordinatorSessionId = null
+            activeOutputRoute.clear()
             abandonAudioFocus()
         }
     }
@@ -252,6 +271,7 @@ class MetronomeAudioEngine(private val context: Context) {
                 }
                 return@post
             }
+            activeOutputRoute.begin(evidence.route)
             polyrhythmEngine.start(bpm, beats, against)
             polyrhythmPlaying = true
             sessionId?.let {
@@ -267,6 +287,8 @@ class MetronomeAudioEngine(private val context: Context) {
             frameAudioActive = false
             framePolyrhythmActive = false
             polyrhythmPlaying = false
+            activeCoordinatorSessionId = null
+            activeOutputRoute.clear()
             abandonAudioFocus()
         }
     }
@@ -289,6 +311,7 @@ class MetronomeAudioEngine(private val context: Context) {
             framePolyrhythmActive = false
             subdivisionCounter = 0
             activeCoordinatorSessionId = null
+            activeOutputRoute.clear()
             abandonAudioFocus()
             completion()
         }
@@ -376,6 +399,7 @@ class MetronomeAudioEngine(private val context: Context) {
             polyrhythmEngine.stop()
             polyrhythmEngine.delegate = null
             delegate = null
+            audioManager.unregisterAudioDeviceCallback(audioDeviceCallback)
             abandonAudioFocus()
             latch.countDown()
         }
@@ -470,6 +494,7 @@ class MetronomeAudioEngine(private val context: Context) {
             }
             return
         }
+        activeOutputRoute.begin(evidence.route)
         this.isPlaying = true
         startTimer()
         sessionId?.let {
@@ -547,7 +572,11 @@ class MetronomeAudioEngine(private val context: Context) {
     }
 
     private fun getOrCreateFrameAudioEngine(): FrameAudioEngine {
-        return frameAudioEngine ?: FrameAudioEngine(audioManager, pcmFileCache).also { engine ->
+        return frameAudioEngine ?: FrameAudioEngine(
+            audioManager,
+            pcmFileCache,
+            ::onOutputRouteChanged
+        ).also { engine ->
             frameAudioEngine = engine
             engine.soundBank = soundBank
             val beatResource = beatResourceId
@@ -556,6 +585,22 @@ class MetronomeAudioEngine(private val context: Context) {
                 engine.setSounds(beatResource, rhythmResource)
             }
         }
+    }
+
+    private fun onOutputRouteChanged(current: AudioOutputRoute) {
+        handler.post { applyObservedRoute(current) }
+    }
+
+    private fun checkRouteAfterDeviceTopologyChange() {
+        handler.post {
+            applyObservedRoute(frameAudioEngine?.currentRoute() ?: return@post)
+        }
+    }
+
+    private fun applyObservedRoute(current: AudioOutputRoute) {
+        val sessionId = activeCoordinatorSessionId ?: return
+        val reason = activeOutputRoute.observe(current) ?: return
+        playbackInterruptionObserver?.invoke(sessionId, reason)
     }
 
     private fun currentStepCount(): Int = currentAccentPattern?.size ?: currentSubdivisions

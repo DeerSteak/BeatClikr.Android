@@ -58,6 +58,9 @@ class MetronomeViewModel @Inject constructor(
     val controlsEnabled: Boolean
         get() = !transportState.isModeTransitioning(PlaybackMode.STANDARD)
 
+    val hasVariableOutputLatency: Boolean
+        get() = transportState.hasVariableOutputLatency(PlaybackMode.STANDARD)
+
     var lastPlaybackFailure by mutableStateOf<String?>(null)
         private set
 

@@ -9,7 +9,11 @@ import android.media.AudioDeviceInfo
 import android.media.AudioRouting
 
 class AudioTrackRenderBackend(
-    private val audioManager: AudioManager? = null
+    private val audioManager: AudioManager? = null,
+    private val routeChangeObserver: (
+        previous: AudioOutputRoute,
+        current: AudioOutputRoute
+    ) -> Unit = { _, _ -> }
 ) : AudioRenderBackend {
     private var failureSink = AudioBackendFailureSink {}
     private var track: AudioTrack? = null
@@ -18,7 +22,12 @@ class AudioTrackRenderBackend(
     @Volatile
     private var currentRoute = AudioOutputRoute.UNKNOWN
     private val routingListener = AudioRouting.OnRoutingChangedListener { routing ->
-        currentRoute = (routing as? AudioTrack)?.routedDevice.toOutputRoute()
+        val previous = currentRoute
+        val current = (routing as? AudioTrack)?.routedDevice.toOutputRoute()
+        currentRoute = current
+        if (shouldReportRouteChange(previous, current)) {
+            routeChangeObserver(previous, current)
+        }
     }
     private val platformTimestamp = AudioTimestamp()
 
@@ -107,7 +116,7 @@ class AudioTrackRenderBackend(
             AudioTrack.ERROR_INVALID_OPERATION
         }
         if (writtenSamples < 0 || writtenSamples % adapter.channelCount != 0) {
-            report(AudioBackendOperation.RENDER, AudioBackendFailureCode.WRITE_FAILED)
+            report(AudioBackendOperation.RENDER, audioTrackWriteFailureCode(writtenSamples))
             return 0
         }
         return writtenSamples / adapter.channelCount
@@ -118,6 +127,7 @@ class AudioTrackRenderBackend(
         track = null
         channelAdapter = null
         streamProperties = null
+        currentRoute = AudioOutputRoute.UNKNOWN
         opened.removeOnRoutingChangedListener(routingListener)
         return try {
             if (opened.playState == AudioTrack.PLAYSTATE_PLAYING) opened.pause()
@@ -231,3 +241,15 @@ class AudioTrackRenderBackend(
         const val DEFAULT_BURST_FRAMES = 192
     }
 }
+
+internal fun audioTrackWriteFailureCode(result: Int): AudioBackendFailureCode =
+    if (result == AudioTrack.ERROR_DEAD_OBJECT) {
+        AudioBackendFailureCode.DEVICE_DISCONNECTED
+    } else {
+        AudioBackendFailureCode.WRITE_FAILED
+    }
+
+internal fun shouldReportRouteChange(
+    previous: AudioOutputRoute,
+    current: AudioOutputRoute
+): Boolean = previous != AudioOutputRoute.UNKNOWN && current != previous
