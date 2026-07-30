@@ -61,7 +61,7 @@ class StandardMetronomeContractInstrumentedTest {
             val beatFlags = Collections.synchronizedList(mutableListOf<Boolean>())
             val eventIndex = AtomicInteger()
             val latch = CountDownLatch(MUTE_EVENT_COUNT)
-            val delegate = object : MetronomeAudioEngineDelegate {
+            val delegate = object : MetronomeTestDelegate() {
                 override fun metronomeBeatFired(isBeat: Boolean, beatInterval: Float, beatTimeNanos: Long) {
                     scheduledTimes += beatTimeNanos
                     beatFlags += isBeat
@@ -100,7 +100,7 @@ class StandardMetronomeContractInstrumentedTest {
         withEngine { engine ->
             val firstSessionCallbacks = AtomicInteger()
             val firstSessionLatch = CountDownLatch(fixture.subdivisions)
-            val firstSessionDelegate = object : MetronomeAudioEngineDelegate {
+            val firstSessionDelegate = object : MetronomeTestDelegate() {
                 override fun metronomeBeatFired(isBeat: Boolean, beatInterval: Float, beatTimeNanos: Long) {
                     firstSessionCallbacks.incrementAndGet()
                     firstSessionLatch.countDown()
@@ -146,7 +146,7 @@ class StandardMetronomeContractInstrumentedTest {
         val scheduledTimes = Collections.synchronizedList(mutableListOf<Long>())
         val beatFlags = Collections.synchronizedList(mutableListOf<Boolean>())
         val latch = CountDownLatch(eventCount)
-        val delegate = object : MetronomeAudioEngineDelegate {
+        val delegate = object : MetronomeTestDelegate() {
             override fun metronomeBeatFired(isBeat: Boolean, beatInterval: Float, beatTimeNanos: Long) {
                 if (latch.count == 0L) return
                 scheduledTimes += beatTimeNanos

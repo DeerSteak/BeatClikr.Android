@@ -4,6 +4,7 @@ import com.bfunkstudios.beatclikr.data.SoundBank
 import com.bfunkstudios.beatclikr.data.SoundFile
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -32,10 +33,12 @@ data class PlaybackOwnershipSnapshot(
     ),
     val audibleSounds: ActiveSoundConfiguration? = null,
     val soundPreparationFailure: SoundPreparationFailure? = null,
-    val lastCommandSequence: Long = 0
+    val lastCommandSequence: Long = 0,
+    val lastOutcome: PlaybackIntentOutcome? = null
 )
 
 sealed interface PlaybackIntent {
+    data class Invalid(val diagnostic: String) : PlaybackIntent
     data class SelectSounds(val beat: SoundFile, val rhythm: SoundFile) : PlaybackIntent
     data class SelectSoundBank(val bank: SoundBank) : PlaybackIntent
     data class SetMuted(val muted: Boolean) : PlaybackIntent
@@ -69,6 +72,7 @@ sealed interface PlaybackIntent {
 enum class PlaybackCoordinatorFailureCode {
     INVALID_INPUT,
     SOUND_PREPARATION_FAILED,
+    MODE_MISMATCH,
     ENGINE_FAILURE,
     RELEASED
 }
@@ -88,12 +92,12 @@ sealed interface PlaybackIntentOutcome {
     ) : PlaybackIntentOutcome
 }
 
-sealed interface PlaybackCoordinatorEvent {
+sealed interface PlaybackTimingEvent {
     data class StandardTiming(
         val isBeat: Boolean,
         val beatInterval: Float,
         val beatTimeNanos: Long
-    ) : PlaybackCoordinatorEvent
+    ) : PlaybackTimingEvent
 
     data class PolyrhythmTiming(
         val beatFired: Boolean,
@@ -103,22 +107,20 @@ sealed interface PlaybackCoordinatorEvent {
         val stepTimeNanos: Long,
         val beatDurationNanos: Long,
         val rhythmDurationNanos: Long
-    ) : PlaybackCoordinatorEvent
+    ) : PlaybackTimingEvent
+}
 
-    data class IntentAccepted(
+sealed interface PlaybackControlEvent {
+    data class IntentCompleted(
         val commandSequence: Long,
-        val intent: PlaybackIntent
-    ) : PlaybackCoordinatorEvent
-
-    data class IntentRejected(
-        val commandSequence: Long,
-        val failure: PlaybackCoordinatorFailure
-    ) : PlaybackCoordinatorEvent
+        val intent: PlaybackIntent,
+        val outcome: PlaybackIntentOutcome
+    ) : PlaybackControlEvent
 
     data class SoundPreparationFailed(
         val commandSequence: Long,
         val failure: SoundPreparationFailure
-    ) : PlaybackCoordinatorEvent
+    ) : PlaybackControlEvent
 }
 
 interface PlaybackEnginePort : IAudioPlayerService {
@@ -136,8 +138,12 @@ class PlaybackCoordinator(
     }
 ) : IAudioPlayerService, MetronomeAudioEngineDelegate, PolyrhythmAudioEngineDelegate {
     private val mutableOwnership = MutableStateFlow(PlaybackOwnershipSnapshot())
-    private val mutableEvents = MutableSharedFlow<PlaybackCoordinatorEvent>(
-        extraBufferCapacity = EVENT_CAPACITY,
+    private val mutableTimingEvents = MutableSharedFlow<PlaybackTimingEvent>(
+        extraBufferCapacity = TIMING_EVENT_CAPACITY,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST
+    )
+    private val mutableControlEvents = MutableSharedFlow<PlaybackControlEvent>(
+        replay = CONTROL_EVENT_CAPACITY,
         onBufferOverflow = BufferOverflow.DROP_OLDEST
     )
     private var nextCommandSequence = 1L
@@ -145,7 +151,8 @@ class PlaybackCoordinator(
     private var released = false
 
     val ownership: StateFlow<PlaybackOwnershipSnapshot> = mutableOwnership
-    val events: SharedFlow<PlaybackCoordinatorEvent> = mutableEvents
+    val timingEvents: SharedFlow<PlaybackTimingEvent> = mutableTimingEvents
+    val controlEvents: SharedFlow<PlaybackControlEvent> = mutableControlEvents
 
     @Volatile
     override var delegate: MetronomeAudioEngineDelegate? = null
@@ -172,14 +179,33 @@ class PlaybackCoordinator(
             submit(PlaybackIntent.SelectSoundBank(value))
         }
 
-    fun submit(intent: PlaybackIntent): PlaybackIntentOutcome =
-        executor.submit<PlaybackIntentOutcome> { applyIntent(intent) }.get()
+    @Synchronized
+    fun submit(intent: PlaybackIntent): Long {
+        val sequence = nextCommandSequence++
+        val publishedIntent = intent.immutableCopy()
+        if (released) {
+            recordOutcome(
+                sequence,
+                publishedIntent,
+                PlaybackIntentOutcome.Rejected(
+                    sequence,
+                    PlaybackCoordinatorFailure(
+                        PlaybackCoordinatorFailureCode.RELEASED,
+                        "Playback coordinator is released"
+                    )
+                )
+            )
+        } else {
+            executor.execute { applyIntent(sequence, publishedIntent) }
+        }
+        return sequence
+    }
 
     override fun setupAudioPlayer(beatResourceId: Int, rhythmResourceId: Int) {
         val beat = SoundFile.fromResourceId(beatResourceId)
         val rhythm = SoundFile.fromResourceId(rhythmResourceId)
         if (beat == null || rhythm == null) {
-            rejectInvalid("Unknown sound resource")
+            submit(PlaybackIntent.Invalid("Unknown sound resource"))
             return
         }
         submit(PlaybackIntent.SelectSounds(beat, rhythm))
@@ -222,13 +248,7 @@ class PlaybackCoordinator(
     }
 
     override fun startPolyrhythm(bpm: Float, beats: Int, against: Int) {
-        submit(
-            if (ownership.value.activeMode == PlaybackMode.POLYRHYTHM) {
-                PlaybackIntent.UpdatePolyrhythm(bpm, beats, against)
-            } else {
-                PlaybackIntent.StartPolyrhythm(bpm, beats, against)
-            }
-        )
+        submit(PlaybackIntent.StartPolyrhythm(bpm, beats, against))
     }
 
     override fun stopPolyrhythm() {
@@ -246,16 +266,18 @@ class PlaybackCoordinator(
     override fun getFrameAudioMetricsSnapshot(): FrameAudioMetricsSnapshot? =
         engine.getFrameAudioMetricsSnapshot()
 
+    @Synchronized
     override fun release() {
         if (released) return
-        executor.submit {
-            applyIntent(PlaybackIntent.Stop)
-            released = true
+        released = true
+        val sequence = nextCommandSequence++
+        executor.execute {
+            applyStop(sequence)
             engine.soundPreparationObserver = null
             engine.delegate = null
             engine.polyrhythmDelegate = null
             engine.release()
-        }.get()
+        }
         executor.shutdown()
         delegate = null
         polyrhythmDelegate = null
@@ -266,8 +288,8 @@ class PlaybackCoordinator(
         beatInterval: Float,
         beatTimeNanos: Long
     ) {
-        mutableEvents.tryEmit(
-            PlaybackCoordinatorEvent.StandardTiming(isBeat, beatInterval, beatTimeNanos)
+        mutableTimingEvents.tryEmit(
+            PlaybackTimingEvent.StandardTiming(isBeat, beatInterval, beatTimeNanos)
         )
         delegate?.metronomeBeatFired(isBeat, beatInterval, beatTimeNanos)
     }
@@ -281,8 +303,8 @@ class PlaybackCoordinator(
         beatDurationNanos: Long,
         rhythmDurationNanos: Long
     ) {
-        mutableEvents.tryEmit(
-            PlaybackCoordinatorEvent.PolyrhythmTiming(
+        mutableTimingEvents.tryEmit(
+            PlaybackTimingEvent.PolyrhythmTiming(
                 beatFired,
                 rhythmFired,
                 beatIndex,
@@ -307,23 +329,50 @@ class PlaybackCoordinator(
         polyrhythmDelegate?.polyrhythmStartFailed()
     }
 
-    private fun applyIntent(intent: PlaybackIntent): PlaybackIntentOutcome {
-        val sequence = nextCommandSequence++
-        if (released) return rejected(
-            sequence,
-            PlaybackCoordinatorFailureCode.RELEASED,
-            "Playback coordinator is released"
-        )
+    override fun metronomeStartFailed() {
+        delegate?.metronomeStartFailed()
+    }
+
+    internal fun awaitControlIdle(timeoutSeconds: Long = 5): Boolean {
+        if (executor.isShutdown) return executor.awaitTermination(timeoutSeconds, TimeUnit.SECONDS)
+        return try {
+            executor.submit {}.get(timeoutSeconds, TimeUnit.SECONDS)
+            true
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    private fun applyIntent(sequence: Long, intent: PlaybackIntent) {
         val validationFailure = validate(intent)
         if (validationFailure != null) {
-            return rejected(
+            recordOutcome(
                 sequence,
-                PlaybackCoordinatorFailureCode.INVALID_INPUT,
-                validationFailure
+                intent,
+                rejectedOutcome(
+                    sequence,
+                    PlaybackCoordinatorFailureCode.INVALID_INPUT,
+                    validationFailure
+                )
             )
+            return
         }
-        return try {
+        val modeFailure = validateMode(intent)
+        if (modeFailure != null) {
+            recordOutcome(
+                sequence,
+                intent,
+                rejectedOutcome(
+                    sequence,
+                    PlaybackCoordinatorFailureCode.MODE_MISMATCH,
+                    modeFailure
+                )
+            )
+            return
+        }
+        val outcome = try {
             when (intent) {
+                is PlaybackIntent.Invalid -> error("Invalid intent passed validation")
                 is PlaybackIntent.SelectSounds -> {
                     updateRequestedSounds(beat = intent.beat, rhythm = intent.rhythm)
                     engine.setupAudioPlayer(
@@ -340,13 +389,22 @@ class PlaybackCoordinator(
                     mutateOwnership { it.copy(muted = intent.muted) }
                 }
                 is PlaybackIntent.StartStandard -> {
-                    engine.stopPolyrhythm()
-                    engine.startMetronome(
-                        intent.bpm,
-                        intent.subdivisions,
-                        intent.accentPattern,
-                        intent.alternateSixteenth
-                    )
+                    if (ownership.value.activeMode == PlaybackMode.STANDARD) {
+                        engine.updateTempo(
+                            intent.bpm,
+                            intent.subdivisions,
+                            intent.accentPattern,
+                            intent.alternateSixteenth
+                        )
+                    } else {
+                        engine.stopPolyrhythm()
+                        engine.startMetronome(
+                            intent.bpm,
+                            intent.subdivisions,
+                            intent.accentPattern,
+                            intent.alternateSixteenth
+                        )
+                    }
                     mutateOwnership { it.copy(activeMode = PlaybackMode.STANDARD) }
                 }
                 is PlaybackIntent.UpdateStandard -> engine.updateTempo(
@@ -356,34 +414,34 @@ class PlaybackCoordinator(
                     intent.alternateSixteenth
                 )
                 is PlaybackIntent.StartPolyrhythm -> {
-                    engine.stopMetronome()
+                    if (ownership.value.activeMode != PlaybackMode.POLYRHYTHM) {
+                        engine.stopMetronome()
+                    }
                     engine.startPolyrhythm(intent.bpm, intent.beats, intent.against)
                     mutateOwnership { it.copy(activeMode = PlaybackMode.POLYRHYTHM) }
                 }
                 is PlaybackIntent.UpdatePolyrhythm ->
                     engine.startPolyrhythm(intent.bpm, intent.beats, intent.against)
                 PlaybackIntent.Stop -> {
-                    engine.stopMetronome()
-                    engine.stopPolyrhythm()
-                    mutateOwnership { it.copy(activeMode = PlaybackMode.NONE) }
+                    applyStop(sequence)
                 }
                 PlaybackIntent.Prewarm -> engine.prewarmAudioTrack()
                 is PlaybackIntent.PrepareSounds ->
                     engine.prepareAudioTrackSounds(intent.sounds)
             }
-            mutateOwnership { it.copy(lastCommandSequence = sequence) }
-            mutableEvents.tryEmit(PlaybackCoordinatorEvent.IntentAccepted(sequence, intent))
             PlaybackIntentOutcome.Accepted(sequence)
         } catch (failure: RuntimeException) {
-            rejected(
+            rejectedOutcome(
                 sequence,
                 PlaybackCoordinatorFailureCode.ENGINE_FAILURE,
                 failure.message ?: "Playback engine rejected the command"
             )
         }
+        recordOutcome(sequence, intent, outcome)
     }
 
     private fun validate(intent: PlaybackIntent): String? = when (intent) {
+        is PlaybackIntent.Invalid -> intent.diagnostic
         is PlaybackIntent.StartStandard,
         is PlaybackIntent.UpdateStandard -> {
             val standard = when (intent) {
@@ -443,25 +501,56 @@ class PlaybackCoordinator(
         else -> null
     }
 
-    private fun rejectInvalid(diagnostic: String): PlaybackIntentOutcome =
-        executor.submit<PlaybackIntentOutcome> {
-            val sequence = nextCommandSequence++
-            rejected(
-                sequence,
-                PlaybackCoordinatorFailureCode.INVALID_INPUT,
-                diagnostic
-            )
-        }.get()
+    private fun validateMode(intent: PlaybackIntent): String? = when (intent) {
+        is PlaybackIntent.UpdateStandard ->
+            if (ownership.value.activeMode == PlaybackMode.STANDARD) {
+                null
+            } else {
+                "Standard update requires an active standard session"
+            }
+        is PlaybackIntent.UpdatePolyrhythm ->
+            if (ownership.value.activeMode == PlaybackMode.POLYRHYTHM) {
+                null
+            } else {
+                "Polyrhythm update requires an active polyrhythm session"
+            }
+        else -> null
+    }
 
-    private fun rejected(
+    private fun rejectedOutcome(
         sequence: Long,
         code: PlaybackCoordinatorFailureCode,
         diagnostic: String
     ): PlaybackIntentOutcome.Rejected {
         val failure = PlaybackCoordinatorFailure(code, diagnostic)
-        mutableEvents.tryEmit(PlaybackCoordinatorEvent.IntentRejected(sequence, failure))
-        mutateOwnership { it.copy(lastCommandSequence = sequence) }
         return PlaybackIntentOutcome.Rejected(sequence, failure)
+    }
+
+    private fun recordOutcome(
+        sequence: Long,
+        intent: PlaybackIntent,
+        outcome: PlaybackIntentOutcome
+    ) {
+        mutateOwnership {
+            it.copy(
+                lastCommandSequence = sequence,
+                lastOutcome = outcome
+            )
+        }
+        mutableControlEvents.tryEmit(
+            PlaybackControlEvent.IntentCompleted(sequence, intent, outcome)
+        )
+    }
+
+    private fun applyStop(sequence: Long) {
+        engine.stopMetronome()
+        engine.stopPolyrhythm()
+        mutateOwnership {
+            it.copy(
+                activeMode = PlaybackMode.NONE,
+                lastCommandSequence = sequence
+            )
+        }
     }
 
     private fun updateRequestedSounds(
@@ -480,6 +569,7 @@ class PlaybackCoordinator(
         }
     }
 
+    @Synchronized
     private fun onSoundPreparation(
         active: ActiveSoundConfiguration?,
         failure: SoundPreparationFailure?
@@ -498,8 +588,8 @@ class PlaybackCoordinator(
                 )
             }
             if (failure != null) {
-                mutableEvents.tryEmit(
-                    PlaybackCoordinatorEvent.SoundPreparationFailed(
+                mutableControlEvents.tryEmit(
+                    PlaybackControlEvent.SoundPreparationFailed(
                         ownership.value.lastCommandSequence,
                         failure
                     )
@@ -515,6 +605,13 @@ class PlaybackCoordinator(
         )
     }
 
+    private fun PlaybackIntent.immutableCopy(): PlaybackIntent = when (this) {
+        is PlaybackIntent.StartStandard -> copy(accentPattern = accentPattern?.toList())
+        is PlaybackIntent.UpdateStandard -> copy(accentPattern = accentPattern?.toList())
+        is PlaybackIntent.PrepareSounds -> copy(sounds = sounds.toList())
+        else -> this
+    }
+
     private inline fun mutateOwnership(
         transform: (PlaybackOwnershipSnapshot) -> PlaybackOwnershipSnapshot
     ) {
@@ -522,6 +619,7 @@ class PlaybackCoordinator(
     }
 
     private companion object {
-        const val EVENT_CAPACITY = 64
+        const val TIMING_EVENT_CAPACITY = 64
+        const val CONTROL_EVENT_CAPACITY = 64
     }
 }

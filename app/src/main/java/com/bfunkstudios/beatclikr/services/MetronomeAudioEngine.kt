@@ -16,7 +16,7 @@ import java.util.concurrent.TimeUnit
 
 interface MetronomeAudioEngineDelegate {
     fun metronomeBeatFired(isBeat: Boolean, beatInterval: Float, beatTimeNanos: Long = 0L)
-    fun metronomeStartFailed() {}
+    fun metronomeStartFailed()
 }
 
 interface PolyrhythmAudioEngineDelegate {
@@ -30,7 +30,7 @@ interface PolyrhythmAudioEngineDelegate {
         rhythmDurationNanos: Long = 0L
     )
 
-    fun polyrhythmStartFailed() {}
+    fun polyrhythmStartFailed()
 }
 
 class MetronomeAudioEngine(private val context: Context) {

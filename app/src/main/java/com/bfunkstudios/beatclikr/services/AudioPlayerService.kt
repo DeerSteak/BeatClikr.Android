@@ -89,4 +89,8 @@ internal class AudioPlayerService(context: Context) : PlaybackEnginePort, Metron
         delegate?.metronomeBeatFired(isBeat, beatInterval, beatTimeNanos)
     }
 
+    override fun metronomeStartFailed() {
+        delegate?.metronomeStartFailed()
+    }
+
 }

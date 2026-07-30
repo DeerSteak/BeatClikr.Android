@@ -98,7 +98,7 @@ class AccentContractInstrumentedTest {
         val scheduledTimes = Collections.synchronizedList(mutableListOf<Long>())
         val beatFlags = Collections.synchronizedList(mutableListOf<Boolean>())
         val latch = CountDownLatch(eventCount)
-        val delegate = object : MetronomeAudioEngineDelegate {
+        val delegate = object : MetronomeTestDelegate() {
             override fun metronomeBeatFired(isBeat: Boolean, beatInterval: Float, beatTimeNanos: Long) {
                 if (latch.count == 0L) return
                 scheduledTimes += beatTimeNanos

@@ -54,7 +54,7 @@ class AudioEngineInstrumentedTest {
         val arrivalTimes = Collections.synchronizedList(mutableListOf<Long>())
         val beatFlags = Collections.synchronizedList(mutableListOf<Boolean>())
         val latch = CountDownLatch(METRONOME_EVENT_COUNT)
-        val delegate = object : MetronomeAudioEngineDelegate {
+        val delegate = object : MetronomeTestDelegate() {
             override fun metronomeBeatFired(
                 isBeat: Boolean,
                 beatInterval: Float,
@@ -129,7 +129,7 @@ class AudioEngineInstrumentedTest {
         val events = Collections.synchronizedList(mutableListOf<Pair<Boolean, Boolean>>())
         val scheduledTimes = Collections.synchronizedList(mutableListOf<Long>())
         val latch = CountDownLatch(POLYRHYTHM_EVENT_COUNT)
-        engine.polyrhythmDelegate = object : PolyrhythmAudioEngineDelegate {
+        engine.polyrhythmDelegate = object : PolyrhythmTestDelegate() {
             override fun polyrhythmBeatFired(
                 beatFired: Boolean,
                 rhythmFired: Boolean,

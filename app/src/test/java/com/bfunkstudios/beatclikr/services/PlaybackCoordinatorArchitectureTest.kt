@@ -51,6 +51,30 @@ class PlaybackCoordinatorArchitectureTest {
         assertTrue(source.contains("engine.stopMetronome()"))
     }
 
+    @Test
+    fun engineFailureCallbacksAreCompilerRequiredAndForwarded() {
+        val engine = locateMainSource("services/MetronomeAudioEngine.kt").readText()
+        val service = locateMainSource("services/AudioPlayerService.kt").readText()
+        val coordinator = locateMainSource("services/PlaybackCoordinator.kt").readText()
+
+        assertTrue(engine.contains("fun metronomeStartFailed()\\n".replace("\\n", "\n")))
+        assertTrue(engine.contains("fun polyrhythmStartFailed()\\n".replace("\\n", "\n")))
+        assertFalse(engine.contains("fun metronomeStartFailed() {}"))
+        assertFalse(engine.contains("fun polyrhythmStartFailed() {}"))
+        assertTrue(service.contains("override fun metronomeStartFailed()"))
+        assertTrue(coordinator.contains("override fun metronomeStartFailed()"))
+        assertTrue(coordinator.contains("override fun polyrhythmStartFailed()"))
+    }
+
+    @Test
+    fun timingTrafficCannotEvictControlOutcomes() {
+        val source = locateMainSource("services/PlaybackCoordinator.kt").readText()
+
+        assertTrue(source.contains("val timingEvents: SharedFlow<PlaybackTimingEvent>"))
+        assertTrue(source.contains("val controlEvents: SharedFlow<PlaybackControlEvent>"))
+        assertFalse(source.contains("SharedFlow<PlaybackCoordinatorEvent>"))
+    }
+
     private fun locateMainSource(relative: String): Path {
         val source = Path.of(
             "src/main/java/com/bfunkstudios/beatclikr"

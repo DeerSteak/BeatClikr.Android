@@ -65,7 +65,7 @@ class AudioStartupLatencyInstrumentedTest {
             subdivisions = TEST_SUBDIVISIONS,
             accentPattern = null,
             alternateSixteenth = false,
-            delegate = object : MetronomeAudioEngineDelegate {
+            delegate = object : MetronomeTestDelegate() {
                 override fun metronomeBeatFired(
                     isBeat: Boolean,
                     beatInterval: Float,

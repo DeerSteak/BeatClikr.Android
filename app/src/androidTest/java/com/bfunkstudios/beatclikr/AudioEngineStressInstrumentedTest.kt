@@ -40,7 +40,7 @@ class AudioEngineStressInstrumentedTest {
         val arrivalTimes = Collections.synchronizedList(ArrayList<Long>(expectedEvents))
         val latch = CountDownLatch(expectedEvents)
         val engine = MetronomeAudioEngine(context)
-        val delegate = object : MetronomeAudioEngineDelegate {
+        val delegate = object : MetronomeTestDelegate() {
             override fun metronomeBeatFired(
                 isBeat: Boolean,
                 beatInterval: Float,

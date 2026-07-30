@@ -61,7 +61,7 @@ class PolyrhythmContractInstrumentedTest {
         val eventCount = fixture.events.size + 1
         val events = Collections.synchronizedList(mutableListOf<CapturedPolyrhythmEvent>())
         val latch = CountDownLatch(eventCount)
-        engine.polyrhythmDelegate = object : PolyrhythmAudioEngineDelegate {
+        engine.polyrhythmDelegate = object : PolyrhythmTestDelegate() {
             override fun polyrhythmBeatFired(
                 beatFired: Boolean,
                 rhythmFired: Boolean,
