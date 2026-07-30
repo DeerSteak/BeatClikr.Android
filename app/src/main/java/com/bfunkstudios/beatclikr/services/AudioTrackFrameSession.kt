@@ -14,6 +14,7 @@ private const val TIMESTAMP_NANOS_PER_SECOND = 1_000_000_000L
 data class AudioTrackFrameSessionSnapshot(
     val properties: AudioBackendStreamProperties?,
     val firstOutputFrame: Long,
+    val firstEventFrame: Long,
     val nextFrame: Long,
     val writtenFrames: Long,
     val renderedFrames: Long,
@@ -95,6 +96,8 @@ class AudioTrackFrameSession(
 
     @Volatile
     private var firstOutputFrame = 0L
+    @Volatile
+    private var firstEventFrame = 0L
 
     @Volatile
     private var renderedBeatEvents = 0L
@@ -187,7 +190,9 @@ class AudioTrackFrameSession(
                     }
                     snapshotSequence++
                     this.firstOutputFrame = firstOutputFrame
+                    firstEventFrame = owner.publicationFirstEventFrame
                     writtenFrame = firstOutputFrame
+                    currentRoute = owner.route
                     snapshotSequence++
                     renderRunning = true
                     started = true
@@ -278,6 +283,7 @@ class AudioTrackFrameSession(
         var after: Int
         var properties: AudioBackendStreamProperties?
         var firstFrame: Long
+        var firstEvent: Long
         var nextFrame: Long
         var completedWrittenFrames: Long
         var completedRenderedFrames: Long
@@ -301,6 +307,7 @@ class AudioTrackFrameSession(
             before = snapshotSequence
             properties = obtainedProperties
             firstFrame = firstOutputFrame
+            firstEvent = firstEventFrame
             nextFrame = writtenFrame
             completedWrittenFrames = writtenFrames
             completedRenderedFrames = renderedFrames
@@ -325,6 +332,7 @@ class AudioTrackFrameSession(
         return AudioTrackFrameSessionSnapshot(
             properties,
             firstFrame,
+            firstEvent,
             nextFrame,
             completedWrittenFrames,
             completedRenderedFrames,
@@ -460,6 +468,7 @@ class AudioTrackFrameSession(
         obtainedProperties = null
         renderedBlocks = 0
         firstOutputFrame = 0
+        firstEventFrame = 0
         writtenFrame = 0
         writtenFrames = 0
         renderedFrames = 0

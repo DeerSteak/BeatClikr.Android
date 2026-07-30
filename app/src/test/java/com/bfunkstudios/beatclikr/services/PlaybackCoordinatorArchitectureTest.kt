@@ -44,11 +44,12 @@ class PlaybackCoordinatorArchitectureTest {
     fun coordinatorSeparatesModeReplacementFromInPlaceUpdates() {
         val source = locateMainSource("services/PlaybackCoordinator.kt").readText()
 
-        assertTrue(source.contains("is PlaybackIntent.UpdateStandard -> engine.updateTempo"))
+        assertTrue(source.contains("is PlaybackIntent.UpdateStandard -> {"))
         assertTrue(source.contains("is PlaybackIntent.UpdatePolyrhythm ->"))
         assertTrue(source.contains("is PlaybackIntent.SetMuted ->"))
-        assertTrue(source.contains("engine.stopPolyrhythm()"))
-        assertTrue(source.contains("engine.stopMetronome()"))
+        assertTrue(source.contains("engine.stopSession("))
+        assertTrue(source.contains("pendingReplacement = start"))
+        assertTrue(source.contains("amendTransportConfiguration"))
     }
 
     @Test
@@ -73,6 +74,15 @@ class PlaybackCoordinatorArchitectureTest {
         assertTrue(source.contains("val timingEvents: SharedFlow<PlaybackTimingEvent>"))
         assertTrue(source.contains("val controlEvents: SharedFlow<PlaybackControlEvent>"))
         assertFalse(source.contains("SharedFlow<PlaybackCoordinatorEvent>"))
+    }
+
+    @Test
+    fun legacyOwnershipModeIsProjectedOnlyFromTransportTransitions() {
+        val source = locateMainSource("services/PlaybackCoordinator.kt").readText()
+        val transition = source.substringAfter("private fun transitionTo(")
+            .substringBefore("private fun newSessionId")
+
+        assertTrue(transition.contains("activeMode = (next as? PlaybackTransportState.Playing)"))
     }
 
     private fun locateMainSource(relative: String): Path {

@@ -50,7 +50,8 @@ class FrameRangeEventSourceTest {
 
         var startFrame = 0L
         while (startFrame < 12_800) {
-            timeline.visitEvents(startFrame, startFrame + 64) { frame, primary, secondary, muted ->
+            timeline.visitEvents(startFrame, startFrame + 64) {
+                    _, _, frame, _, primary, _, secondary, muted ->
                 blocks += VisitedEvent(frame, primary, secondary, muted)
                 true
             }
@@ -73,7 +74,7 @@ class FrameRangeEventSourceTest {
         )
         var visits = 0
 
-        timeline.visitEvents(0, 30_000) { _, _, _, _ ->
+        timeline.visitEvents(0, 30_000) { _, _, _, _, _, _, _, _ ->
             visits++
             false
         }
@@ -98,7 +99,8 @@ class FrameRangeEventSourceTest {
             .toList()
         val visited = mutableListOf<VisitedEvent>()
 
-        timeline.visitEvents(startFrame, endFrameExclusive) { frame, primary, secondary, muted ->
+        timeline.visitEvents(startFrame, endFrameExclusive) {
+                _, _, frame, _, primary, _, secondary, muted ->
             visited += VisitedEvent(frame, primary, secondary, muted)
             true
         }
@@ -112,7 +114,8 @@ class FrameRangeEventSourceTest {
         endFrameExclusive: Long
     ): List<VisitedEvent> {
         val visited = mutableListOf<VisitedEvent>()
-        timeline.visitEvents(startFrame, endFrameExclusive) { frame, primary, secondary, muted ->
+        timeline.visitEvents(startFrame, endFrameExclusive) {
+                _, _, frame, _, primary, _, secondary, muted ->
             visited += VisitedEvent(frame, primary, secondary, muted)
             true
         }

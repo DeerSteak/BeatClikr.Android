@@ -8,12 +8,18 @@ import com.bfunkstudios.beatclikr.data.SoundFile
 internal class AudioPlayerService(context: Context) : PlaybackEnginePort, MetronomeAudioEngineDelegate {
     private val audioEngine = MetronomeAudioEngine(context.applicationContext)
 
-    override var soundPreparationObserver:
-        ((ActiveSoundConfiguration?, SoundPreparationFailure?) -> Unit)?
+    init {
+        audioEngine.playbackInterruptionObserver = { sessionId, reason ->
+            transportObserver?.engineInterrupted(sessionId, reason)
+        }
+    }
+
+    override var soundPreparationObserver: ((SoundPreparationPublication) -> Unit)?
         get() = audioEngine.soundPreparationObserver
         set(value) {
             audioEngine.soundPreparationObserver = value
         }
+    override var transportObserver: PlaybackEngineTransportObserver? = null
 
     override var delegate: MetronomeAudioEngineDelegate? = null
     override var polyrhythmDelegate: PolyrhythmAudioEngineDelegate?
@@ -30,6 +36,22 @@ internal class AudioPlayerService(context: Context) : PlaybackEnginePort, Metron
 
     override fun setupAudioPlayer(beatResourceId: Int, rhythmResourceId: Int) {
         audioEngine.loadSounds(beatResourceId, rhythmResourceId)
+    }
+
+    override fun selectSounds(
+        requestSequence: Long,
+        beatResourceId: Int,
+        rhythmResourceId: Int
+    ) {
+        audioEngine.loadSounds(beatResourceId, rhythmResourceId, requestSequence)
+    }
+
+    override fun selectSoundBank(requestSequence: Long, bank: SoundBank) {
+        audioEngine.selectSoundBank(bank, requestSequence)
+    }
+
+    override fun prepareSounds(requestSequence: Long, sounds: Collection<SoundFile>) {
+        audioEngine.prepareAudioTrackSounds(sounds, requestSequence)
     }
 
     override fun startMetronome(
@@ -80,9 +102,49 @@ internal class AudioPlayerService(context: Context) : PlaybackEnginePort, Metron
     override fun soundPreparationFailure(): SoundPreparationFailure? =
         audioEngine.getSoundPreparationFailure()
 
+    override fun drainRenderedEvents(
+        afterCaptureSequence: Long
+    ): FrameAudioRenderedEventBatch? =
+        audioEngine.drainRenderedEvents(afterCaptureSequence)
+
+    override fun beginStandardSession(
+        sessionId: PlaybackSessionId,
+        bpm: Float,
+        subdivisions: Int,
+        accentPattern: List<Boolean>?,
+        alternateSixteenth: Boolean
+    ) {
+        audioEngine.startMetronome(
+            bpm,
+            subdivisions,
+            accentPattern,
+            alternateSixteenth,
+            this,
+            sessionId,
+            ::publishStartResult
+        )
+    }
+
+    override fun beginPolyrhythmSession(
+        sessionId: PlaybackSessionId,
+        bpm: Float,
+        beats: Int,
+        against: Int
+    ) {
+        audioEngine.startPolyrhythm(sessionId, bpm, beats, against, ::publishStartResult)
+    }
+
+    override fun stopSession(sessionId: PlaybackSessionId, mode: PlaybackMode) {
+        audioEngine.stopSession(mode) {
+            transportObserver?.engineStopped(sessionId)
+        }
+    }
+
     override fun release() {
+        audioEngine.playbackInterruptionObserver = null
         audioEngine.release()
         delegate = null
+        transportObserver = null
     }
 
     override fun metronomeBeatFired(isBeat: Boolean, beatInterval: Float, beatTimeNanos: Long) {
@@ -93,4 +155,30 @@ internal class AudioPlayerService(context: Context) : PlaybackEnginePort, Metron
         delegate?.metronomeStartFailed()
     }
 
+    private fun publishStartResult(
+        sessionId: PlaybackSessionId,
+        evidence: FrameAudioStartEvidence?
+    ) {
+        if (evidence == null) {
+            transportObserver?.engineStartFailed(sessionId, "Audio stream failed to start")
+            return
+        }
+        val sounds = activeSoundConfiguration()
+        if (sounds == null) {
+            transportObserver?.engineStartFailed(
+                sessionId,
+                "Audio stream started without prepared sounds"
+            )
+            return
+        }
+        transportObserver?.engineStarted(
+            PlaybackEngineStartEvidence(
+                sessionId,
+                sounds,
+                evidence.route,
+                evidence.backend,
+                evidence.firstEventFrame
+            )
+        )
+    }
 }

@@ -85,9 +85,22 @@ class PolyrhythmTimeline(
             if (intendedFrame >= startFrame && hasEventAt(slot)) {
                 val primary = primarySoundAt(slot)
                 val secondary = secondarySoundAt(slot)
+                val eventIndex = eventIndex(slotIndex, slot)
                 if (!consumer.accept(
+                        origin.sessionID.value,
+                        eventIndex,
                         intendedFrame,
+                        if (primary == SoundRole.BEAT) {
+                            MusicalEventRole.POLYRHYTHM_BEAT
+                        } else {
+                            MusicalEventRole.POLYRHYTHM_RHYTHM
+                        },
                         primary,
+                        if (secondary == SoundRole.RHYTHM) {
+                            MusicalEventRole.POLYRHYTHM_RHYTHM
+                        } else {
+                            null
+                        },
                         secondary,
                         configuration.muteMetronome
                     )
@@ -124,11 +137,7 @@ class PolyrhythmTimeline(
         } else {
             null
         }
-        val localEventIndex = Math.addExact(
-            Math.multiplyExact(localCycleIndex, eventSlots.size.toLong()),
-            eventSlots.binarySearch(slot).toLong()
-        )
-        val eventIndex = Math.addExact(initialEventIndex, localEventIndex)
+        val eventIndex = eventIndex(slotIndex, slot)
         return FrameEvent(
             sequence = EventSequence(origin.sessionID, eventIndex),
             intendedFrame = intendedFrame,
@@ -136,6 +145,15 @@ class PolyrhythmTimeline(
             secondary = if (beatVoice != null) rhythmVoice else null,
             muteMetronome = configuration.muteMetronome
         )
+    }
+
+    private fun eventIndex(slotIndex: Long, slot: Int): Long {
+        val localCycleIndex = slotIndex / slotsPerCycle
+        val localEventIndex = Math.addExact(
+            Math.multiplyExact(localCycleIndex, eventSlots.size.toLong()),
+            eventSlots.binarySearch(slot).toLong()
+        )
+        return Math.addExact(initialEventIndex, localEventIndex)
     }
 
     private fun hasEventAt(slot: Int): Boolean =

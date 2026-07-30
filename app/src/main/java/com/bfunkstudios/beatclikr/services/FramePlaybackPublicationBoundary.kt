@@ -51,7 +51,8 @@ object FramePlaybackPublicationBoundary {
         muted: Boolean,
         origin: SessionOrigin,
         sounds: ActivePreparedSounds?,
-        startDelayMillis: Long = 0
+        startDelayMillis: Long = 0,
+        eventCapture: RenderedEventRing? = null
     ): FramePublicationResult = translate(sounds) { preparedSounds ->
         StandardPreparedFrameRendererFactory(
             createStandardConfiguration(
@@ -63,7 +64,8 @@ object FramePlaybackPublicationBoundary {
             ),
             origin = origin,
             sounds = preparedSounds,
-            startDelayMillis = startDelayMillis
+            startDelayMillis = startDelayMillis,
+            eventCapture = eventCapture
         )
     }
 
@@ -100,13 +102,15 @@ object FramePlaybackPublicationBoundary {
         muted: Boolean,
         origin: SessionOrigin,
         sounds: ActivePreparedSounds?,
-        startDelayMillis: Long = 0
+        startDelayMillis: Long = 0,
+        eventCapture: RenderedEventRing? = null
     ): FramePublicationResult = translate(sounds) { preparedSounds ->
         PolyrhythmPreparedFrameRendererFactory(
             createPolyrhythmConfiguration(bpm, beats, against, muted),
             origin = origin,
             sounds = preparedSounds,
-            startDelayMillis = startDelayMillis
+            startDelayMillis = startDelayMillis,
+            eventCapture = eventCapture
         )
     }
 

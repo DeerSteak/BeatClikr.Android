@@ -41,7 +41,20 @@ data class FrameAudioMetricsSnapshot(
     val maxActiveClicks: Int,
     val underrunCount: Int,
     val underrunSkippedFrames: Long,
-    val frameCorrelation: AudioFrameCorrelation?
+    val frameCorrelation: AudioFrameCorrelation?,
+    val latestBackendFailure: AudioBackendFailure?
+)
+
+data class FrameAudioStartEvidence(
+    val route: AudioOutputRoute,
+    val backend: AudioBackendType,
+    val firstEventFrame: Long
+)
+
+data class FrameAudioRenderedEventBatch(
+    val events: RenderedEventBatch,
+    val sampleRate: Int,
+    val correlation: AudioFrameCorrelation?
 )
 
 class FrameAudioEngine(
@@ -61,6 +74,7 @@ class FrameAudioEngine(
 
     private var frameSession: AudioTrackFrameSession? = null
     private var nextSessionID = 1L
+    private val renderedEvents = RenderedEventRing(RENDERED_EVENT_CAPACITY)
 
     @Volatile
     var lastFramePublicationFailure: FramePublicationResult.Rejected? = null
@@ -127,7 +141,8 @@ class FrameAudioEngine(
                 maxActiveClicks = 0,
                 underrunCount = frame.underrunCount,
                 underrunSkippedFrames = frame.underrunSkippedFrames,
-                frameCorrelation = frame.frameCorrelation
+                frameCorrelation = frame.frameCorrelation,
+                latestBackendFailure = frame.failures.lastOrNull()
             )
         }
         return FrameAudioMetricsSnapshot(
@@ -163,7 +178,8 @@ class FrameAudioEngine(
             maxActiveClicks = 0,
             underrunCount = 0,
             underrunSkippedFrames = 0,
-            frameCorrelation = null
+            frameCorrelation = null,
+            latestBackendFailure = null
         )
     }
 
@@ -229,7 +245,8 @@ class FrameAudioEngine(
         accentPattern: List<Boolean>?,
         alternateSixteenth: Boolean,
         muted: Boolean,
-        startDelayMillis: Long
+        startDelayMillis: Long,
+        sessionId: PlaybackSessionId? = null
     ): Boolean = startFramePublication(
         FramePlaybackPublicationBoundary.standard(
             bpm = bpm,
@@ -237,9 +254,10 @@ class FrameAudioEngine(
             accentPattern = accentPattern,
             alternateSixteenth = alternateSixteenth,
             muted = muted,
-            origin = nextOrigin(),
+            origin = nextOrigin(sessionId),
             sounds = soundSelection.active,
-            startDelayMillis = startDelayMillis
+            startDelayMillis = startDelayMillis,
+            eventCapture = renderedEvents
         )
     )
 
@@ -248,16 +266,18 @@ class FrameAudioEngine(
         beats: Int,
         against: Int,
         muted: Boolean,
-        startDelayMillis: Long
+        startDelayMillis: Long,
+        sessionId: PlaybackSessionId? = null
     ): Boolean = startFramePublication(
         FramePlaybackPublicationBoundary.polyrhythm(
             bpm = bpm,
             beats = beats,
             against = against,
             muted = muted,
-            origin = nextOrigin(),
+            origin = nextOrigin(sessionId),
             sounds = soundSelection.active,
-            startDelayMillis = startDelayMillis
+            startDelayMillis = startDelayMillis,
+            eventCapture = renderedEvents
         )
     )
 
@@ -267,6 +287,25 @@ class FrameAudioEngine(
 
     fun stop() {
         frameSession?.stop()
+    }
+
+    fun startEvidence(): FrameAudioStartEvidence? {
+        val snapshot = frameSession?.snapshot() ?: return null
+        val properties = snapshot.properties ?: return null
+        return FrameAudioStartEvidence(
+            route = snapshot.route,
+            backend = properties.backend,
+            firstEventFrame = snapshot.firstEventFrame
+        )
+    }
+
+    fun drainRenderedEvents(afterCaptureSequence: Long): FrameAudioRenderedEventBatch {
+        val metrics = metricsSnapshot()
+        return FrameAudioRenderedEventBatch(
+            renderedEvents.drain(afterCaptureSequence),
+            metrics.sampleRate,
+            metrics.frameCorrelation
+        )
     }
 
     fun release() {
@@ -306,9 +345,10 @@ class FrameAudioEngine(
             preferredBurstFrames = outputFramesPerBuffer
         ).also { frameSession = it }
 
-    private fun nextOrigin(): SessionOrigin {
-        val origin = SessionOrigin(SessionID(nextSessionID), 0)
-        nextSessionID = Math.incrementExact(nextSessionID)
+    private fun nextOrigin(sessionId: PlaybackSessionId?): SessionOrigin {
+        val value = sessionId?.value ?: nextSessionID
+        val origin = SessionOrigin(SessionID(value), 0)
+        nextSessionID = maxOf(nextSessionID, Math.incrementExact(value))
         return origin
     }
 
@@ -322,6 +362,7 @@ class FrameAudioEngine(
 
     private companion object {
         const val DEFAULT_OUTPUT_FRAMES_PER_BUFFER = 192
+        const val RENDERED_EVENT_CAPACITY = 512
         const val NANOS_PER_SECOND = 1_000_000_000L
     }
 }

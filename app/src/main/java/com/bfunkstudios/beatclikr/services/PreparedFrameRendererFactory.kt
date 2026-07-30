@@ -12,6 +12,7 @@ class StandardPreparedFrameRendererFactory(
     private val origin: SessionOrigin,
     private val sounds: ActivePreparedSounds,
     private val startDelayMillis: Long = 0,
+    private val eventCapture: RenderedEventRing? = null,
     private val maximumActiveVoices: Int = DEFAULT_MAXIMUM_ACTIVE_VOICES
 ) : PcmFrameRendererFactory {
     init {
@@ -30,6 +31,7 @@ class StandardPreparedFrameRendererFactory(
             activeTimeline,
             sounds,
             maximumActiveVoices,
+            eventCapture,
             firstOutputFrame = origin.originFrame,
             standardUpdater = StandardFrameStreamUpdater { replacement, firstUnprocessedFrame ->
                 val continuation = activeTimeline.continuationAtOrAfter(firstUnprocessedFrame)
@@ -58,6 +60,7 @@ class PolyrhythmPreparedFrameRendererFactory(
     private val origin: SessionOrigin,
     private val sounds: ActivePreparedSounds,
     private val startDelayMillis: Long = 0,
+    private val eventCapture: RenderedEventRing? = null,
     private val maximumActiveVoices: Int = DEFAULT_MAXIMUM_ACTIVE_VOICES
 ) : PcmFrameRendererFactory {
     init {
@@ -82,6 +85,7 @@ class PolyrhythmPreparedFrameRendererFactory(
             activeTimeline,
             sounds,
             maximumActiveVoices,
+            eventCapture,
             firstOutputFrame = origin.originFrame,
             polyrhythmUpdater = PolyrhythmFrameStreamUpdater {
                     replacement,
@@ -105,6 +109,7 @@ private fun preparedPublication(
     timeline: FrameEventTimeline,
     sounds: ActivePreparedSounds,
     maximumActiveVoices: Int,
+    eventCapture: RenderedEventRing?,
     firstOutputFrame: Long,
     standardUpdater: StandardFrameStreamUpdater? = null,
     polyrhythmUpdater: PolyrhythmFrameStreamUpdater? = null
@@ -112,18 +117,20 @@ private fun preparedPublication(
     val renderer = FramePcmRenderer(
         timeline,
         RenderWaveforms(sounds.beat, sounds.rhythm),
-        maximumActiveVoices
+        maximumActiveVoices,
+        eventCapture
     )
     return PublishedPcmFrameRenderer(
         renderer,
         TimelineFrameStreamRecovery(timeline),
         firstOutputFrame = firstOutputFrame,
+        firstEventFrame = timeline.origin.originFrame,
         standardUpdater = standardUpdater,
         polyrhythmUpdater = polyrhythmUpdater
     )
 }
 
-private fun delayedEventOriginFrame(
+internal fun delayedEventOriginFrame(
     firstOutputFrame: Long,
     startDelayMillis: Long,
     obtainedSampleRate: Int

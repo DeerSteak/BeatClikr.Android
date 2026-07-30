@@ -14,6 +14,7 @@ class PublishedPcmFrameRenderer(
     val renderer: PcmFrameRenderer,
     val recovery: FrameStreamRecovery? = null,
     val firstOutputFrame: Long = 0,
+    val firstEventFrame: Long = firstOutputFrame,
     val standardUpdater: StandardFrameStreamUpdater? = null,
     val polyrhythmUpdater: PolyrhythmFrameStreamUpdater? = null
 )
@@ -109,6 +110,8 @@ class FrameAudioStreamOwner(
 
     var publicationFirstOutputFrame: Long = 0
         private set
+    var publicationFirstEventFrame: Long = 0
+        private set
 
     val renderedBeatEvents: Long
         get() = renderer?.renderedBeatEvents ?: 0
@@ -194,6 +197,7 @@ class FrameAudioStreamOwner(
         standardUpdater = publication.standardUpdater
         polyrhythmUpdater = publication.polyrhythmUpdater
         publicationFirstOutputFrame = publication.firstOutputFrame
+        publicationFirstEventFrame = publication.firstEventFrame
         properties = obtained
         return obtained
     }
@@ -333,6 +337,7 @@ class FrameAudioStreamOwner(
         standardUpdater = null
         polyrhythmUpdater = null
         publicationFirstOutputFrame = 0
+        publicationFirstEventFrame = 0
         properties = null
         renderBuffer = ShortArray(0)
         return stopped
