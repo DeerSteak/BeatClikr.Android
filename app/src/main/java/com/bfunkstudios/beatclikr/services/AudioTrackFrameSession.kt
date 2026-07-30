@@ -9,16 +9,46 @@ import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 
+private const val TIMESTAMP_NANOS_PER_SECOND = 1_000_000_000L
+
 data class AudioTrackFrameSessionSnapshot(
     val properties: AudioBackendStreamProperties?,
     val firstOutputFrame: Long,
     val nextFrame: Long,
+    val writtenFrames: Long,
     val renderedBlocks: Long,
     val renderedBeatEvents: Long,
     val renderedRhythmEvents: Long,
     val underrunCount: Int,
+    val underrunSkippedFrames: Long,
+    val frameCorrelation: AudioFrameCorrelation?,
     val failures: List<AudioBackendFailure>
 )
+
+data class AudioFrameCorrelation(
+    val writtenFrame: Long,
+    val presentedFrame: Long,
+    val presentationNanoTime: Long
+)
+
+internal fun missingPresentationFrames(
+    previousPresentedFrame: Long,
+    previousPresentationNanoTime: Long,
+    currentPresentedFrame: Long,
+    currentPresentationNanoTime: Long,
+    sampleRate: Int
+): Long {
+    require(sampleRate > 0) { "Sample rate must be positive" }
+    val elapsedNanos = currentPresentationNanoTime - previousPresentationNanoTime
+    val presentedFrames = currentPresentedFrame - previousPresentedFrame
+    if (elapsedNanos <= 0 || presentedFrames < 0) return 0
+    val elapsedFrames = Math.addExact(
+        Math.multiplyExact(elapsedNanos / TIMESTAMP_NANOS_PER_SECOND, sampleRate.toLong()),
+        (elapsedNanos % TIMESTAMP_NANOS_PER_SECOND) * sampleRate /
+            TIMESTAMP_NANOS_PER_SECOND
+    )
+    return (elapsedFrames - presentedFrames).coerceAtLeast(0)
+}
 
 class AudioTrackFrameSession(
     audioManager: AudioManager?,
@@ -50,6 +80,9 @@ class AudioTrackFrameSession(
     private var writtenFrame = 0L
 
     @Volatile
+    private var writtenFrames = 0L
+
+    @Volatile
     private var firstOutputFrame = 0L
 
     @Volatile
@@ -60,6 +93,23 @@ class AudioTrackFrameSession(
 
     @Volatile
     private var underrunCount = 0
+
+    @Volatile
+    private var underrunSkippedFrames = 0L
+
+    private val timestamp = AudioFrameTimestamp()
+
+    @Volatile
+    private var hasFrameCorrelation = false
+
+    @Volatile
+    private var correlatedWrittenFrame = 0L
+
+    @Volatile
+    private var presentedFrame = 0L
+
+    @Volatile
+    private var presentationNanoTime = 0L
 
     private val failureRing = AudioBackendFailureRing(FAILURE_CAPACITY)
 
@@ -203,20 +253,32 @@ class AudioTrackFrameSession(
         var properties: AudioBackendStreamProperties?
         var firstFrame: Long
         var nextFrame: Long
+        var completedWrittenFrames: Long
         var blocks: Long
         var beatEvents: Long
         var rhythmEvents: Long
         var underruns: Int
+        var skippedFrames: Long
+        var hasCorrelation: Boolean
+        var correlationWrittenFrame: Long
+        var correlationPresentedFrame: Long
+        var correlationNanoTime: Long
         var recordedFailures: List<AudioBackendFailure>
         do {
             before = snapshotSequence
             properties = obtainedProperties
             firstFrame = firstOutputFrame
             nextFrame = writtenFrame
+            completedWrittenFrames = writtenFrames
             blocks = renderedBlocks
             beatEvents = renderedBeatEvents
             rhythmEvents = renderedRhythmEvents
             underruns = underrunCount
+            skippedFrames = underrunSkippedFrames
+            hasCorrelation = hasFrameCorrelation
+            correlationWrittenFrame = correlatedWrittenFrame
+            correlationPresentedFrame = presentedFrame
+            correlationNanoTime = presentationNanoTime
             recordedFailures = failureRing.snapshot()
             after = snapshotSequence
         } while (before != after || before and 1 != 0)
@@ -224,10 +286,21 @@ class AudioTrackFrameSession(
             properties,
             firstFrame,
             nextFrame,
+            completedWrittenFrames,
             blocks,
             beatEvents,
             rhythmEvents,
             underruns,
+            skippedFrames,
+            if (hasCorrelation) {
+                AudioFrameCorrelation(
+                    correlationWrittenFrame,
+                    correlationPresentedFrame,
+                    correlationNanoTime
+                )
+            } else {
+                null
+            },
             recordedFailures
         )
     }
@@ -236,22 +309,38 @@ class AudioTrackFrameSession(
         override fun run() {
             if (!renderRunning) return
             val result = owner.renderNextBlock()
+            var canContinue = result == FrameStreamRenderResult.COMPLETE
             snapshotSequence++
             writtenFrame = owner.nextFrame
             if (result == FrameStreamRenderResult.COMPLETE) {
                 renderedBeatEvents = owner.renderedBeatEvents
                 renderedRhythmEvents = owner.renderedRhythmEvents
-                underrunCount = owner.underrunCount
+                val observedUnderruns = owner.underrunCount
+                val missingFrames = captureFrameCorrelation()
+                if (observedUnderruns > underrunCount) {
+                    val recoveryFrame = Math.addExact(owner.nextFrame, missingFrames)
+                    canContinue = owner.resync(recoveryFrame)
+                    if (canContinue) {
+                        underrunSkippedFrames = Math.addExact(
+                            underrunSkippedFrames,
+                            missingFrames
+                        )
+                    }
+                }
+                underrunCount = observedUnderruns
+                writtenFrames = Math.addExact(
+                    writtenFrames,
+                    requireNotNull(owner.properties).burstFrames.toLong()
+                )
                 renderedBlocks++
             }
             snapshotSequence++
-            when (result) {
-                FrameStreamRenderResult.COMPLETE -> handler.post(this)
-                else -> {
-                    renderRunning = false
-                    captureUnderruns()
-                    owner.stop()
-                }
+            if (canContinue) {
+                handler.post(this)
+            } else {
+                renderRunning = false
+                captureUnderruns()
+                owner.stop()
             }
         }
     }
@@ -268,6 +357,26 @@ class AudioTrackFrameSession(
         snapshotSequence++
     }
 
+    private fun captureFrameCorrelation(): Long {
+        if (!owner.timestamp(timestamp)) return 0
+        val missingFrames = if (hasFrameCorrelation) {
+            missingPresentationFrames(
+                presentedFrame,
+                presentationNanoTime,
+                timestamp.framePosition,
+                timestamp.monotonicTimeNanos,
+                requireNotNull(owner.properties).sampleRate
+            )
+        } else {
+            0
+        }
+        correlatedWrittenFrame = owner.nextFrame
+        presentedFrame = timestamp.framePosition
+        presentationNanoTime = timestamp.monotonicTimeNanos
+        hasFrameCorrelation = true
+        return missingFrames
+    }
+
     private fun recordFailure(failure: AudioBackendFailure) {
         snapshotSequence++
         failureRing.record(failure)
@@ -280,9 +389,15 @@ class AudioTrackFrameSession(
         renderedBlocks = 0
         firstOutputFrame = 0
         writtenFrame = 0
+        writtenFrames = 0
         renderedBeatEvents = 0
         renderedRhythmEvents = 0
         underrunCount = 0
+        underrunSkippedFrames = 0
+        hasFrameCorrelation = false
+        correlatedWrittenFrame = 0
+        presentedFrame = 0
+        presentationNanoTime = 0
         failureRing.reset()
         snapshotSequence++
     }

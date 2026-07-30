@@ -9,14 +9,16 @@ import org.junit.Test
 
 class FrameProductionSelectionArchitectureTest {
     @Test
-    fun productionSelectsFrameAudioBeforeLegacyFallback() {
-        val source = locateSource("MetronomeAudioEngine.kt").readText()
+    fun productionUsesOnlyFrameAudioForSoundOutput() {
+        val engine = locateSource("MetronomeAudioEngine.kt").readText()
+        val output = locateSource("FrameAudioEngine.kt").readText()
 
-        assertTrue(source.contains("frameAudioActive = engine.startStandard("))
-        assertTrue(source.contains("frameAudioActive = engine.startPolyrhythm("))
-        assertTrue(source.contains("if (!isMuted && !frameAudioActive)"))
-        assertTrue(source.contains("if (!frameAudioActive) audioTrackEngine?.playBeat()"))
-        assertTrue(source.contains("if (!requestAudioFocus()) return@post"))
+        assertTrue(engine.contains("frameAudioActive = engine.startStandard("))
+        assertTrue(engine.contains("frameAudioActive = engine.startPolyrhythm("))
+        assertTrue(engine.contains("if (!requestAudioFocus()) return@post"))
+        listOf("pendingClicks", "enqueueWaveform", "fun playBeat(", "renderRunnable").forEach {
+            assertFalse("Production output contains legacy token: $it", output.contains(it))
+        }
     }
 
     @Test
@@ -30,7 +32,7 @@ class FrameProductionSelectionArchitectureTest {
     }
 
     @Test
-    fun activePolyrhythmUpdatesRetuneBeforeAnyFallbackCanOpen() {
+    fun activePolyrhythmUpdatesRetuneBeforeAnyNewStart() {
         val source = locateSource("MetronomeAudioEngine.kt").readText()
         val startBody = source.substringAfter("fun startPolyrhythm(")
             .substringBefore("fun stopPolyrhythm()")
@@ -41,6 +43,19 @@ class FrameProductionSelectionArchitectureTest {
             startBody.indexOf("engine.updatePolyrhythm(") <
                 startBody.indexOf("engine.startPolyrhythm(")
         )
+    }
+
+    @Test
+    fun visualCallbacksUseOneShotSchedulingInsteadOfPolling() {
+        val standard = locateSource("MetronomeAudioEngine.kt").readText()
+        val polyrhythm = locateSource("PolyrhythmTimingEngine.kt").readText()
+
+        assertFalse(standard.contains("TIMER_CHECK_INTERVAL_MS"))
+        assertFalse(standard.contains("checkAndPlayBeat"))
+        assertFalse(polyrhythm.contains("checkIntervalMs"))
+        assertFalse(polyrhythm.contains("checkAndPlayStep"))
+        assertTrue(standard.contains("scheduleNextBeat()"))
+        assertTrue(polyrhythm.contains("scheduleNextStep()"))
     }
 
     private fun locateSource(name: String): Path {

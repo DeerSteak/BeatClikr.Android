@@ -65,8 +65,8 @@ class AudioPlayerService private constructor(context: Context) : IAudioPlayerSer
         audioEngine.prepareAudioTrackSounds(soundFiles)
     }
 
-    override fun getAudioTrackMetricsSnapshot(): AudioTrackMetricsSnapshot? {
-        return audioEngine.getAudioTrackMetricsSnapshot()
+    override fun getFrameAudioMetricsSnapshot(): FrameAudioMetricsSnapshot? {
+        return audioEngine.getFrameAudioMetricsSnapshot()
     }
 
     override fun release() {

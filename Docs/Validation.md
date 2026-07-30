@@ -80,13 +80,17 @@ The renderer suite verifies muted events do not increment role counters and fail
 
 The publication-boundary suite accepts regular, additive, and polyrhythm requests, retains domain rejection causes, and translates missing sounds or invalid legacy inputs into typed failures. A ramp-derived fractional tempo verifies float-to-exact conversion at its expected output frame. Session architecture checks also require late-start cancellation and idempotent release so a rejected selection cannot leave a hidden render loop.
 
-The production-selection tripwire requires standard and polyrhythm starts to select frame audio first and prohibits Handler-driven sound triggers while that selection is active. Existing instrumentation metrics are backed by frame-rendered role counters, written-frame ownership, obtained stream facts, and the real `AudioTrack` underrun count.
+The production-selection tripwire requires standard and polyrhythm starts to use frame audio and prohibits the pending-click queue, waveform enqueue method, trigger methods, and legacy render runnable from the production output owner. Existing instrumentation metrics are backed by frame-rendered role counters, written-frame ownership, obtained stream facts, and the real `AudioTrack` underrun count.
+
+The same tripwire prohibits the former check-interval polling fields and methods and requires one-shot standard and polyrhythm scheduling helpers.
+
+The frame-session tripwire requires one reusable timestamp holder, captures written/presented frame correlation into the consistent snapshot, and requires an advancing underrun count to skip timestamp-estimated missing presentation frames before owner resynchronization. Pure policy tests cover timestamp-gap conversion and constant-time visual event dropping.
 
 Renderer regressions also cover live mute changes and a delayed first event derived from the obtained sample rate. Recovery before that delayed timeline origin remains valid and clamps its event cursor without changing output-frame ownership.
 
 The standard-update regression changes tempo after rendering has begun and requires the replacement's first event to remain on the next old-tempo boundary. It also requires the pattern role and `EventSequence` index to continue across that boundary, proving that ramps do not restart the stream or reset musical phase.
 
-The polyrhythm-update regression changes tempo and ratio mid-cycle, then requires the replacement to begin at the next old shared-cycle boundary with both roles coincident and event/cycle identity preserved. A production-selection tripwire requires this retune branch to return before either frame start or legacy fallback.
+The polyrhythm-update regression changes tempo and ratio mid-cycle, then requires the replacement to begin at the next old shared-cycle boundary with both roles coincident and event/cycle identity preserved. A production-selection tripwire requires this retune branch to return before a new frame start.
 
 These deterministic tests prove phase rules in each clock domain, not physical audio/visual coincidence. Phase 8 must measure retunes because audio selects a boundary from buffer-ahead `nextFrame`, while visual timing reaches its boundary on the monotonic wall clock; the resulting skew must be recorded rather than inferred from the configured buffer size.
 

@@ -77,7 +77,7 @@ class AudioEngineStressInstrumentedTest {
             val arrivalErrors = intervalErrors(arrivals, expectedIntervalNanos)
             val expectedSpan = expectedIntervalNanos * (expectedEvents - 1L)
             val scheduledDrift = abs((scheduled.last() - scheduled.first()) - expectedSpan)
-            val metrics = requireNotNull(engine.getAudioTrackMetricsSnapshot())
+            val metrics = requireNotNull(engine.getFrameAudioMetricsSnapshot())
 
             Log.i(
                 TAG,

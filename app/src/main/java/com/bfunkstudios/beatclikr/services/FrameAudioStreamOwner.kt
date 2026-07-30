@@ -229,6 +229,9 @@ class FrameAudioStreamOwner(
         renderer?.setMuted(muted)
     }
 
+    fun timestamp(destination: AudioFrameTimestamp): Boolean =
+        backend.timestamp(destination)
+
     fun updateStandard(configuration: StandardMetronomeConfiguration): Boolean {
         return updateTimeline { standardUpdater?.update(configuration, nextFrame) }
     }

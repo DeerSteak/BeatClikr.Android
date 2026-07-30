@@ -4,7 +4,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.LargeTest
 import androidx.test.platform.app.InstrumentationRegistry
 import com.bfunkstudios.beatclikr.data.SoundFile
-import com.bfunkstudios.beatclikr.services.AudioTrackMetricsSnapshot
+import com.bfunkstudios.beatclikr.services.FrameAudioMetricsSnapshot
 import com.bfunkstudios.beatclikr.services.MetronomeAudioEngine
 import com.bfunkstudios.beatclikr.services.MetronomeAudioEngineDelegate
 import java.util.Collections
@@ -28,7 +28,7 @@ class AccentContractInstrumentedTest {
         withEngine { engine ->
             AccentContractFixtures.oddMeterSubdivisions.forEach { subdivisions ->
                 AccentContractFixtures.oddMeterPatterns.forEach { fixture ->
-                    val before = requireNotNull(engine.getAudioTrackMetricsSnapshot())
+                    val before = requireNotNull(engine.getFrameAudioMetricsSnapshot())
                     val capture = capture(
                         engine = engine,
                         subdivisions = subdivisions,
@@ -36,7 +36,7 @@ class AccentContractInstrumentedTest {
                         alternateSixteenth = false,
                         eventCount = fixture.accents.size
                     )
-                    val after = requireNotNull(engine.getAudioTrackMetricsSnapshot())
+                    val after = requireNotNull(engine.getFrameAudioMetricsSnapshot())
 
                     assertEquals("${fixture.pattern}/$subdivisions feedback", fixture.accents, capture.beatFlags)
                     assertIntervals(subdivisions, capture.scheduledTimes)
@@ -49,7 +49,7 @@ class AccentContractInstrumentedTest {
     @Test
     fun mt009_alternateSixteenthsUseBeatSoundOnEvenTicksAndFeedbackOnTickZero() {
         withEngine { engine ->
-            val before = requireNotNull(engine.getAudioTrackMetricsSnapshot())
+            val before = requireNotNull(engine.getFrameAudioMetricsSnapshot())
             val capture = capture(
                 engine = engine,
                 subdivisions = 4,
@@ -57,7 +57,7 @@ class AccentContractInstrumentedTest {
                 alternateSixteenth = true,
                 eventCount = ALTERNATE_EVENT_COUNT
             )
-            val after = requireNotNull(engine.getAudioTrackMetricsSnapshot())
+            val after = requireNotNull(engine.getFrameAudioMetricsSnapshot())
             val expected = List(ALTERNATE_CYCLE_COUNT) {
                 AccentContractFixtures.alternateSixteenthEvents
             }.flatten()
@@ -130,8 +130,8 @@ class AccentContractInstrumentedTest {
 
     private fun assertSoundRoleDeltas(
         fixture: OddMeterPatternFixture,
-        before: AudioTrackMetricsSnapshot,
-        after: AudioTrackMetricsSnapshot
+        before: FrameAudioMetricsSnapshot,
+        after: FrameAudioMetricsSnapshot
     ) {
         assertEquals(
             "${fixture.pattern} beat sounds",

@@ -1,6 +1,10 @@
 -keep class androidx.tracing.** { *; }
 -keep class kotlin.** { *; }
 -keep,allowoptimization class com.bfunkstudios.beatclikr.data.SoundFile { public *; }
--keep,allowoptimization class com.bfunkstudios.beatclikr.services.AudioTrackMetricsSnapshot { public *; }
+-keep,allowoptimization class com.bfunkstudios.beatclikr.services.FrameAudioMetricsSnapshot { public *; }
 -keep,allowoptimization class com.bfunkstudios.beatclikr.services.MetronomeAudioEngine { public *; }
+-keep class com.bfunkstudios.beatclikr.services.PcmFileCache { *; }
+-keep class com.bfunkstudios.beatclikr.services.PreparedSoundBank { *; }
+-keep class com.bfunkstudios.beatclikr.services.PreparedPcmWaveform { *; }
+-keep class com.bfunkstudios.beatclikr.services.SoundPreparationResult** { *; }
 -keep,allowoptimization interface com.bfunkstudios.beatclikr.services.MetronomeAudioEngineDelegate { public *; }

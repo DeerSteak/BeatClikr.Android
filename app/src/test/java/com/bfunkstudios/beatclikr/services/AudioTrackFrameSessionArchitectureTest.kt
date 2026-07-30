@@ -47,6 +47,19 @@ class AudioTrackFrameSessionArchitectureTest {
         assertTrue(source.contains("if (released) return true"))
     }
 
+    @Test
+    fun renderLoopCorrelatesFramesAndResyncsOnNewUnderruns() {
+        val source = locateSource().readText()
+
+        assertTrue(source.contains("private val timestamp = AudioFrameTimestamp()"))
+        assertTrue(source.contains("correlatedWrittenFrame = owner.nextFrame"))
+        assertTrue(source.contains("presentedFrame = timestamp.framePosition"))
+        assertTrue(source.contains("presentationNanoTime = timestamp.monotonicTimeNanos"))
+        assertTrue(source.contains("observedUnderruns > underrunCount"))
+        assertTrue(source.contains("recoveryFrame = Math.addExact(owner.nextFrame, missingFrames)"))
+        assertTrue(source.contains("owner.resync(recoveryFrame)"))
+    }
+
     private fun locateSource(): Path {
         val relative = Path.of(
             "src/main/java/com/bfunkstudios/beatclikr/services/AudioTrackFrameSession.kt"

@@ -4,7 +4,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.LargeTest
 import androidx.test.platform.app.InstrumentationRegistry
 import com.bfunkstudios.beatclikr.data.SoundFile
-import com.bfunkstudios.beatclikr.services.AudioTrackMetricsSnapshot
+import com.bfunkstudios.beatclikr.services.FrameAudioMetricsSnapshot
 import com.bfunkstudios.beatclikr.services.MetronomeAudioEngine
 import com.bfunkstudios.beatclikr.services.PolyrhythmAudioEngineDelegate
 import java.util.Collections
@@ -27,9 +27,9 @@ class PolyrhythmContractInstrumentedTest {
     fun mt012_mt015_mt018_representativeRatiosPreserveSharedOriginEventsAndIndices() {
         withEngine { engine ->
             EnginePolyrhythmFixtures.representativeRatios.forEach { fixture ->
-                val before = requireNotNull(engine.getAudioTrackMetricsSnapshot())
+                val before = requireNotNull(engine.getFrameAudioMetricsSnapshot())
                 val capture = captureCycle(engine, fixture)
-                val after = requireNotNull(engine.getAudioTrackMetricsSnapshot())
+                val after = requireNotNull(engine.getFrameAudioMetricsSnapshot())
                 val expected = fixture.events + fixture.events.first().copy(stepIndex = fixture.gridSize)
 
                 assertEquals("${fixture.beats}:${fixture.against} events", expected.map { it.identity }, capture.events.map { it.identity })
@@ -110,8 +110,8 @@ class PolyrhythmContractInstrumentedTest {
 
     private fun assertSoundCounts(
         fixture: EnginePolyrhythmFixture,
-        before: AudioTrackMetricsSnapshot,
-        after: AudioTrackMetricsSnapshot
+        before: FrameAudioMetricsSnapshot,
+        after: FrameAudioMetricsSnapshot
     ) {
         assertEquals(
             "${fixture.beats}:${fixture.against} beat sounds",

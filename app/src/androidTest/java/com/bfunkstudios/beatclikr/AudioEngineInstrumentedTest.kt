@@ -86,14 +86,28 @@ class AudioEngineInstrumentedTest {
             val expectedInterval = (60_000_000_000.0 / (MAX_TEST_BPM * TEST_SUBDIVISIONS)).toLong()
             val scheduledErrors = intervalErrors(scheduled, expectedInterval)
             val arrivalErrors = intervalErrors(arrivals, expectedInterval)
-            val metrics = requireNotNull(engine.getAudioTrackMetricsSnapshot())
+            val metrics = requireNotNull(engine.getFrameAudioMetricsSnapshot())
+            val eventIntervalFrames =
+                (metrics.sampleRate * 60.0 / (MAX_TEST_BPM * TEST_SUBDIVISIONS)).toLong()
+            val allowedDroppedEvents = if (metrics.underrunSkippedFrames == 0L) {
+                0
+            } else {
+                (metrics.underrunSkippedFrames + eventIntervalFrames - 1) /
+                    eventIntervalFrames
+            }
+            val minimumRenderedEvents = METRONOME_EVENT_COUNT - allowedDroppedEvents
 
             assertEquals(METRONOME_EVENT_COUNT, scheduled.size)
             assertTrue("Scheduled callback times must increase", scheduled.zipWithNext().all { it.second > it.first })
             assertTrue("Scheduled interval error exceeded 2 ms", scheduledErrors.maxOrNull()!! <= 2_000_000L)
             assertTrue("Emulator callback p95 error exceeded 100 ms", percentile(arrivalErrors, 0.95) <= 100_000_000L)
             assertEquals(METRONOME_EVENT_COUNT / TEST_SUBDIVISIONS, flags.count { it })
-            assertTrue("No clicks reached the render queue", metrics.queuedClicks >= METRONOME_EVENT_COUNT)
+            assertTrue(
+                "No frame events rendered: metrics=$metrics " +
+                    "publication=${engine.getFramePublicationFailure()} " +
+                    "preparation=${engine.getSoundPreparationFailure()}",
+                metrics.queuedClicks >= minimumRenderedEvents
+            )
             assertTrue("AudioTrack rendered no chunks", metrics.renderedChunks > 0)
             assertTrue("AudioTrack wrote no frames", metrics.writtenFrames > 0)
             assertTrue("AudioTrack underrun count was invalid", metrics.underrunCount >= 0)

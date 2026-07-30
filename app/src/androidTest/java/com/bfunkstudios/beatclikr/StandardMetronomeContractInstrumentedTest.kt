@@ -42,7 +42,7 @@ class StandardMetronomeContractInstrumentedTest {
                 val eventCount = fixture.subdivisions * GROOVE_CYCLE_COUNT
                 val capture = captureEvents(engine, fixture, eventCount)
                 val expected = fixture.events(eventCount)
-                val metrics = requireNotNull(engine.getAudioTrackMetricsSnapshot())
+                val metrics = requireNotNull(engine.getFrameAudioMetricsSnapshot())
 
                 assertEquals(expected.map { it.isBeat }, capture.beatFlags)
                 assertEquals(expected.count { it.soundRole == ContractSoundRole.BEAT }.toLong(), metrics.queuedBeatClicks)
@@ -78,7 +78,7 @@ class StandardMetronomeContractInstrumentedTest {
 
             val times = synchronized(scheduledTimes) { scheduledTimes.toList() }
             val flags = synchronized(beatFlags) { beatFlags.toList() }
-            val metrics = requireNotNull(engine.getAudioTrackMetricsSnapshot())
+            val metrics = requireNotNull(engine.getFrameAudioMetricsSnapshot())
             val phaseTimes = times.mapIndexed { index, time ->
                 if (index < MUTE_START_EVENT || index >= MUTE_END_EVENT) {
                     time - metrics.estimatedOutputLatencyNanos

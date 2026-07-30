@@ -26,6 +26,6 @@ interface IAudioPlayerService {
     fun stopPolyrhythm()
     fun prewarmAudioTrack()
     fun prepareAudioTrackSounds(soundFiles: Collection<SoundFile>)
-    fun getAudioTrackMetricsSnapshot(): AudioTrackMetricsSnapshot?
+    fun getFrameAudioMetricsSnapshot(): FrameAudioMetricsSnapshot?
     fun release()
 }

@@ -9,14 +9,14 @@ import org.junit.Test
 class SoundPreparationArchitectureTest {
     @Test
     fun renderLoopCannotDecodeLoadOrPrepareSounds() {
-        val source = locateSource("AudioTrackEngine.kt").readText()
+        val source = locateSource("AudioTrackFrameSession.kt").readText()
         val renderLoop = source.substringAfter("private val renderRunnable")
-            .substringBefore("private fun drainPendingClicks")
+            .substringBefore("private fun publishProperties")
 
-        listOf("pcmFileCache", "prepareBank", "prepareSounds", "openRawResource").forEach {
-            assertFalse("Render loop contains sound preparation token: $it", renderLoop.contains(it))
+        listOf("PcmFileCache", "prepareBank", "prepareSounds", "openRawResource").forEach {
+            assertFalse("Frame render loop contains preparation token: $it", renderLoop.contains(it))
         }
-        assertFalse(source.contains("ensureWaveform"))
+        assertFalse(locateSource("FrameAudioEngine.kt").readText().contains("ensureWaveform"))
     }
 
     @Test

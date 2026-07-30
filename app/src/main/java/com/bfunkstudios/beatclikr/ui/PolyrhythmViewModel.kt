@@ -189,6 +189,15 @@ class PolyrhythmViewModel @Inject constructor(
         }
     }
 
+    override fun polyrhythmStartFailed() {
+        viewModelScope.launch(Dispatchers.Main) {
+            isPlaying = false
+            stopChoreographerLoop()
+            beatPulse = 0f
+            rhythmPulse = 0f
+        }
+    }
+
     private fun startChoreographerLoop() {
         if (choreographerCallback != null) return
 
