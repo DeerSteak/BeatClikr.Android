@@ -4,6 +4,7 @@ enum class AudioBackendOperation {
     OPEN,
     START,
     RENDER,
+    RESYNC,
     STOP,
     TIMESTAMP
 }

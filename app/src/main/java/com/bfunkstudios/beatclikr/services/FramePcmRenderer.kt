@@ -22,11 +22,17 @@ enum class FrameRenderResult {
     INVALID_RANGE
 }
 
+interface PcmFrameRenderer {
+    fun prepare(maximumBlockFrames: Int)
+    fun reset()
+    fun render(startFrame: Long, output: ShortArray, frameCount: Int): FrameRenderResult
+}
+
 class FramePcmRenderer(
     private val eventSource: FrameRangeEventSource,
     private val waveforms: RenderWaveforms,
     maximumActiveVoices: Int
-) : FrameRangeEventConsumer {
+) : FrameRangeEventConsumer, PcmFrameRenderer {
     private val activeRoles = ByteArray(maximumActiveVoices)
     private val activePositions = IntArray(maximumActiveVoices)
     private var accumulator = IntArray(0)
@@ -55,14 +61,14 @@ class FramePcmRenderer(
         require(maximumActiveVoices > 0) { "Maximum active voices must be positive" }
     }
 
-    fun prepare(maximumBlockFrames: Int) {
+    override fun prepare(maximumBlockFrames: Int) {
         require(maximumBlockFrames > 0) { "Maximum block frames must be positive" }
         if (accumulator.size < maximumBlockFrames) {
             accumulator = IntArray(maximumBlockFrames)
         }
     }
 
-    fun reset() {
+    override fun reset() {
         var slot = 0
         while (slot < activeRoles.size) {
             activeRoles[slot] = NO_VOICE
@@ -73,7 +79,7 @@ class FramePcmRenderer(
         nextExpectedFrame = 0
     }
 
-    fun render(startFrame: Long, output: ShortArray, frameCount: Int): FrameRenderResult {
+    override fun render(startFrame: Long, output: ShortArray, frameCount: Int): FrameRenderResult {
         if (
             startFrame < 0 ||
             frameCount < 0 ||

@@ -24,6 +24,8 @@ The music domain uses `require()` to enforce internal value invariants. External
 
 The backend's channel adapter duplicates each mono frame across the obtained channel layout in a reusable buffer. Frame offsets and return values remain measured in frames, so stereo interleaving cannot change duration or event position.
 
+`FrameAudioStreamOwner` opens the backend before publishing a renderer, allowing the renderer timeline to use the obtained sample rate and the render block to use the obtained burst size. The published renderer owns one immutable waveform binding for that stream. The owner tracks backend start separately from render-loop liveness, advances absolute frame ownership through complete and partial writes, resets retained waveform tails at every start, failure, resync, and stop boundary, and makes stop idempotent. Render failures halt the loop until an explicit resync or stream replacement; resync requires a previously started backend and never arms an unopened track. Rejected operations report to the sink registered for the responsible call.
+
 ## Runtime ownership
 
 `BeatClikrApplication` creates process-scoped dependencies. Activities and ViewModels own user-facing state; audio engines own active playback state and release native resources when playback stops.
