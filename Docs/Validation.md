@@ -72,6 +72,8 @@ The Phase 3.3 stream-owner suite verifies renderer publication from obtained str
 
 The recovery composition test carries an active waveform tail into a discontinuity, synchronizes recovery to the written-frame boundary, counts the expired event arithmetically, and verifies the first recovered block contains only the new event. Backward recovery is rejected without changing frame ownership or resetting the renderer.
 
+The prepared publication suite verifies that standard and polyrhythm timelines use the obtained sample rate, bind the approved beat and rhythm waveforms, preserve coincident mixing, and publish matching recovery state. An architecture tripwire prevents `copySamples()` from entering the stream owner or renderer publication path.
+
 The Phase 2.5 recovery suite verifies multi-event stalls, direct future-event selection, constant-time range counts, exact deadline and drop counts, coincident polyrhythm drops, repeated recovery windows, overlapping render windows, immutable origins, and stale session or mode rejection. Expired events are counted but never enumerated or returned to the renderer, preventing recovery work and catch-up output from scaling with the duration of a stall.
 
 `PureCoreQualificationTest` is the permanent Phase 2 regression gate. It checks the twelve-hour fractional endpoint across every integer sample rate accepted by `AudioTrack`, streams twelve-hour minimum, fractional typical, maximum-density, and dense polyrhythm timelines at 44.1 and 48 kHz, injects stalls at every event position, and runs reproducible randomized standard and polyrhythm command batches. Together with the focused music-model tests, the suite contains executable coverage for MT-001 through MT-032 and TB-001 through TB-003, TB-009, and TB-010.

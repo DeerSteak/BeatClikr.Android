@@ -28,6 +28,8 @@ The backend's channel adapter duplicates each mono frame across the obtained cha
 
 A renderer publication may bind `TimelineFrameStreamRecovery` to the same immutable timeline. On resync, the owner first synchronizes recovery to frames actually written, then `DeadlineRecovery` counts events expired by the discontinuity without enumerating them. Only after recovery succeeds does the owner reset waveform tails and move `nextFrame`; backward or mismatched recovery leaves both unchanged.
 
+`StandardPreparedFrameRendererFactory` and `PolyrhythmPreparedFrameRendererFactory` publish the timeline, renderer, prepared beat/rhythm references, and recovery owner as one stream-scoped unit after backend open. Timeline construction uses the obtained sample rate, and prepared waveform references are bound once during publication rather than copied or resolved inside render blocks.
+
 ## Runtime ownership
 
 `BeatClikrApplication` creates process-scoped dependencies. Activities and ViewModels own user-facing state; audio engines own active playback state and release native resources when playback stops.

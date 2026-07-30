@@ -19,6 +19,16 @@ class SoundPreparationArchitectureTest {
         assertFalse(source.contains("ensureWaveform"))
     }
 
+    @Test
+    fun frameOwnerAndRendererPublicationNeverCopyPreparedSamplesPerBlock() {
+        listOf(
+            locateSource("FrameAudioStreamOwner.kt"),
+            locateSource("PreparedFrameRendererFactory.kt")
+        ).forEach { source ->
+            assertFalse(source.readText().contains("copySamples()"))
+        }
+    }
+
     private fun locateSource(name: String): Path {
         val relative = Path.of("src/main/java/com/bfunkstudios/beatclikr/services/$name")
         return generateSequence(Path.of(System.getProperty("user.dir"))) { it.parent }
