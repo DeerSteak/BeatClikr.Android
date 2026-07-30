@@ -5,6 +5,7 @@ import android.os.Handler
 import android.os.HandlerThread
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
 
 data class AudioTrackFrameSessionSnapshot(
     val properties: AudioBackendStreamProperties?,
@@ -32,6 +33,9 @@ class AudioTrackFrameSession(
     private var renderRunning = false
 
     @Volatile
+    private var released = false
+
+    @Volatile
     private var obtainedProperties: AudioBackendStreamProperties? = null
 
     @Volatile
@@ -52,7 +56,9 @@ class AudioTrackFrameSession(
     private var snapshotSequence = 0
 
     fun start(rendererFactory: PcmFrameRendererFactory): Boolean {
+        if (released) return false
         val latch = CountDownLatch(1)
+        val cancelled = AtomicBoolean(false)
         var started = false
         if (!handler.post {
                 try {
@@ -76,8 +82,18 @@ class AudioTrackFrameSession(
                         ::recordFailure
                     ) ?: return@post
                     publishProperties(properties)
+                    if (cancelled.get()) {
+                        owner.stop()
+                        publishProperties(null)
+                        return@post
+                    }
                     val firstOutputFrame = owner.publicationFirstOutputFrame
                     if (!owner.start(firstOutputFrame)) {
+                        owner.stop()
+                        publishProperties(null)
+                        return@post
+                    }
+                    if (cancelled.get()) {
                         owner.stop()
                         publishProperties(null)
                         return@post
@@ -95,18 +111,32 @@ class AudioTrackFrameSession(
         ) {
             return false
         }
-        return latch.await(START_TIMEOUT_SECONDS, TimeUnit.SECONDS) && started
+        if (!latch.await(START_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
+            cancelled.set(true)
+            handler.post {
+                renderRunning = false
+                handler.removeCallbacks(renderRunnable)
+                owner.stop()
+                publishProperties(null)
+            }
+            return false
+        }
+        return started
     }
 
     fun stop(): Boolean {
+        if (released) return true
         val latch = CountDownLatch(1)
         var stopped = true
         if (!handler.post {
-                renderRunning = false
-                handler.removeCallbacks(renderRunnable)
-                stopped = owner.stop()
-                publishProperties(null)
-                latch.countDown()
+                try {
+                    renderRunning = false
+                    handler.removeCallbacks(renderRunnable)
+                    stopped = owner.stop()
+                    publishProperties(null)
+                } finally {
+                    latch.countDown()
+                }
             }
         ) {
             return false
@@ -114,8 +144,11 @@ class AudioTrackFrameSession(
         return latch.await(STOP_TIMEOUT_SECONDS, TimeUnit.SECONDS) && stopped
     }
 
+    @Synchronized
     fun release(): Boolean {
+        if (released) return true
         val stopped = stop()
+        released = true
         thread.quitSafely()
         return stopped
     }

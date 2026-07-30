@@ -43,6 +43,8 @@ class AudioTrackFrameSessionArchitectureTest {
         assertTrue(source.contains("const val FAILURE_CAPACITY"))
         assertFalse(source.contains("failures = failures + failure"))
         assertTrue(source.contains("renderedBlocks = 0"))
+        assertTrue(source.contains("cancelled.set(true)"))
+        assertTrue(source.contains("if (released) return true"))
     }
 
     private fun locateSource(): Path {

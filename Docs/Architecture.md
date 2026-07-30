@@ -34,6 +34,8 @@ A renderer publication may bind `TimelineFrameStreamRecovery` to the same immuta
 
 Each publication carries its session origin as the first output frame, so the session never assumes frame zero. Start is a bounded selection operation that returns success directly to its caller. Renderer role counters commit only for successful unmuted blocks, while the session exposes session-relative beat/rhythm totals, written-frame ownership, obtained properties, block count, and bounded failure history through a sequence-stamped consistent snapshot. Failures overwrite a fixed single-writer ring without render-thread collection allocation.
 
+`FramePlaybackPublicationBoundary` translates legacy standard and polyrhythm inputs into typed frame-publication factories on the control path. Missing sounds and rejected domain inputs return explicit failure codes, and domain rejections retain their `PlaybackInputFailure` cause for later authoritative failed states. Unsupported subdivisions, additive steps, tempos, accent patterns, and ratios cannot escape toward stream start.
+
 ## Runtime ownership
 
 `BeatClikrApplication` creates process-scoped dependencies. Activities and ViewModels own user-facing state; audio engines own active playback state and release native resources when playback stops.
