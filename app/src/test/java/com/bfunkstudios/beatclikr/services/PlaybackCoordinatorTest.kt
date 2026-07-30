@@ -453,6 +453,99 @@ class PlaybackCoordinatorTest {
         }
     }
 
+    @Test
+    fun unavailablePrerequisiteFailsBeforeEngineStart() {
+        val engine = FakePlaybackEngine()
+        val coordinator = PlaybackCoordinator(engine)
+        try {
+            coordinator.submitSystemInput(
+                PlaybackSystemInput.PrerequisitesChanged(
+                    PlaybackPrerequisites(
+                        audioFocusReady = false,
+                        routeReady = true
+                    )
+                )
+            )
+            coordinator.submit(PlaybackIntent.StartStandard(120f, 4, null, false))
+            assertTrue(coordinator.awaitControlIdle())
+
+            val failed = coordinator.transportState.value as PlaybackTransportState.Failed
+            val reason =
+                failed.reason as PlaybackFailureReason.PrerequisiteUnavailable
+            assertTrue(reason.missing.contains(PlaybackPrerequisite.AUDIO_FOCUS))
+            assertFalse(engine.operations.contains("startStandard"))
+        } finally {
+            coordinator.release()
+        }
+    }
+
+    @Test
+    fun interruptionStopsOnceAndNeverAutomaticallyResumes() {
+        val engine = FakePlaybackEngine()
+        val coordinator = PlaybackCoordinator(engine)
+        try {
+            coordinator.submit(PlaybackIntent.StartStandard(120f, 4, null, false))
+            assertTrue(coordinator.awaitControlIdle())
+            val sessionId =
+                (coordinator.transportState.value as PlaybackTransportState.Playing)
+                    .context.sessionId
+            val before = coordinator.stateTransitions.replayCache.size
+
+            coordinator.submitSystemInput(
+                PlaybackSystemInput.Interrupted(
+                    sessionId,
+                    PlaybackInterruptionReason.AudioFocusLost
+                )
+            )
+            assertTrue(coordinator.awaitControlIdle())
+
+            assertEquals(
+                listOf("Interrupted", "Idle"),
+                coordinator.stateTransitions.replayCache
+                    .drop(before)
+                    .map { it.to::class.simpleName }
+            )
+            assertEquals(1, engine.operations.count { it == "stopStandard" })
+            assertEquals(1, engine.operations.count { it == "startStandard" })
+        } finally {
+            coordinator.release()
+        }
+    }
+
+    @Test
+    fun staleInterruptionAndEngineFailureInputsAreIgnored() {
+        val engine = FakePlaybackEngine()
+        val coordinator = PlaybackCoordinator(engine)
+        try {
+            coordinator.submit(PlaybackIntent.StartStandard(120f, 4, null, false))
+            assertTrue(coordinator.awaitControlIdle())
+            val current =
+                (coordinator.transportState.value as PlaybackTransportState.Playing)
+                    .context.sessionId
+            val stale = PlaybackSessionId(current.value + 10)
+
+            coordinator.submitSystemInput(
+                PlaybackSystemInput.Interrupted(
+                    stale,
+                    PlaybackInterruptionReason.RouteLost
+                )
+            )
+            coordinator.submitSystemInput(
+                PlaybackSystemInput.EngineFailed(stale, "stale")
+            )
+            assertTrue(coordinator.awaitControlIdle())
+
+            assertEquals(
+                current,
+                (coordinator.transportState.value as PlaybackTransportState.Playing)
+                    .context.sessionId
+            )
+            assertFalse(engine.operations.contains("stopStandard"))
+        } finally {
+            coordinator.release()
+        }
+    }
+
     private class FakePlaybackEngine : PlaybackEnginePort {
         val operations = Collections.synchronizedList(mutableListOf<String>())
         val callingThreads = Collections.synchronizedSet(mutableSetOf<String>())
