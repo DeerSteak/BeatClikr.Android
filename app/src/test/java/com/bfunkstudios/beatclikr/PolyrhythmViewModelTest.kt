@@ -2,11 +2,27 @@ package com.bfunkstudios.beatclikr
 
 import androidx.arch.core.executor.testing.InstantTaskExecutorRule
 import com.bfunkstudios.beatclikr.data.IAppPreferences
-import com.bfunkstudios.beatclikr.data.PracticeHistoryRepository
+import com.bfunkstudios.beatclikr.data.SoundBank
 import com.bfunkstudios.beatclikr.data.SoundFile
 import com.bfunkstudios.beatclikr.services.IAudioPlayerService
 import com.bfunkstudios.beatclikr.constants.MetronomeConstants
+import com.bfunkstudios.beatclikr.music.MusicalEventRole
+import com.bfunkstudios.beatclikr.services.ActiveSoundConfiguration
+import com.bfunkstudios.beatclikr.services.AudioBackendType
+import com.bfunkstudios.beatclikr.services.AudioOutputRoute
+import com.bfunkstudios.beatclikr.services.CommittedPlaybackConfiguration
+import com.bfunkstudios.beatclikr.services.EventPresentation
+import com.bfunkstudios.beatclikr.services.PlaybackCommittedEvent
+import com.bfunkstudios.beatclikr.services.PlaybackMode
+import com.bfunkstudios.beatclikr.services.PlaybackObservation
+import com.bfunkstudios.beatclikr.services.PlaybackPrerequisites
+import com.bfunkstudios.beatclikr.services.PlaybackSessionContext
+import com.bfunkstudios.beatclikr.services.PlaybackSessionId
+import com.bfunkstudios.beatclikr.services.PlaybackStartOrigin
+import com.bfunkstudios.beatclikr.services.PlaybackTransportState
 import com.bfunkstudios.beatclikr.ui.PolyrhythmViewModel
+import com.bfunkstudios.beatclikr.ui.polyrhythmBeatDurationNanos
+import com.bfunkstudios.beatclikr.ui.polyrhythmRhythmDurationNanos
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
@@ -15,6 +31,8 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.setMain
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -31,7 +49,9 @@ class PolyrhythmViewModelTest {
 
     private lateinit var audio: IAudioPlayerService
     private lateinit var prefs: IAppPreferences
-    private lateinit var practiceHistory: PracticeHistoryRepository
+    private lateinit var playback: PlaybackObservation
+    private lateinit var transportState: MutableStateFlow<PlaybackTransportState>
+    private lateinit var committedEvents: MutableSharedFlow<PlaybackCommittedEvent>
     private lateinit var viewModel: PolyrhythmViewModel
 
     @Before
@@ -39,14 +59,24 @@ class PolyrhythmViewModelTest {
         Dispatchers.setMain(UnconfinedTestDispatcher())
         audio = mockk(relaxed = true)
         prefs = mockk(relaxed = true)
-        practiceHistory = mockk(relaxed = true)
+        playback = mockk()
+        transportState = MutableStateFlow(PlaybackTransportState.Idle)
+        committedEvents = MutableSharedFlow(extraBufferCapacity = 16)
+        every { playback.transportState } returns transportState
+        every { playback.committedEvents } returns committedEvents
         every { prefs.polyrhythmBpm } returns 120f
         every { prefs.polyrhythmBeats } returns 3
         every { prefs.polyrhythmAgainst } returns 2
         every { prefs.polyrhythmBeatSound } returns SoundFile.CLICK_HI
         every { prefs.polyrhythmRhythmSound } returns SoundFile.CLICK_LO
         every { prefs.muteMetronome } returns false
-        viewModel = PolyrhythmViewModel(audio, prefs, practiceHistory)
+        every { audio.startPolyrhythm(any(), any(), any()) } answers {
+            transportState.value = polyrhythmPreparing()
+        }
+        every { audio.stopPolyrhythm() } answers {
+            transportState.value = PlaybackTransportState.Idle
+        }
+        viewModel = PolyrhythmViewModel(audio, playback, prefs)
     }
 
     @After
@@ -63,8 +93,62 @@ class PolyrhythmViewModelTest {
     }
 
     @Test
-    fun `init sets polyrhythm delegate`() {
-        verify { audio.polyrhythmDelegate = viewModel }
+    fun `init does not install a polyrhythm delegate`() {
+        verify(exactly = 0) { audio.polyrhythmDelegate = any() }
+    }
+
+    @Test
+    fun `playing state is projected from coordinator mode`() {
+        transportState.value = polyrhythmPreparing()
+        assertTrue(viewModel.isPlaying)
+
+        transportState.value = PlaybackTransportState.Idle
+        assertFalse(viewModel.isPlaying)
+    }
+
+    @Test
+    fun `other mode transition does not disable polyrhythm controls`() {
+        transportState.value = PlaybackTransportState.Preparing(
+            polyrhythmPreparing().context.copy(
+                mode = PlaybackMode.STANDARD,
+                configuration =
+                    CommittedPlaybackConfiguration.Standard(120f, 4, null, false, false)
+            ),
+            PlaybackPrerequisites.READY
+        )
+
+        assertTrue(viewModel.controlsEnabled)
+    }
+
+    @Test
+    fun `committed polyrhythm event uses authoritative role index after a drop`() {
+        val playing = polyrhythmPlaying()
+        transportState.value = playing
+        committedEvents.tryEmit(PlaybackCommittedEvent.RecordsDropped(1, 1))
+
+        committedEvents.tryEmit(
+            PlaybackCommittedEvent.Rendered(
+                2,
+                playing.context.sessionId,
+                7,
+                MusicalEventRole.POLYRHYTHM_BEAT,
+                0,
+                false,
+                EventPresentation.Unavailable,
+                roleIndex = 1
+            )
+        )
+
+        assertEquals(1, viewModel.activeBeatIndex)
+        assertTrue(viewModel.beatPulse > 0f)
+    }
+
+    @Test
+    fun `polyrhythm pulse durations follow each voice period`() {
+        val configuration = CommittedPlaybackConfiguration.Polyrhythm(120f, 3, 2, false)
+
+        assertEquals(500_000_000L, polyrhythmBeatDurationNanos(configuration.bpm))
+        assertEquals(333_333_333L, polyrhythmRhythmDurationNanos(configuration))
     }
 
     @Test
@@ -84,34 +168,34 @@ class PolyrhythmViewModelTest {
     }
 
     @Test
-    fun `changing counts while playing restarts playback`() {
+    fun `changing counts while playing updates playback without resetting projection`() {
         viewModel.start()
         val resetId = viewModel.playheadResetID
         viewModel.updateBeats(4)
         assertEquals(4, viewModel.beats)
-        assertTrue(viewModel.playheadResetID > resetId)
+        assertEquals(resetId, viewModel.playheadResetID)
         verify { prefs.polyrhythmBeats = 4 }
         verify { audio.startPolyrhythm(120f, 4, 2) }
     }
 
     @Test
-    fun `changing against while playing restarts playback`() {
+    fun `changing against while playing updates playback without resetting projection`() {
         viewModel.start()
         val resetId = viewModel.playheadResetID
         viewModel.updateAgainst(5)
         assertEquals(5, viewModel.against)
-        assertTrue(viewModel.playheadResetID > resetId)
+        assertEquals(resetId, viewModel.playheadResetID)
         verify { prefs.polyrhythmAgainst = 5 }
         verify { audio.startPolyrhythm(120f, 3, 5) }
     }
 
     @Test
-    fun `changing bpm while playing restarts playback`() {
+    fun `changing bpm while playing updates playback without resetting projection`() {
         viewModel.start()
         val resetId = viewModel.playheadResetID
         viewModel.updateBpm(144f)
         assertEquals(144f, viewModel.bpm)
-        assertTrue(viewModel.playheadResetID > resetId)
+        assertEquals(resetId, viewModel.playheadResetID)
         verify { prefs.polyrhythmBpm = 144f }
         verify { audio.startPolyrhythm(144f, 3, 2) }
     }
@@ -193,4 +277,28 @@ class PolyrhythmViewModelTest {
 
         assertEquals(120f, viewModel.bpm)
     }
+
+    private fun polyrhythmPreparing(): PlaybackTransportState.Preparing =
+        PlaybackTransportState.Preparing(
+            PlaybackSessionContext(
+                PlaybackSessionId(2),
+                PlaybackMode.POLYRHYTHM,
+                CommittedPlaybackConfiguration.Polyrhythm(120f, 3, 2, false),
+                startOrigin = PlaybackStartOrigin.USER
+            ),
+            PlaybackPrerequisites.READY
+        )
+
+    private fun polyrhythmPlaying(): PlaybackTransportState.Playing =
+        PlaybackTransportState.Playing(
+            polyrhythmPreparing().context.copy(
+                audibleSounds = ActiveSoundConfiguration(
+                    SoundBank.ACOUSTIC,
+                    SoundFile.CLICK_HI,
+                    SoundFile.CLICK_LO
+                ),
+                route = AudioOutputRoute.UNKNOWN,
+                backend = AudioBackendType.AUDIO_TRACK
+            )
+        )
 }

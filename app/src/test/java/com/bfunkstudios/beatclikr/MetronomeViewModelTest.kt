@@ -6,12 +6,26 @@ import com.bfunkstudios.beatclikr.data.BeatPattern
 import com.bfunkstudios.beatclikr.data.ClickerType
 import com.bfunkstudios.beatclikr.data.Groove
 import com.bfunkstudios.beatclikr.data.IAppPreferences
-import com.bfunkstudios.beatclikr.data.PracticeHistoryRepository
 import com.bfunkstudios.beatclikr.data.Song
 import com.bfunkstudios.beatclikr.data.SoundFile
+import com.bfunkstudios.beatclikr.data.SoundBank
+import com.bfunkstudios.beatclikr.music.MusicalEventRole
+import com.bfunkstudios.beatclikr.services.ActiveSoundConfiguration
+import com.bfunkstudios.beatclikr.services.AudioBackendType
+import com.bfunkstudios.beatclikr.services.AudioOutputRoute
+import com.bfunkstudios.beatclikr.services.CommittedPlaybackConfiguration
+import com.bfunkstudios.beatclikr.services.EventPresentation
 import com.bfunkstudios.beatclikr.services.IAudioPlayerService
 import com.bfunkstudios.beatclikr.services.IFlashlightService
 import com.bfunkstudios.beatclikr.services.IHapticFeedbackService
+import com.bfunkstudios.beatclikr.services.PlaybackCommittedEvent
+import com.bfunkstudios.beatclikr.services.PlaybackMode
+import com.bfunkstudios.beatclikr.services.PlaybackObservation
+import com.bfunkstudios.beatclikr.services.PlaybackPrerequisites
+import com.bfunkstudios.beatclikr.services.PlaybackSessionContext
+import com.bfunkstudios.beatclikr.services.PlaybackSessionId
+import com.bfunkstudios.beatclikr.services.PlaybackStartOrigin
+import com.bfunkstudios.beatclikr.services.PlaybackTransportState
 import com.bfunkstudios.beatclikr.ui.MetronomeViewModel
 import io.mockk.every
 import io.mockk.mockk
@@ -22,6 +36,8 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.setMain
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -38,7 +54,9 @@ class MetronomeViewModelTest {
 
     private lateinit var audio: IAudioPlayerService
     private lateinit var prefs: IAppPreferences
-    private lateinit var practiceHistory: PracticeHistoryRepository
+    private lateinit var playback: PlaybackObservation
+    private lateinit var transportState: MutableStateFlow<PlaybackTransportState>
+    private lateinit var committedEvents: MutableSharedFlow<PlaybackCommittedEvent>
     private lateinit var flashlight: IFlashlightService
     private lateinit var haptics: IHapticFeedbackService
     private lateinit var viewModel: MetronomeViewModel
@@ -48,7 +66,11 @@ class MetronomeViewModelTest {
         Dispatchers.setMain(UnconfinedTestDispatcher())
         audio = mockk(relaxed = true)
         prefs = mockk(relaxed = true)
-        practiceHistory = mockk(relaxed = true)
+        playback = mockk()
+        transportState = MutableStateFlow(PlaybackTransportState.Idle)
+        committedEvents = MutableSharedFlow(extraBufferCapacity = 16)
+        every { playback.transportState } returns transportState
+        every { playback.committedEvents } returns committedEvents
         flashlight = mockk(relaxed = true)
         haptics = mockk(relaxed = true)
         every { prefs.instantBpm } returns 120f
@@ -62,7 +84,13 @@ class MetronomeViewModelTest {
         every { prefs.muteMetronome } returns false
         every { prefs.useFlashlight } returns false
         every { prefs.useVibration } returns false
-        viewModel = MetronomeViewModel(audio, prefs, practiceHistory, flashlight, haptics)
+        every { audio.startMetronome(any(), any(), any(), any()) } answers {
+            transportState.value = standardPreparing()
+        }
+        every { audio.stopMetronome() } answers {
+            transportState.value = PlaybackTransportState.Idle
+        }
+        viewModel = MetronomeViewModel(audio, playback, prefs, flashlight, haptics)
     }
 
     @After
@@ -98,9 +126,120 @@ class MetronomeViewModelTest {
     }
 
     @Test
-    fun `init sets audio delegate to viewModel`() {
-        verify { audio.delegate = viewModel }
+    fun `init does not install an audio delegate`() {
+        verify(exactly = 0) { audio.delegate = any() }
     }
+
+    @Test
+    fun `playing state is projected from coordinator mode`() {
+        transportState.value = standardPreparing()
+        assertTrue(viewModel.isPlaying)
+
+        transportState.value = PlaybackTransportState.Idle
+        assertFalse(viewModel.isPlaying)
+    }
+
+    @Test
+    fun `other mode transition does not disable metronome controls`() {
+        transportState.value = PlaybackTransportState.Preparing(
+            standardPreparing().context.copy(
+                mode = PlaybackMode.POLYRHYTHM,
+                configuration = CommittedPlaybackConfiguration.Polyrhythm(120f, 3, 2, false)
+            ),
+            PlaybackPrerequisites.READY
+        )
+
+        assertTrue(viewModel.controlsEnabled)
+    }
+
+    @Test
+    fun `rapid toggle sequence submits one command per user intent`() {
+        viewModel.togglePlayPause()
+        viewModel.togglePlayPause()
+        viewModel.togglePlayPause()
+
+        verify(exactly = 2) { audio.startMetronome(any(), any(), any(), any()) }
+        verify(exactly = 1) { audio.stopMetronome() }
+        assertTrue(viewModel.isPlaying)
+    }
+
+    @Test
+    fun `committed standard event uses authoritative role index`() {
+        every { prefs.useVibration } returns true
+        val playing = standardPlaying()
+        transportState.value = playing
+
+        committedEvents.tryEmit(
+            PlaybackCommittedEvent.Rendered(
+                1,
+                playing.context.sessionId,
+                1,
+                MusicalEventRole.STANDARD,
+                0,
+                false,
+                EventPresentation.Unavailable,
+                roleIndex = 0
+            )
+        )
+
+        verify { haptics.playBeatHaptic() }
+    }
+
+    @Test
+    fun `in-flight role index tolerates a shorter amended accent pattern`() {
+        every { prefs.useVibration } returns true
+        val playing = standardPlaying().copy(
+            context = standardPlaying().context.copy(
+                configuration = CommittedPlaybackConfiguration.Standard(
+                    120f,
+                    4,
+                    listOf(true, false, false, false),
+                    false,
+                    false
+                )
+            )
+        )
+        transportState.value = playing
+
+        committedEvents.tryEmit(
+            PlaybackCommittedEvent.Rendered(
+                1,
+                playing.context.sessionId,
+                1,
+                MusicalEventRole.STANDARD,
+                0,
+                false,
+                EventPresentation.Unavailable,
+                roleIndex = 6
+            )
+        )
+
+        verify { haptics.playRhythmHaptic() }
+    }
+
+    private fun standardPreparing(): PlaybackTransportState.Preparing =
+        PlaybackTransportState.Preparing(
+            PlaybackSessionContext(
+                PlaybackSessionId(1),
+                PlaybackMode.STANDARD,
+                CommittedPlaybackConfiguration.Standard(120f, 4, null, false, false),
+                startOrigin = PlaybackStartOrigin.USER
+            ),
+            PlaybackPrerequisites.READY
+        )
+
+    private fun standardPlaying(): PlaybackTransportState.Playing =
+        PlaybackTransportState.Playing(
+            standardPreparing().context.copy(
+                audibleSounds = ActiveSoundConfiguration(
+                    SoundBank.ACOUSTIC,
+                    SoundFile.CLICK_HI,
+                    SoundFile.CLICK_LO
+                ),
+                route = AudioOutputRoute.UNKNOWN,
+                backend = AudioBackendType.AUDIO_TRACK
+            )
+        )
 
     @Test
     fun `beat turns flashlight on when enabled`() {

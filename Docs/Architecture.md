@@ -12,6 +12,8 @@ BeatClikr is a single-module Kotlin application built with Jetpack Compose.
 - `services/` contains PCM decoding, scheduling, mixing, `AudioTrack` output, and platform integrations.
 - `di/` wires the application graph with Hilt.
 
+`PlaybackCoordinator` is the application-scoped transport authority. Playback ViewModels submit commands through `IAudioPlayerService` and project the coordinator's read-only transport state and committed renderer events; they do not install engine delegates or maintain independent playback truth.
+
 The `music/` package is a dependency leaf and cannot depend on Android classes, clocks, resources, audio objects, persistence, or presentation models. Its configuration layer contains exact standard and polyrhythm inputs, session origins, monotonic event identity, and frame-event vocabulary. `StandardMetronomeTimeline` now provides the first pure frame-range scheduler, while production playback remains on the characterized engine until the controlled Phase 3 integration.
 
 ### Music integration boundary

@@ -1,9 +1,21 @@
 package com.bfunkstudios.beatclikr.music
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertThrows
 import org.junit.Test
 
 class FrameRangeEventSourceTest {
+    @Test
+    fun packedRoleIndicesPreserveUnsignedSixteenBitValues() {
+        val packed = packRoleIndices(0xffff, 0xffff)
+
+        assertEquals(0xffff, packed ushr ROLE_INDEX_BITS)
+        assertEquals(0xffff, packed and ROLE_INDEX_MASK)
+        assertThrows(IllegalArgumentException::class.java) {
+            packRoleIndices(0x1_0000)
+        }
+    }
+
     @Test
     fun standardVisitorMatchesObjectTimeline() {
         val timeline = StandardMetronomeTimeline(
@@ -51,7 +63,7 @@ class FrameRangeEventSourceTest {
         var startFrame = 0L
         while (startFrame < 12_800) {
             timeline.visitEvents(startFrame, startFrame + 64) {
-                    _, _, frame, _, primary, _, secondary, muted ->
+                    _, _, frame, _, primary, _, secondary, muted, _ ->
                 blocks += VisitedEvent(frame, primary, secondary, muted)
                 true
             }
@@ -74,7 +86,7 @@ class FrameRangeEventSourceTest {
         )
         var visits = 0
 
-        timeline.visitEvents(0, 30_000) { _, _, _, _, _, _, _, _ ->
+        timeline.visitEvents(0, 30_000) { _, _, _, _, _, _, _, _, _ ->
             visits++
             false
         }
@@ -100,7 +112,7 @@ class FrameRangeEventSourceTest {
         val visited = mutableListOf<VisitedEvent>()
 
         timeline.visitEvents(startFrame, endFrameExclusive) {
-                _, _, frame, _, primary, _, secondary, muted ->
+                _, _, frame, _, primary, _, secondary, muted, _ ->
             visited += VisitedEvent(frame, primary, secondary, muted)
             true
         }
@@ -115,7 +127,7 @@ class FrameRangeEventSourceTest {
     ): List<VisitedEvent> {
         val visited = mutableListOf<VisitedEvent>()
         timeline.visitEvents(startFrame, endFrameExclusive) {
-                _, _, frame, _, primary, _, secondary, muted ->
+                _, _, frame, _, primary, _, secondary, muted, _ ->
             visited += VisitedEvent(frame, primary, secondary, muted)
             true
         }

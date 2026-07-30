@@ -75,4 +75,19 @@ class RenderedEventRingTest {
         assertEquals(listOf(0L, 2L), batch.records.map { it.eventSequence })
         assertEquals(1, batch.droppedRecords)
     }
+
+    @Test
+    fun preservesAuthoritativeRoleIndex() {
+        val ring = RenderedEventRing(2)
+        ring.record(
+            1,
+            4,
+            MusicalEventRole.POLYRHYTHM_RHYTHM,
+            100,
+            false,
+            roleIndex = 2
+        )
+
+        assertEquals(2, ring.drain(0).records.single().roleIndex)
+    }
 }

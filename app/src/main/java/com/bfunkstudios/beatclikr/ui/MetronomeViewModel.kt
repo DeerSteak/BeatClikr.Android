@@ -17,28 +17,32 @@ import com.bfunkstudios.beatclikr.data.BeatPattern
 import com.bfunkstudios.beatclikr.data.ClickerType
 import com.bfunkstudios.beatclikr.data.Groove
 import com.bfunkstudios.beatclikr.data.IAppPreferences
-import com.bfunkstudios.beatclikr.data.PracticeHistoryRepository
 import com.bfunkstudios.beatclikr.data.Song
-import com.bfunkstudios.beatclikr.data.SoundBank
 import com.bfunkstudios.beatclikr.data.SoundFile
+import com.bfunkstudios.beatclikr.services.CommittedPlaybackConfiguration
+import com.bfunkstudios.beatclikr.services.EventPresentation
 import com.bfunkstudios.beatclikr.services.IAudioPlayerService
 import com.bfunkstudios.beatclikr.services.IFlashlightService
 import com.bfunkstudios.beatclikr.services.IHapticFeedbackService
-import com.bfunkstudios.beatclikr.services.MetronomeAudioEngineDelegate
+import com.bfunkstudios.beatclikr.services.PlaybackCommittedEvent
+import com.bfunkstudios.beatclikr.services.PlaybackMode
+import com.bfunkstudios.beatclikr.services.PlaybackObservation
+import com.bfunkstudios.beatclikr.services.PlaybackTransportState
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 @HiltViewModel
 class MetronomeViewModel @Inject constructor(
     private val audio: IAudioPlayerService,
+    private val playback: PlaybackObservation,
     private val prefs: IAppPreferences,
-    private val practiceHistory: PracticeHistoryRepository,
     private val flashlight: IFlashlightService,
     private val haptics: IHapticFeedbackService
-) : ViewModel(), MetronomeAudioEngineDelegate {
+) : ViewModel() {
 
     var iconScale by mutableFloatStateOf(MetronomeConstants.ICON_SCALE_MIN)
         private set
@@ -46,7 +50,15 @@ class MetronomeViewModel @Inject constructor(
     var beatPulse by mutableFloatStateOf(0f)
         private set
 
-    var isPlaying by mutableStateOf(false)
+    private var transportState by mutableStateOf(playback.transportState.value)
+
+    val isPlaying: Boolean
+        get() = transportState.isModeActive(PlaybackMode.STANDARD)
+
+    val controlsEnabled: Boolean
+        get() = !transportState.isModeTransitioning(PlaybackMode.STANDARD)
+
+    var lastPlaybackFailure by mutableStateOf<String?>(null)
         private set
 
     var clickerType by mutableStateOf(ClickerType.INSTANT)
@@ -92,6 +104,8 @@ class MetronomeViewModel @Inject constructor(
     private var lastBeatTimeNanos: Long = 0L
     private var currentBeatDurationNanos: Long = 0L
     private val pendingBeatEvent = AtomicReference<PendingBeatEvent?>(null)
+    private var lastCommittedEventSequence =
+        playback.committedEvents.replayCache.lastOrNull()?.sequence ?: 0L
 
     private data class PendingBeatEvent(val timeNanos: Long, val durationNanos: Long)
 
@@ -102,14 +116,18 @@ class MetronomeViewModel @Inject constructor(
     }
 
     init {
-        audio.delegate = this
         ProcessLifecycleOwner.get().lifecycle.addObserver(appLifecycleObserver)
+        viewModelScope.launch {
+            playback.transportState.collect(::applyTransportState)
+        }
+        viewModelScope.launch {
+            playback.committedEvents.collect(::applyCommittedEvent)
+        }
     }
 
     fun playSong(song: Song) {
         loadSong(song, ClickerType.PLAYLIST)
         start()
-        viewModelScope.launch { practiceHistory.recordSongPlayed(song) }
     }
 
     fun returnToInstantMode() {
@@ -268,10 +286,6 @@ class MetronomeViewModel @Inject constructor(
             computeAccentPattern(),
             prefs.sixteenthAlternate
         )
-        isPlaying = true
-        if (clickerType == ClickerType.INSTANT) {
-            viewModelScope.launch { practiceHistory.recordMetronomePractice() }
-        }
     }
 
     fun stop() {
@@ -279,7 +293,6 @@ class MetronomeViewModel @Inject constructor(
         audio.stopMetronome()
         flashlight.turnFlashlightOff()
         rampController.reset()
-        isPlaying = false
         iconScale = MetronomeConstants.ICON_SCALE_MIN
         stopChoreographerLoop()
         beatPulse = 0f
@@ -309,12 +322,21 @@ class MetronomeViewModel @Inject constructor(
         updateBPM((60_000.0 / avgIntervalMs).toFloat())
     }
 
-    override fun metronomeBeatFired(isBeat: Boolean, beatInterval: Float, beatTimeNanos: Long) {
+    internal fun applyStandardEvent(
+        isBeat: Boolean,
+        beatInterval: Float,
+        beatTimeNanos: Long,
+        presentationIsFrameTime: Boolean = false
+    ) {
         // Avoid dispatch latency when handing the scheduled time to Choreographer.
         val hasScheduledBeatTime = isBeat && beatTimeNanos > 0L
         if (hasScheduledBeatTime) {
             pendingBeatEvent.set(PendingBeatEvent(
-                timeNanos = toChoreographerTimeNanos(beatTimeNanos),
+                timeNanos = if (presentationIsFrameTime) {
+                    beatTimeNanos
+                } else {
+                    toChoreographerTimeNanos(beatTimeNanos)
+                },
                 durationNanos = (beatInterval * 1_000_000_000L).toLong().coerceAtLeast(1L)
             ))
         }
@@ -332,14 +354,11 @@ class MetronomeViewModel @Inject constructor(
         }
     }
 
-    override fun metronomeStartFailed() {
-        viewModelScope.launch(Dispatchers.Main) {
-            isPlaying = false
-            stopChoreographerLoop()
-            pendingBeatEvent.set(null)
-            iconScale = MetronomeConstants.ICON_SCALE_MIN
-        }
-    }
+    fun metronomeBeatFired(
+        isBeat: Boolean,
+        beatInterval: Float,
+        beatTimeNanos: Long = 0L
+    ) = applyStandardEvent(isBeat, beatInterval, beatTimeNanos)
 
     private fun handleBeat() {
         if (prefs.useFlashlight) flashlight.turnFlashlightOn()
@@ -412,10 +431,42 @@ class MetronomeViewModel @Inject constructor(
         if (beatResId != null && rhythmResId != null) setupMetronome(beatResId, rhythmResId)
     }
 
+    private fun applyTransportState(state: PlaybackTransportState) {
+        transportState = state
+        lastPlaybackFailure = (state as? PlaybackTransportState.Failed)
+            ?.reason
+            ?.toString()
+        if (!state.isModeActive(PlaybackMode.STANDARD)) {
+            stopChoreographerLoop()
+            pendingBeatEvent.set(null)
+            iconScale = MetronomeConstants.ICON_SCALE_MIN
+            beatPulse = 0f
+        }
+    }
+
+    private fun applyCommittedEvent(event: PlaybackCommittedEvent) {
+        if (event.sequence <= lastCommittedEventSequence) return
+        lastCommittedEventSequence = event.sequence
+        val rendered = event as? PlaybackCommittedEvent.Rendered ?: return
+        val playing = transportState as? PlaybackTransportState.Playing ?: return
+        if (playing.context.mode != PlaybackMode.STANDARD ||
+            playing.context.sessionId != rendered.sessionId) {
+            return
+        }
+        val configuration =
+            playing.context.configuration as CommittedPlaybackConfiguration.Standard
+        val index = rendered.roleIndex
+        val isBeat = configuration.accentPattern?.getOrNull(index) ?: (index == 0)
+        val beatInterval = 60f / configuration.bpm
+        val presentationTime = (rendered.presentation as? EventPresentation.Correlated)
+            ?.presentationNanoTime
+            ?: 0L
+        applyStandardEvent(isBeat, beatInterval, presentationTime, presentationIsFrameTime = true)
+    }
+
     override fun onCleared() {
         super.onCleared()
         ProcessLifecycleOwner.get().lifecycle.removeObserver(appLifecycleObserver)
         stop()
-        audio.delegate = null
     }
 }

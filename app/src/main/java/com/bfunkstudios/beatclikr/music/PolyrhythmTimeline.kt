@@ -86,6 +86,13 @@ class PolyrhythmTimeline(
                 val primary = primarySoundAt(slot)
                 val secondary = secondarySoundAt(slot)
                 val eventIndex = eventIndex(slotIndex, slot)
+                val primaryIndex = if (primary == SoundRole.BEAT) {
+                    slot / beatSlotInterval
+                } else {
+                    slot / rhythmSlotInterval
+                }
+                val secondaryIndex =
+                    if (secondary == SoundRole.RHYTHM) slot / rhythmSlotInterval else 0
                 if (!consumer.accept(
                         origin.sessionID.value,
                         eventIndex,
@@ -102,7 +109,8 @@ class PolyrhythmTimeline(
                             null
                         },
                         secondary,
-                        configuration.muteMetronome
+                        configuration.muteMetronome,
+                        roleIndices = packRoleIndices(primaryIndex, secondaryIndex)
                     )
                 ) {
                     return true

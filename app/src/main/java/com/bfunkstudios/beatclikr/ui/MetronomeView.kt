@@ -147,7 +147,8 @@ fun MetronomeView(
                     value = viewModel.beatsPerMinute,
                     onValueChange = { viewModel.updateBPM(it) },
                     valueRange = MetronomeConstants.MIN_BPM..MetronomeConstants.MAX_BPM,
-                    enabled = !(viewModel.rampEnabled && viewModel.isPlaying)
+                    enabled = viewModel.controlsEnabled &&
+                        !(viewModel.rampEnabled && viewModel.isPlaying)
                 )
             }
         }

@@ -25,6 +25,7 @@ import com.bfunkstudios.beatclikr.services.IAudioPlayerService
 import com.bfunkstudios.beatclikr.services.IFlashlightService
 import com.bfunkstudios.beatclikr.services.IHapticFeedbackService
 import com.bfunkstudios.beatclikr.services.IPracticeReminderScheduler
+import com.bfunkstudios.beatclikr.services.PlaybackObservation
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -60,7 +61,13 @@ class InstantMetronomeViewTest {
     @InstallIn(SingletonComponent::class)
     object TestModule {
         @Provides @Singleton
-        fun provideAudio(): IAudioPlayerService = FakeAudioPlayerService()
+        fun provideFakeAudio(): FakeAudioPlayerService = FakeAudioPlayerService()
+
+        @Provides
+        fun provideAudio(fake: FakeAudioPlayerService): IAudioPlayerService = fake
+
+        @Provides
+        fun providePlaybackObservation(fake: FakeAudioPlayerService): PlaybackObservation = fake
 
         @Provides @Singleton
         fun provideFlashlight(): IFlashlightService = FakeFlashlightService()

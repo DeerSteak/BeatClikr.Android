@@ -3,6 +3,8 @@ package com.bfunkstudios.beatclikr.services
 import com.bfunkstudios.beatclikr.music.FrameRangeEventConsumer
 import com.bfunkstudios.beatclikr.music.FrameRangeEventSource
 import com.bfunkstudios.beatclikr.music.MusicalEventRole
+import com.bfunkstudios.beatclikr.music.ROLE_INDEX_BITS
+import com.bfunkstudios.beatclikr.music.ROLE_INDEX_MASK
 import com.bfunkstudios.beatclikr.music.SoundRole
 
 /** Stable waveform references prepared and published before rendering begins. */
@@ -56,6 +58,7 @@ class FramePcmRenderer(
     private val blockEventSequences = LongArray(maximumBlockEvents)
     private val blockIntendedFrames = LongArray(maximumBlockEvents)
     private val blockRoleOrdinals = ByteArray(maximumBlockEvents)
+    private val blockRoleIndices = IntArray(maximumBlockEvents)
     private val blockMuted = BooleanArray(maximumBlockEvents)
     private var blockCapturedEvents = 0
 
@@ -73,13 +76,26 @@ class FramePcmRenderer(
         primarySound: SoundRole,
         secondaryRole: MusicalEventRole?,
         secondarySound: SoundRole?,
-        muted: Boolean
+        muted: Boolean,
+        roleIndices: Int
     ): Boolean {
-        if (eventCapture != null) {
-            captureBlockEvent(sessionId, eventSequence, intendedFrame, primaryRole, muted)
-            if (secondaryRole != null) {
-                captureBlockEvent(sessionId, eventSequence, intendedFrame, secondaryRole, muted)
-            }
+        captureBlockEvent(
+            sessionId,
+            eventSequence,
+            intendedFrame,
+            primaryRole,
+            roleIndices ushr ROLE_INDEX_BITS,
+            muted
+        )
+        if (secondaryRole != null) {
+            captureBlockEvent(
+                sessionId,
+                eventSequence,
+                intendedFrame,
+                secondaryRole,
+                roleIndices and ROLE_INDEX_MASK,
+                muted
+            )
         }
         if (!(liveMuted ?: muted)) {
             if (addVoice(primarySound, intendedFrame)) countBlockEvent(primarySound)
@@ -185,10 +201,12 @@ class FramePcmRenderer(
         eventSequence: Long,
         intendedFrame: Long,
         role: MusicalEventRole,
+        roleIndex: Int,
         muted: Boolean
     ) {
+        val capture = eventCapture ?: return
         if (blockCapturedEvents >= blockSessionIds.size) {
-            eventCapture?.drop()
+            capture.drop()
             return
         }
         val index = blockCapturedEvents++
@@ -196,6 +214,7 @@ class FramePcmRenderer(
         blockEventSequences[index] = eventSequence
         blockIntendedFrames[index] = intendedFrame
         blockRoleOrdinals[index] = role.ordinal.toByte()
+        blockRoleIndices[index] = roleIndex
         blockMuted[index] = liveMuted ?: muted
     }
 
@@ -208,7 +227,8 @@ class FramePcmRenderer(
                 blockEventSequences[index],
                 blockRoleOrdinals[index].toInt(),
                 blockIntendedFrames[index],
-                blockMuted[index]
+                blockMuted[index],
+                blockRoleIndices[index]
             )
             index++
         }

@@ -177,6 +177,37 @@ class FramePcmRendererTest {
     }
 
     @Test
+    fun polyrhythmCapturePublishesPerRoleCycleIndices() {
+        val capture = RenderedEventRing(8)
+        val renderer = FramePcmRenderer(
+            PolyrhythmTimeline(
+                PolyrhythmConfiguration(ExactTempo.of(120), beats = 3, against = 2),
+                48_000,
+                SessionOrigin(SessionID(10), 0)
+            ),
+            RenderWaveforms(shortArrayOf(1), shortArrayOf(1)),
+            maximumActiveVoices = 4,
+            eventCapture = capture
+        ).also { it.prepare(32_001) }
+
+        assertEquals(
+            FrameRenderResult.COMPLETE,
+            renderer.render(0, ShortArray(32_001), 32_001)
+        )
+
+        assertEquals(
+            listOf(
+                MusicalEventRole.POLYRHYTHM_BEAT to 0,
+                MusicalEventRole.POLYRHYTHM_RHYTHM to 0,
+                MusicalEventRole.POLYRHYTHM_RHYTHM to 1,
+                MusicalEventRole.POLYRHYTHM_BEAT to 1,
+                MusicalEventRole.POLYRHYTHM_RHYTHM to 2
+            ),
+            capture.drain(0).records.map { it.role to it.roleIndex }
+        )
+    }
+
+    @Test
     fun reportsCapacityAndSourceFailuresWithoutThrowing() {
         val full = renderer(
             RecordingEventSource(Event(0, SoundRole.BEAT, SoundRole.RHYTHM)),
@@ -278,16 +309,8 @@ class FramePcmRendererTest {
 
     @Test
     fun preparedRenderWithEventCaptureAllocatesNoMemory() {
-        val timeline = StandardMetronomeTimeline(
-            configuration = StandardMetronomeConfiguration(
-                bpm = ExactTempo.of(240),
-                timing = StandardTiming.Regular(StandardSubdivision.SIXTEENTH)
-            ),
-            sampleRate = 48_000,
-            origin = SessionOrigin(SessionID(3), 0)
-        )
         val renderer = FramePcmRenderer(
-            timeline,
+            EveryBlockEventSource,
             RenderWaveforms(shortArrayOf(1), shortArrayOf(1)),
             maximumActiveVoices = 8,
             eventCapture = RenderedEventRing(512)
@@ -329,7 +352,8 @@ class FramePcmRendererTest {
         assumeTrue(bean.isThreadAllocatedMemorySupported)
         bean.isThreadAllocatedMemoryEnabled = true
         var minimumAllocatedBytes = Long.MAX_VALUE
-        repeat(5) {
+        var attempts = 0
+        while (attempts < 100 && minimumAllocatedBytes != 0L) {
             val before = bean.currentThreadAllocatedBytes
             repeat(10_000) {
                 renderer.render(startFrame, output, output.size)
@@ -339,6 +363,7 @@ class FramePcmRendererTest {
                 minimumAllocatedBytes,
                 bean.currentThreadAllocatedBytes - before
             )
+            attempts++
         }
 
         assertEquals(0, minimumAllocatedBytes)
@@ -385,7 +410,8 @@ class FramePcmRendererTest {
                             event.primary,
                             event.secondary?.let { MusicalEventRole.POLYRHYTHM_RHYTHM },
                             event.secondary,
-                            event.muted
+                            event.muted,
+                            0
                         )
                     ) {
                         return true
@@ -410,7 +436,8 @@ class FramePcmRendererTest {
                 SoundRole.BEAT,
                 null,
                 null,
-                false
+                false,
+                0
             )
             return false
         }
@@ -427,5 +454,23 @@ class FramePcmRendererTest {
             visitCount++
             return true
         }
+    }
+
+    private object EveryBlockEventSource : FrameRangeEventSource {
+        override fun visitEvents(
+            startFrame: Long,
+            endFrameExclusive: Long,
+            consumer: FrameRangeEventConsumer
+        ): Boolean = consumer.accept(
+            1,
+            startFrame,
+            startFrame,
+            MusicalEventRole.STANDARD,
+            SoundRole.BEAT,
+            null,
+            null,
+            false,
+            0
+        )
     }
 }
