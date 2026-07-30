@@ -546,12 +546,85 @@ class PlaybackCoordinatorTest {
         }
     }
 
+    @Test
+    fun staleSessionGuardStillRecordsLatestPrerequisiteState() {
+        val engine = FakePlaybackEngine()
+        val coordinator = PlaybackCoordinator(engine)
+        try {
+            coordinator.submit(PlaybackIntent.StartStandard(120f, 4, null, false))
+            assertTrue(coordinator.awaitControlIdle())
+            val ended =
+                (coordinator.transportState.value as PlaybackTransportState.Playing)
+                    .context.sessionId
+            coordinator.submitSystemInput(
+                PlaybackSystemInput.PrerequisitesChanged(
+                    PlaybackPrerequisites(
+                        audioFocusReady = false,
+                        routeReady = true
+                    ),
+                    ended
+                )
+            )
+            assertTrue(coordinator.awaitControlIdle())
+            assertTrue(coordinator.transportState.value is PlaybackTransportState.Idle)
+
+            coordinator.submitSystemInput(
+                PlaybackSystemInput.PrerequisitesChanged(
+                    PlaybackPrerequisites.READY,
+                    ended
+                )
+            )
+            coordinator.submit(PlaybackIntent.StartStandard(121f, 4, null, false))
+            assertTrue(coordinator.awaitControlIdle())
+
+            assertTrue(coordinator.transportState.value is PlaybackTransportState.Playing)
+            assertEquals(2, engine.operations.count { it == "startStandard" })
+        } finally {
+            coordinator.release()
+        }
+    }
+
+    @Test
+    fun asynchronousControlExceptionIsTypedAndExecutorRemainsUsable() {
+        val engine = FakePlaybackEngine()
+        val coordinator = PlaybackCoordinator(engine)
+        try {
+            coordinator.submit(PlaybackIntent.StartStandard(120f, 4, null, false))
+            assertTrue(coordinator.awaitControlIdle())
+            val sessionId =
+                (coordinator.transportState.value as PlaybackTransportState.Playing)
+                    .context.sessionId
+            engine.throwOnStop = true
+
+            coordinator.submitSystemInput(
+                PlaybackSystemInput.Interrupted(
+                    sessionId,
+                    PlaybackInterruptionReason.RouteLost
+                )
+            )
+            assertTrue(coordinator.awaitControlIdle())
+            assertTrue(
+                coordinator.controlEvents.replayCache.any {
+                    it is PlaybackControlEvent.UnexpectedFailure
+                }
+            )
+
+            engine.throwOnStop = false
+            coordinator.submit(PlaybackIntent.Stop)
+            assertTrue(coordinator.awaitControlIdle())
+            assertTrue(coordinator.transportState.value is PlaybackTransportState.Idle)
+        } finally {
+            coordinator.release()
+        }
+    }
+
     private class FakePlaybackEngine : PlaybackEnginePort {
         val operations = Collections.synchronizedList(mutableListOf<String>())
         val callingThreads = Collections.synchronizedSet(mutableSetOf<String>())
         val maximumConcurrentCalls = AtomicInteger()
         private val activeCalls = AtomicInteger()
         var throwOnStart = false
+        var throwOnStop = false
         var blockStart = false
         var autoStartAcknowledgement = true
         val startEntered = CountDownLatch(1)
@@ -630,6 +703,7 @@ class PlaybackCoordinatorTest {
         }
 
         override fun stopSession(sessionId: PlaybackSessionId, mode: PlaybackMode) {
+            if (throwOnStop) error("stop failed")
             when (mode) {
                 PlaybackMode.STANDARD -> stopMetronome()
                 PlaybackMode.POLYRHYTHM -> stopPolyrhythm()

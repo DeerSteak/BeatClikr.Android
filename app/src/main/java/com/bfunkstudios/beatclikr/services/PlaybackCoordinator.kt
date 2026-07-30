@@ -138,6 +138,8 @@ sealed interface PlaybackControlEvent {
         val commandSequence: Long,
         val failure: SoundPreparationFailure
     ) : PlaybackControlEvent
+
+    data class UnexpectedFailure(val diagnostic: String) : PlaybackControlEvent
 }
 
 data class PlaybackStateTransition(
@@ -285,7 +287,9 @@ class PlaybackCoordinator(
                 )
             )
         } else {
-            executor.execute { applyIntent(sequence, publishedIntent) }
+            executeControl("Playback intent failed") {
+                applyIntent(sequence, publishedIntent)
+            }
         }
         return sequence
     }
@@ -294,8 +298,7 @@ class PlaybackCoordinator(
     fun submitSystemInput(input: PlaybackSystemInput): Long {
         val sequence = nextCommandSequence++
         if (!released) {
-            executor.execute {
-                controlThread = Thread.currentThread()
+            executeControl("Playback system input failed") {
                 applySystemInput(input)
             }
         }
@@ -372,7 +375,7 @@ class PlaybackCoordinator(
         if (released) return
         released = true
         val sequence = nextCommandSequence++
-        executor.execute {
+        executeControl("Playback release failed") {
             applyStop(sequence)
             engine.soundPreparationObserver = null
             engine.transportObserver = null
@@ -727,7 +730,8 @@ class PlaybackCoordinator(
         when (val current = transportState.value) {
             PlaybackTransportState.Idle -> Unit
             is PlaybackTransportState.Stopping -> Unit
-            is PlaybackTransportState.Interrupted,
+            is PlaybackTransportState.Interrupted ->
+                engine.stopSession(current.context.sessionId, current.context.mode)
             is PlaybackTransportState.Failed -> transitionTo(PlaybackTransportState.Idle)
             is PlaybackTransportState.SessionState -> {
                 transitionTo(PlaybackTransportState.Stopping(current.context))
@@ -740,12 +744,12 @@ class PlaybackCoordinator(
     private fun applySystemInput(input: PlaybackSystemInput) {
         when (input) {
             is PlaybackSystemInput.PrerequisitesChanged -> {
+                prerequisites = input.prerequisites
                 val current = transportState.value as? PlaybackTransportState.SessionState
                 if (input.expectedSessionId != null &&
                     current?.context?.sessionId != input.expectedSessionId) {
                     return
                 }
-                prerequisites = input.prerequisites
                 when (current) {
                     is PlaybackTransportState.Preparing -> {
                         transitionTo(current.copy(prerequisites = input.prerequisites))
@@ -942,11 +946,14 @@ class PlaybackCoordinator(
         if (current !is PlaybackTransportState.Stopping) return
         mutateOwnership { it.copy(activeMode = PlaybackMode.NONE) }
         val replacement = pendingReplacement
-        pendingReplacement = null
         if (replacement == null) {
             transitionTo(PlaybackTransportState.Idle)
         } else {
-            beginStart(replacement)
+            try {
+                beginStart(replacement)
+            } finally {
+                pendingReplacement = null
+            }
         }
     }
 
@@ -970,6 +977,14 @@ class PlaybackCoordinator(
 
     private fun transitionTo(next: PlaybackTransportState) {
         val previous = mutableTransportState.value
+        if (previous is PlaybackTransportState.Stopping) {
+            check(
+                pendingReplacement == null && next is PlaybackTransportState.Idle ||
+                    pendingReplacement != null && next is PlaybackTransportState.Preparing
+            ) {
+                "Stopping must resolve its pending replacement"
+            }
+        }
         PlaybackTransportTransitions.requireLegal(previous, next)
         mutableTransportState.value = next
         val transition = PlaybackStateTransition(nextTransitionSequence++, previous, next)
@@ -987,9 +1002,37 @@ class PlaybackCoordinator(
 
     private fun onControlContext(operation: () -> Unit) {
         if (Thread.currentThread() === controlThread) {
-            operation()
+            runControlSafely("Playback callback failed", operation)
         } else if (!released) {
-            executor.execute(operation)
+            executeControl("Playback callback failed", operation)
+        }
+    }
+
+    private fun executeControl(diagnostic: String, operation: () -> Unit) {
+        executor.execute {
+            controlThread = Thread.currentThread()
+            runControlSafely(diagnostic, operation)
+        }
+    }
+
+    private fun runControlSafely(diagnostic: String, operation: () -> Unit) {
+        try {
+            operation()
+        } catch (failure: RuntimeException) {
+            val detail = failure.message?.let { "$diagnostic: $it" } ?: diagnostic
+            mutableControlEvents.tryEmit(PlaybackControlEvent.UnexpectedFailure(detail))
+            val current = transportState.value
+            if (current is PlaybackTransportState.Preparing ||
+                current is PlaybackTransportState.Starting ||
+                current is PlaybackTransportState.Playing) {
+                transitionTo(
+                    PlaybackTransportState.Failed(
+                        current.context,
+                        PlaybackFailureReason.Engine(detail)
+                    )
+                )
+                mutateOwnership { it.copy(activeMode = PlaybackMode.NONE) }
+            }
         }
     }
 
@@ -1062,7 +1105,7 @@ class PlaybackCoordinator(
         failure: SoundPreparationFailure?
     ) {
         if (released) return
-        executor.execute {
+        executeControl("Sound preparation callback failed") {
             val requested = ownership.value.requestedSounds
             val matches = active != null &&
                 active.bank == requested.bank &&
