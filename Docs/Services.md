@@ -10,6 +10,8 @@ Services isolate audio, device feedback, reminder scheduling, and repository beh
 
 Prepared sound banks are immutable snapshots keyed by sound bank and `SoundFile`. A complete replacement is published atomically only after every required resource succeeds. WAV decoding preserves leading silence, downmixes supported channel layouts to mono, resamples before publication, and returns typed missing, corrupt, empty, or incompatible failures.
 
+Sound preparation APIs perform blocking resource and cache work and may only be called from the serialized metronome control context. The engine retains its complete required-sound set across bank switches, preserves the last usable waveform snapshot on preparation failure, and exposes the typed failure to its owner. `PreparedPcmWaveform.copySamples()` is a publication-time operation and must never be called per render block.
+
 `AudioTrackMetricsSnapshot` reports aggregate queued clicks and separate beat/rhythm enqueue counts so contract tests can verify sound roles without depending on Android resource IDs or inspecting proprietary waveforms.
 
 The current scheduler is polling-based and does not place events at exact sample offsets within render blocks. See [PlaybackPerformance.md](PlaybackPerformance.md) and the [adversarial review](../ADVERSARIAL_PROJECT_REVIEW.md) for the replacement requirements.

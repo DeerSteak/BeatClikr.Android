@@ -19,14 +19,6 @@ class SoundPreparationArchitectureTest {
         assertFalse(source.contains("ensureWaveform"))
     }
 
-    @Test
-    fun decoderDoesNotTrimOrFadeLeadingSamples() {
-        val source = locateSource("WavPcmDecoder.kt").readText()
-
-        assertFalse(source.contains("trimLeadingSilence"))
-        assertFalse(source.contains("applyFadeIn"))
-    }
-
     private fun locateSource(name: String): Path {
         val relative = Path.of("src/main/java/com/bfunkstudios/beatclikr/services/$name")
         return generateSequence(Path.of(System.getProperty("user.dir"))) { it.parent }

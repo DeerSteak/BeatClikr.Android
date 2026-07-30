@@ -87,6 +87,20 @@ class PreparedSoundBankTest {
     }
 
     @Test
+    fun requiredSoundSetCannotShrinkWhenSelectionOrBankChanges() {
+        val requirements = PreparedSoundRequirements(
+            listOf(SoundFile.CLICK_HI, SoundFile.CLICK_LO)
+        )
+        requirements.include(SoundFile.entries)
+        val complete = requirements.snapshot()
+
+        requirements.include(listOf(SoundFile.KICK, SoundFile.SNARE))
+
+        assertEquals(SoundFile.entries.toSet(), complete)
+        assertEquals(complete, requirements.snapshot())
+    }
+
+    @Test
     fun staleCacheVersionIsRebuiltFromResource() {
         val store = PreparedSoundBankStore()
         val cache = MemoryCache()
@@ -119,7 +133,7 @@ class PreparedSoundBankTest {
 
     @Test
     fun corruptCacheReadIsRebuiltFromResource() {
-        val cache = MemoryCache().apply { failReads = true }
+        val cache = MemoryCache().apply { corruptReads = true }
         val reader = MapReader(
             mutableMapOf(
                 key(SoundBank.ACOUSTIC, SoundFile.CLICK_HI) to wav(shortArrayOf(5, 6))
@@ -133,6 +147,7 @@ class PreparedSoundBankTest {
             )
         )
 
+        assertEquals(1, cache.removes)
         assertEquals(1, cache.writes)
         assertArrayEquals(shortArrayOf(5, 6), bank.waveform(SoundFile.CLICK_HI)!!.copySamples())
     }
@@ -227,11 +242,12 @@ class PreparedSoundBankTest {
         val values = mutableMapOf<PreparedWaveformCacheKey, CachedPreparedWaveform>()
         var writes = 0
         var removes = 0
-        var failReads = false
+        var corruptReads = false
 
-        override fun read(key: PreparedWaveformCacheKey): CachedPreparedWaveform? {
-            if (failReads) error("Corrupt cache")
-            return values[key]
+        override fun read(key: PreparedWaveformCacheKey): PreparedWaveformCacheRead {
+            if (corruptReads) return PreparedWaveformCacheRead.Corrupt
+            val waveform = values[key] ?: return PreparedWaveformCacheRead.Missing
+            return PreparedWaveformCacheRead.Hit(waveform)
         }
 
         override fun write(

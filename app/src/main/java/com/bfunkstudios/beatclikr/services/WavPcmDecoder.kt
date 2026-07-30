@@ -1,7 +1,7 @@
 package com.bfunkstudios.beatclikr.services
 
 sealed interface WavDecodeResult {
-    data class Success(val samples: ShortArray) : WavDecodeResult
+    class Success(val samples: ShortArray) : WavDecodeResult
     data class Failure(val code: SoundPreparationFailureCode) : WavDecodeResult
 }
 

@@ -4,6 +4,7 @@ import com.bfunkstudios.beatclikr.data.SoundBank
 import com.bfunkstudios.beatclikr.data.SoundFile
 import java.util.Collections
 import java.util.EnumMap
+import java.util.EnumSet
 import java.util.concurrent.atomic.AtomicReference
 
 enum class SoundPreparationFailureCode {
@@ -20,7 +21,7 @@ data class SoundPreparationFailure(
 )
 
 sealed interface SoundPreparationResult<out T> {
-    data class Success<T>(val value: T) : SoundPreparationResult<T>
+    class Success<T>(val value: T) : SoundPreparationResult<T>
     data class Failure(val failure: SoundPreparationFailure) : SoundPreparationResult<Nothing>
 }
 
@@ -30,6 +31,7 @@ class PreparedPcmWaveform(samples: ShortArray) {
     val size: Int
         get() = storage.size
 
+    /** Copies once when publishing a waveform to a renderer or legacy engine. */
     fun copySamples(): ShortArray = storage.copyOf()
 }
 
@@ -88,20 +90,40 @@ data class PreparedWaveformCacheKey(
     val sampleRate: Int
 )
 
-data class CachedPreparedWaveform(
+class CachedPreparedWaveform(
     val version: Int,
     val sampleRate: Int,
     val samples: ShortArray
 )
 
+sealed interface PreparedWaveformCacheRead {
+    data object Missing : PreparedWaveformCacheRead
+    data object Corrupt : PreparedWaveformCacheRead
+    class Hit(val waveform: CachedPreparedWaveform) : PreparedWaveformCacheRead
+}
+
 interface PreparedWaveformCache {
-    fun read(key: PreparedWaveformCacheKey): CachedPreparedWaveform?
+    fun read(key: PreparedWaveformCacheKey): PreparedWaveformCacheRead
     fun write(key: PreparedWaveformCacheKey, waveform: CachedPreparedWaveform)
     fun remove(key: PreparedWaveformCacheKey)
 }
 
 fun interface SoundResourceReader {
     fun read(bank: SoundBank, sound: SoundFile): ByteArray?
+}
+
+class PreparedSoundRequirements(initial: Collection<SoundFile>) {
+    private val sounds = EnumSet.noneOf(SoundFile::class.java).apply { addAll(initial) }
+
+    init {
+        require(sounds.isNotEmpty()) { "Required sounds must not be empty" }
+    }
+
+    fun include(additional: Collection<SoundFile>) {
+        sounds.addAll(additional)
+    }
+
+    fun snapshot(): Set<SoundFile> = Collections.unmodifiableSet(EnumSet.copyOf(sounds))
 }
 
 class SoundBankPreparer(
@@ -138,7 +160,12 @@ class SoundBankPreparer(
         sound: SoundFile
     ): SoundPreparationResult<ShortArray> {
         val key = PreparedWaveformCacheKey(CACHE_VERSION, bank, sound, sampleRate)
-        val cached = runCatching { cache.read(key) }.getOrNull()
+        val cacheRead = try {
+            cache.read(key)
+        } catch (_: Exception) {
+            PreparedWaveformCacheRead.Corrupt
+        }
+        val cached = (cacheRead as? PreparedWaveformCacheRead.Hit)?.waveform
         if (
             cached != null &&
             cached.version == CACHE_VERSION &&
@@ -147,7 +174,13 @@ class SoundBankPreparer(
         ) {
             return SoundPreparationResult.Success(cached.samples.copyOf())
         }
-        if (cached != null) runCatching { cache.remove(key) }
+        if (cacheRead != PreparedWaveformCacheRead.Missing) {
+            try {
+                cache.remove(key)
+            } catch (_: Exception) {
+                // A failed eviction must not prevent rebuilding from the bundled resource.
+            }
+        }
 
         val bytes = try {
             resourceReader.read(bank, sound)
@@ -162,7 +195,11 @@ class SoundBankPreparer(
                     sampleRate = sampleRate,
                     samples = decoded.samples.copyOf()
                 )
-                runCatching { cache.write(key, waveform) }
+                try {
+                    cache.write(key, waveform)
+                } catch (_: Exception) {
+                    // Generated PCM is optional; the prepared in-memory bank remains valid.
+                }
                 SoundPreparationResult.Success(decoded.samples)
             }
             is WavDecodeResult.Failure -> failure(bank, sound, decoded.code)

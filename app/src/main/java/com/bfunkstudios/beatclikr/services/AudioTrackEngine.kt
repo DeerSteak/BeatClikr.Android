@@ -47,6 +47,7 @@ class AudioTrackEngine(
     private var renderBuffer = ShortArray(renderChunkFrames)
     private var beatSound: SoundFile = SoundFile.CLICK_HI
     private var rhythmSound: SoundFile = SoundFile.CLICK_LO
+    private val requiredSounds = PreparedSoundRequirements(listOf(beatSound, rhythmSound))
 
     @Volatile
     private var selectedWaveforms: SelectedWaveforms? = null
@@ -104,11 +105,13 @@ class AudioTrackEngine(
     fun setSounds(beatResourceId: Int, rhythmResourceId: Int) {
         beatSound = SoundFile.fromResourceId(beatResourceId) ?: SoundFile.CLICK_HI
         rhythmSound = SoundFile.fromResourceId(rhythmResourceId) ?: SoundFile.CLICK_LO
+        requiredSounds.include(listOf(beatSound, rhythmSound))
         prepareSelectedSounds()
     }
 
     fun prepareSounds(soundFiles: Collection<SoundFile>) {
-        prepareBank((soundFiles + beatSound + rhythmSound).distinct())
+        requiredSounds.include(soundFiles)
+        prepareBank(requiredSounds.snapshot())
     }
 
     fun start() {
@@ -272,7 +275,7 @@ class AudioTrackEngine(
     }
 
     private fun prepareSelectedSounds() {
-        prepareBank(listOf(beatSound, rhythmSound))
+        prepareBank(requiredSounds.snapshot())
     }
 
     private fun prepareBank(sounds: Collection<SoundFile>) {
@@ -288,13 +291,12 @@ class AudioTrackEngine(
                 lastSoundPreparationFailure = null
             }
             is SoundPreparationResult.Failure -> {
-                selectedWaveforms = null
                 lastSoundPreparationFailure = result.failure
             }
         }
     }
 
-    private data class SelectedWaveforms(
+    private class SelectedWaveforms(
         val beat: ShortArray,
         val rhythm: ShortArray
     )

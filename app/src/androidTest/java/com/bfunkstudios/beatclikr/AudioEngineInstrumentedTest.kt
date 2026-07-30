@@ -11,12 +11,12 @@ import com.bfunkstudios.beatclikr.services.MetronomeAudioEngine
 import com.bfunkstudios.beatclikr.services.MetronomeAudioEngineDelegate
 import com.bfunkstudios.beatclikr.services.PcmFileCache
 import com.bfunkstudios.beatclikr.services.PolyrhythmAudioEngineDelegate
+import com.bfunkstudios.beatclikr.services.SoundPreparationResult
 import java.util.Collections
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import kotlin.math.abs
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -33,10 +33,16 @@ class AudioEngineInstrumentedTest {
         val cache = PcmFileCache(context, SAMPLE_RATE)
 
         SoundBank.entries.forEach { bank ->
+            val result = cache.prepare(SoundFile.entries, bank)
+            assertTrue(
+                "${bank.name} preparation failed: $result",
+                result is SoundPreparationResult.Success
+            )
+            val prepared = requireNotNull(cache.preparedBank(bank))
+            assertEquals(SoundFile.entries.size, prepared.size)
             SoundFile.entries.forEach { sound ->
-                val waveform = cache.load(sound, bank)
-                assertNotNull("${sound.name}/${bank.name} did not decode", waveform)
-                assertTrue("${sound.name}/${bank.name} decoded empty", waveform!!.isNotEmpty())
+                val waveform = requireNotNull(prepared.waveform(sound))
+                assertTrue("${sound.name}/${bank.name} decoded empty", waveform.size > 0)
             }
         }
     }

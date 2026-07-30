@@ -4,8 +4,11 @@ import android.content.Context
 import com.bfunkstudios.beatclikr.data.SoundBank
 import com.bfunkstudios.beatclikr.data.SoundFile
 import java.io.File
+import java.io.FileOutputStream
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
 import java.util.Locale
 
 class PcmFileCache(
@@ -32,39 +35,36 @@ class PcmFileCache(
 
     fun preparedBank(bank: SoundBank): PreparedSoundBank? = store.current(bank)
 
-    fun load(soundFile: SoundFile, bank: SoundBank): ShortArray? {
-        val result = prepare(listOf(soundFile), bank)
-        return if (result is SoundPreparationResult.Success) {
-            result.value.waveform(soundFile)?.copySamples()
-        } else {
-            null
-        }
-    }
-
     private class FilePreparedWaveformCache(
         private val filesDir: File
     ) : PreparedWaveformCache {
         private var cleanedOldVersions = false
 
-        override fun read(key: PreparedWaveformCacheKey): CachedPreparedWaveform? {
+        override fun read(key: PreparedWaveformCacheKey): PreparedWaveformCacheRead {
             val file = fileFor(key)
-            if (!file.exists()) return null
-            val bytes = file.readBytes()
-            if (bytes.size < HEADER_BYTES) error("Cached waveform header is truncated")
-            val buffer = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN)
-            val magic = buffer.int
-            val version = buffer.int
-            val sampleRate = buffer.int
-            val sampleCount = buffer.int
-            if (
-                magic != CACHE_MAGIC ||
-                sampleCount <= 0 ||
-                bytes.size.toLong() != HEADER_BYTES.toLong() + sampleCount.toLong() * 2
-            ) {
-                error("Cached waveform is corrupt")
+            if (!file.exists()) return PreparedWaveformCacheRead.Missing
+            return try {
+                val bytes = file.readBytes()
+                if (bytes.size < HEADER_BYTES) return PreparedWaveformCacheRead.Corrupt
+                val buffer = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN)
+                val magic = buffer.int
+                val version = buffer.int
+                val sampleRate = buffer.int
+                val sampleCount = buffer.int
+                if (
+                    magic != CACHE_MAGIC ||
+                    sampleCount <= 0 ||
+                    bytes.size.toLong() != HEADER_BYTES.toLong() + sampleCount.toLong() * 2
+                ) {
+                    return PreparedWaveformCacheRead.Corrupt
+                }
+                val samples = ShortArray(sampleCount) { buffer.short }
+                PreparedWaveformCacheRead.Hit(
+                    CachedPreparedWaveform(version, sampleRate, samples)
+                )
+            } catch (_: Exception) {
+                PreparedWaveformCacheRead.Corrupt
             }
-            val samples = ShortArray(sampleCount) { buffer.short }
-            return CachedPreparedWaveform(version, sampleRate, samples)
         }
 
         override fun write(
@@ -80,11 +80,21 @@ class PcmFileCache(
                 .putInt(waveform.sampleRate)
                 .putInt(waveform.samples.size)
             waveform.samples.forEach(bytes::putShort)
-            val temporary = File(file.parentFile, "${file.name}.tmp")
-            temporary.writeBytes(bytes.array())
-            if (!temporary.renameTo(file)) {
-                file.writeBytes(bytes.array())
+            val temporary = File.createTempFile(file.name, ".tmp", file.parentFile)
+            try {
+                FileOutputStream(temporary).use { output ->
+                    output.write(bytes.array())
+                    output.fd.sync()
+                }
+                Files.move(
+                    temporary.toPath(),
+                    file.toPath(),
+                    StandardCopyOption.ATOMIC_MOVE,
+                    StandardCopyOption.REPLACE_EXISTING
+                )
+            } catch (failure: Exception) {
                 temporary.delete()
+                throw failure
             }
         }
 
