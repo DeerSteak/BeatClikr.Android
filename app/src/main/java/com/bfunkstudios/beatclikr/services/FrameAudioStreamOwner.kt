@@ -1,7 +1,48 @@
 package com.bfunkstudios.beatclikr.services
 
+import com.bfunkstudios.beatclikr.music.DeadlineRecovery
+import com.bfunkstudios.beatclikr.music.DeadlineRecoveryState
+import com.bfunkstudios.beatclikr.music.FrameEventTimeline
+
 fun interface PcmFrameRendererFactory {
-    fun create(properties: AudioBackendStreamProperties): PcmFrameRenderer?
+    fun create(properties: AudioBackendStreamProperties): PublishedPcmFrameRenderer?
+}
+
+class PublishedPcmFrameRenderer(
+    val renderer: PcmFrameRenderer,
+    val recovery: FrameStreamRecovery? = null
+)
+
+interface FrameStreamRecovery {
+    fun start(firstOutputFrame: Long): Boolean
+    fun recover(firstUnprocessedFrame: Long, nextRenderFrame: Long): Boolean
+}
+
+class TimelineFrameStreamRecovery(
+    private val timeline: FrameEventTimeline
+) : FrameStreamRecovery {
+    private var state = DeadlineRecoveryState.atOrigin(timeline)
+
+    val snapshot: DeadlineRecoveryState
+        get() = state
+
+    override fun start(firstOutputFrame: Long): Boolean =
+        firstOutputFrame == timeline.origin.originFrame
+
+    override fun recover(
+        firstUnprocessedFrame: Long,
+        nextRenderFrame: Long
+    ): Boolean {
+        return try {
+            val synchronized = state.synchronizedTo(firstUnprocessedFrame)
+            state = DeadlineRecovery.recoverTo(timeline, synchronized, nextRenderFrame)
+            true
+        } catch (_: IllegalArgumentException) {
+            false
+        } catch (_: ArithmeticException) {
+            false
+        }
+    }
 }
 
 enum class FrameStreamRenderResult {
@@ -17,6 +58,7 @@ class FrameAudioStreamOwner(
 ) {
     private var failureSink = AudioBackendFailureSink {}
     private var renderer: PcmFrameRenderer? = null
+    private var recovery: FrameStreamRecovery? = null
     private var renderBuffer = ShortArray(0)
     private var backendStarted = false
     private var running = false
@@ -44,7 +86,7 @@ class FrameAudioStreamOwner(
         this.failureSink = failureSink
         val obtained = backend.open(request, failureSink) ?: return null
         var factoryReportedFailure = false
-        val publishedRenderer = try {
+        val publication = try {
             rendererFactory.create(obtained)
         } catch (failure: RuntimeException) {
             factoryReportedFailure = true
@@ -58,13 +100,14 @@ class FrameAudioStreamOwner(
             )
             null
         }
-        if (publishedRenderer == null) {
+        if (publication == null) {
             if (!factoryReportedFailure) {
                 report(AudioBackendOperation.OPEN, AudioBackendFailureCode.INVALID_CONFIGURATION)
             }
             backend.stop()
             return null
         }
+        val publishedRenderer = publication.renderer
         val blockFrames = obtained.burstFrames
         try {
             publishedRenderer.prepare(blockFrames)
@@ -82,6 +125,7 @@ class FrameAudioStreamOwner(
         }
         renderBuffer = ShortArray(blockFrames)
         renderer = publishedRenderer
+        recovery = publication.recovery
         properties = obtained
         return obtained
     }
@@ -95,6 +139,10 @@ class FrameAudioStreamOwner(
             running
         ) {
             report(AudioBackendOperation.START, AudioBackendFailureCode.START_REJECTED)
+            return false
+        }
+        if (recovery?.start(firstOutputFrame) == false) {
+            report(AudioBackendOperation.START, AudioBackendFailureCode.INVALID_CONFIGURATION)
             return false
         }
         publishedRenderer.reset()
@@ -111,6 +159,10 @@ class FrameAudioStreamOwner(
     fun resync(firstOutputFrame: Long): Boolean {
         val publishedRenderer = renderer
         if (publishedRenderer == null || !backendStarted || firstOutputFrame < 0) {
+            report(AudioBackendOperation.RESYNC, AudioBackendFailureCode.INVALID_CONFIGURATION)
+            return false
+        }
+        if (recovery?.recover(nextFrame, firstOutputFrame) == false) {
             report(AudioBackendOperation.RESYNC, AudioBackendFailureCode.INVALID_CONFIGURATION)
             return false
         }
@@ -173,6 +225,7 @@ class FrameAudioStreamOwner(
         val stopped = backend.stop()
         backendStarted = false
         renderer = null
+        recovery = null
         properties = null
         renderBuffer = ShortArray(0)
         return stopped

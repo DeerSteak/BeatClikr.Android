@@ -1,7 +1,15 @@
 package com.bfunkstudios.beatclikr.services
 
+import com.bfunkstudios.beatclikr.music.ExactTempo
+import com.bfunkstudios.beatclikr.music.SessionID
+import com.bfunkstudios.beatclikr.music.SessionOrigin
+import com.bfunkstudios.beatclikr.music.StandardMetronomeConfiguration
+import com.bfunkstudios.beatclikr.music.StandardMetronomeTimeline
+import com.bfunkstudios.beatclikr.music.StandardSubdivision
+import com.bfunkstudios.beatclikr.music.StandardTiming
 import com.sun.management.ThreadMXBean
 import java.lang.management.ManagementFactory
+import org.junit.Assert.assertArrayEquals
 import org.junit.Assume.assumeTrue
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -21,7 +29,7 @@ class FrameAudioStreamOwnerTest {
         val obtained = owner.open(REQUEST, { properties ->
             factoryCalls++
             factoryProperties = properties
-            renderer
+            PublishedPcmFrameRenderer(renderer)
         }, {})
 
         assertSame(backend.properties, obtained)
@@ -113,9 +121,16 @@ class FrameAudioStreamOwnerTest {
         val failures = mutableListOf<AudioBackendFailure>()
         val refusedFailures = mutableListOf<AudioBackendFailure>()
         val owner = FrameAudioStreamOwner(backend)
-        owner.open(REQUEST, { renderer }, failures::add)
+        owner.open(REQUEST, { PublishedPcmFrameRenderer(renderer) }, failures::add)
 
-        assertEquals(null, owner.open(REQUEST, { renderer }, refusedFailures::add))
+        assertEquals(
+            null,
+            owner.open(
+                REQUEST,
+                { PublishedPcmFrameRenderer(renderer) },
+                refusedFailures::add
+            )
+        )
         assertFalse(owner.start(-1))
         assertEquals(FrameStreamRenderResult.NOT_RUNNING, owner.renderNextBlock())
 
@@ -151,7 +166,7 @@ class FrameAudioStreamOwnerTest {
         val renderer = FakeRenderer()
         val failures = mutableListOf<AudioBackendFailure>()
         val owner = FrameAudioStreamOwner(backend)
-        owner.open(REQUEST, { renderer }, failures::add)
+        owner.open(REQUEST, { PublishedPcmFrameRenderer(renderer) }, failures::add)
 
         assertFalse(owner.resync(0))
         assertEquals(AudioBackendOperation.RESYNC, failures.single().operation)
@@ -170,7 +185,11 @@ class FrameAudioStreamOwnerTest {
         val backend = FakeBackend().apply { stopSucceeds = false }
         val failures = mutableListOf<AudioBackendFailure>()
         val owner = FrameAudioStreamOwner(backend)
-        owner.open(REQUEST, { FakeRenderer() }, failures::add)
+        owner.open(
+            REQUEST,
+            { PublishedPcmFrameRenderer(FakeRenderer()) },
+            failures::add
+        )
 
         assertFalse(owner.stop())
 
@@ -179,9 +198,78 @@ class FrameAudioStreamOwnerTest {
     }
 
     @Test
+    fun deadlineRecoveryResyncDropsExpiredEventsAndOldWaveformTailsTogether() {
+        val backend = FakeBackend()
+        val timeline = StandardMetronomeTimeline(
+            StandardMetronomeConfiguration(
+                ExactTempo.of(120),
+                StandardTiming.Regular(StandardSubdivision.EIGHTH)
+            ),
+            48_000,
+            SessionOrigin(SessionID(1), 0)
+        )
+        val recovery = TimelineFrameStreamRecovery(timeline)
+        val renderer = FramePcmRenderer(
+            timeline,
+            RenderWaveforms(
+                beat = shortArrayOf(1, 2, 3, 4, 5, 6),
+                rhythm = shortArrayOf(1, 2, 3, 4, 5, 6)
+            ),
+            maximumActiveVoices = 4
+        )
+        val owner = FrameAudioStreamOwner(backend)
+        owner.open(
+            REQUEST,
+            { PublishedPcmFrameRenderer(renderer, recovery) },
+            {}
+        )
+        owner.start(0)
+        owner.renderNextBlock()
+
+        assertTrue(owner.resync(24_000))
+        owner.renderNextBlock()
+
+        assertArrayEquals(shortArrayOf(1, 2, 3, 4), backend.lastWrittenSamples)
+        assertEquals(1, recovery.snapshot.diagnostics.droppedEvents)
+        assertEquals(24_004, owner.nextFrame)
+    }
+
+    @Test
+    fun deadlineRecoveryRejectsBackwardResyncWithoutMovingOwnership() {
+        val backend = FakeBackend()
+        val renderer = FakeRenderer()
+        val timeline = StandardMetronomeTimeline(
+            StandardMetronomeConfiguration(
+                ExactTempo.of(120),
+                StandardTiming.Regular(StandardSubdivision.EIGHTH)
+            ),
+            48_000,
+            SessionOrigin(SessionID(2), 0)
+        )
+        val recovery = TimelineFrameStreamRecovery(timeline)
+        val owner = FrameAudioStreamOwner(backend)
+        owner.open(
+            REQUEST,
+            { PublishedPcmFrameRenderer(renderer, recovery) },
+            {}
+        )
+        owner.start(0)
+        owner.renderNextBlock()
+
+        assertFalse(owner.resync(2))
+
+        assertEquals(4, owner.nextFrame)
+        assertEquals(1, renderer.resetCount)
+    }
+
+    @Test
     fun preparedOwnerRenderAllocatesNoMemory() {
         val owner = FrameAudioStreamOwner(AllocationFreeBackend)
-        owner.open(REQUEST, { AllocationFreeRenderer }, {})
+        owner.open(
+            REQUEST,
+            { PublishedPcmFrameRenderer(AllocationFreeRenderer) },
+            {}
+        )
         owner.start(0)
         repeat(100_000) { owner.renderNextBlock() }
         val bean = ManagementFactory.getThreadMXBean() as ThreadMXBean
@@ -205,7 +293,7 @@ class FrameAudioStreamOwnerTest {
         renderer: FakeRenderer
     ): FrameAudioStreamOwner =
         FrameAudioStreamOwner(backend).also { owner ->
-            owner.open(REQUEST, { renderer }, {})
+            owner.open(REQUEST, { PublishedPcmFrameRenderer(renderer) }, {})
         }
 
     private class FakeRenderer : PcmFrameRenderer {
@@ -248,6 +336,7 @@ class FrameAudioStreamOwnerTest {
         var stopCount = 0
         var openCount = 0
         var startCount = 0
+        var lastWrittenSamples = ShortArray(0)
         private var failureSink = AudioBackendFailureSink {}
 
         override fun open(
@@ -272,6 +361,10 @@ class FrameAudioStreamOwnerTest {
         ): Int {
             writeOffsets += frameOffset
             writeStarts += startFrame
+            lastWrittenSamples = monoPcm.copyOfRange(
+                frameOffset,
+                frameOffset + frameCount
+            )
             return if (writeResults.isEmpty()) frameCount else writeResults.removeFirst()
         }
 

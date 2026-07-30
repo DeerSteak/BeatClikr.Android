@@ -26,6 +26,8 @@ The backend's channel adapter duplicates each mono frame across the obtained cha
 
 `FrameAudioStreamOwner` opens the backend before publishing a renderer, allowing the renderer timeline to use the obtained sample rate and the render block to use the obtained burst size. The published renderer owns one immutable waveform binding for that stream. The owner tracks backend start separately from render-loop liveness, advances absolute frame ownership through complete and partial writes, resets retained waveform tails at every start, failure, resync, and stop boundary, and makes stop idempotent. Render failures halt the loop until an explicit resync or stream replacement; resync requires a previously started backend and never arms an unopened track. Rejected operations report to the sink registered for the responsible call.
 
+A renderer publication may bind `TimelineFrameStreamRecovery` to the same immutable timeline. On resync, the owner first synchronizes recovery to frames actually written, then `DeadlineRecovery` counts events expired by the discontinuity without enumerating them. Only after recovery succeeds does the owner reset waveform tails and move `nextFrame`; backward or mismatched recovery leaves both unchanged.
+
 ## Runtime ownership
 
 `BeatClikrApplication` creates process-scoped dependencies. Activities and ViewModels own user-facing state; audio engines own active playback state and release native resources when playback stops.
