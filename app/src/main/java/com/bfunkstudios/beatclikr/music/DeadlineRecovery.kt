@@ -14,7 +14,8 @@ fun interface FrameRangeEventConsumer {
         primarySound: SoundRole,
         secondaryRole: MusicalEventRole?,
         secondarySound: SoundRole?,
-        muted: Boolean
+        muted: Boolean,
+        roleIndices: Int
     ): Boolean
 }
 

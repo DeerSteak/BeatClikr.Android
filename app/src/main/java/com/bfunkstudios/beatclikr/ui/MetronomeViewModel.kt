@@ -56,9 +56,7 @@ class MetronomeViewModel @Inject constructor(
         get() = transportState.isActive(PlaybackMode.STANDARD)
 
     val controlsEnabled: Boolean
-        get() = transportState !is PlaybackTransportState.Preparing &&
-            transportState !is PlaybackTransportState.Starting &&
-            transportState !is PlaybackTransportState.Stopping
+        get() = !transportState.isTransitioning(PlaybackMode.STANDARD)
 
     var lastPlaybackFailure by mutableStateOf<String?>(null)
         private set
@@ -473,6 +471,14 @@ class MetronomeViewModel @Inject constructor(
             this !is PlaybackTransportState.Stopping &&
             this !is PlaybackTransportState.Interrupted &&
             this !is PlaybackTransportState.Failed
+    }
+
+    private fun PlaybackTransportState.isTransitioning(mode: PlaybackMode): Boolean {
+        val session = this as? PlaybackTransportState.SessionState ?: return false
+        return session.context.mode == mode &&
+            (this is PlaybackTransportState.Preparing ||
+                this is PlaybackTransportState.Starting ||
+                this is PlaybackTransportState.Stopping)
     }
 
     override fun onCleared() {

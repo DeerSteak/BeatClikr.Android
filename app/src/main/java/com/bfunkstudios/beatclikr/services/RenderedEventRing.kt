@@ -9,7 +9,8 @@ data class RenderedFrameEvent(
     val eventSequence: Long,
     val role: MusicalEventRole,
     val intendedFrame: Long,
-    val muted: Boolean
+    val muted: Boolean,
+    val roleIndex: Int = 0
 )
 
 data class RenderedEventBatch(
@@ -28,6 +29,7 @@ class RenderedEventRing(private val capacity: Int) {
     private val eventSequences = LongArray(capacity)
     private val intendedFrames = LongArray(capacity)
     private val roles = ByteArray(capacity)
+    private val roleIndices = IntArray(capacity)
     private val muted = BooleanArray(capacity)
     private var producerSequence = 0L
 
@@ -47,13 +49,15 @@ class RenderedEventRing(private val capacity: Int) {
         eventSequence: Long,
         role: MusicalEventRole,
         intendedFrame: Long,
-        isMuted: Boolean
+        isMuted: Boolean,
+        roleIndex: Int = 0
     ) = recordOrdinal(
         sessionId,
         eventSequence,
         role.ordinal,
         intendedFrame,
-        isMuted
+        isMuted,
+        roleIndex
     )
 
     internal fun recordOrdinal(
@@ -61,7 +65,8 @@ class RenderedEventRing(private val capacity: Int) {
         eventSequence: Long,
         roleOrdinal: Int,
         intendedFrame: Long,
-        isMuted: Boolean
+        isMuted: Boolean,
+        roleIndex: Int = 0
     ) {
         val sequence = producerSequence
         val index = (sequence % capacity).toInt()
@@ -70,6 +75,7 @@ class RenderedEventRing(private val capacity: Int) {
         eventSequences[index] = eventSequence
         intendedFrames[index] = intendedFrame
         roles[index] = roleOrdinal.toByte()
+        roleIndices[index] = roleIndex
         muted[index] = isMuted
         slotSequences.lazySet(index, sequence)
         producerSequence = sequence + 1
@@ -105,7 +111,8 @@ class RenderedEventRing(private val capacity: Int) {
                     eventSequences[index],
                     MusicalEventRole.entries[roles[index].toInt()],
                     intendedFrames[index],
-                    muted[index]
+                    muted[index],
+                    roleIndices[index]
                 )
                 if (slotSequences.get(index) == sequence) {
                     records += record

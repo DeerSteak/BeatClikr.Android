@@ -140,6 +140,19 @@ class MetronomeViewModelTest {
     }
 
     @Test
+    fun `other mode transition does not disable metronome controls`() {
+        transportState.value = PlaybackTransportState.Preparing(
+            standardPreparing().context.copy(
+                mode = PlaybackMode.POLYRHYTHM,
+                configuration = CommittedPlaybackConfiguration.Polyrhythm(120f, 3, 2, false)
+            ),
+            PlaybackPrerequisites.READY
+        )
+
+        assertTrue(viewModel.controlsEnabled)
+    }
+
+    @Test
     fun `rapid toggle sequence submits one command per user intent`() {
         viewModel.togglePlayPause()
         viewModel.togglePlayPause()

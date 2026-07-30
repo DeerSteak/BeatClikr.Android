@@ -21,6 +21,8 @@ import com.bfunkstudios.beatclikr.services.PlaybackSessionId
 import com.bfunkstudios.beatclikr.services.PlaybackStartOrigin
 import com.bfunkstudios.beatclikr.services.PlaybackTransportState
 import com.bfunkstudios.beatclikr.ui.PolyrhythmViewModel
+import com.bfunkstudios.beatclikr.ui.polyrhythmBeatDurationNanos
+import com.bfunkstudios.beatclikr.ui.polyrhythmRhythmDurationNanos
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
@@ -105,24 +107,48 @@ class PolyrhythmViewModelTest {
     }
 
     @Test
-    fun `committed polyrhythm event drives pulse projection`() {
+    fun `other mode transition does not disable polyrhythm controls`() {
+        transportState.value = PlaybackTransportState.Preparing(
+            polyrhythmPreparing().context.copy(
+                mode = PlaybackMode.STANDARD,
+                configuration =
+                    CommittedPlaybackConfiguration.Standard(120f, 4, null, false, false)
+            ),
+            PlaybackPrerequisites.READY
+        )
+
+        assertTrue(viewModel.controlsEnabled)
+    }
+
+    @Test
+    fun `committed polyrhythm event uses authoritative role index after a drop`() {
         val playing = polyrhythmPlaying()
         transportState.value = playing
+        committedEvents.tryEmit(PlaybackCommittedEvent.RecordsDropped(1, 1))
 
         committedEvents.tryEmit(
             PlaybackCommittedEvent.Rendered(
-                1,
+                2,
                 playing.context.sessionId,
-                0,
+                7,
                 MusicalEventRole.POLYRHYTHM_BEAT,
                 0,
                 false,
-                EventPresentation.Unavailable
+                EventPresentation.Unavailable,
+                roleIndex = 1
             )
         )
 
-        assertEquals(0, viewModel.activeBeatIndex)
+        assertEquals(1, viewModel.activeBeatIndex)
         assertTrue(viewModel.beatPulse > 0f)
+    }
+
+    @Test
+    fun `polyrhythm pulse durations follow each voice period`() {
+        val configuration = CommittedPlaybackConfiguration.Polyrhythm(120f, 3, 2, false)
+
+        assertEquals(500_000_000L, polyrhythmBeatDurationNanos(configuration.bpm))
+        assertEquals(333_333_333L, polyrhythmRhythmDurationNanos(configuration))
     }
 
     @Test

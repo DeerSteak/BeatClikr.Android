@@ -179,7 +179,8 @@ sealed interface PlaybackCommittedEvent {
         val role: MusicalEventRole,
         val intendedFrame: Long,
         val muted: Boolean,
-        val presentation: EventPresentation
+        val presentation: EventPresentation,
+        val roleIndex: Int = 0
     ) : PlaybackCommittedEvent
 
     data class RecordsDropped(
@@ -1053,7 +1054,8 @@ class PlaybackCoordinator(
                     record.role,
                     record.intendedFrame,
                     record.muted,
-                    presentationFor(record.intendedFrame, batch)
+                    presentationFor(record.intendedFrame, batch),
+                    record.roleIndex
                 )
             )
         }

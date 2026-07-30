@@ -52,9 +52,7 @@ class PolyrhythmViewModel @Inject constructor(
         get() = transportState.isActive(PlaybackMode.POLYRHYTHM)
 
     val controlsEnabled: Boolean
-        get() = transportState !is PlaybackTransportState.Preparing &&
-            transportState !is PlaybackTransportState.Starting &&
-            transportState !is PlaybackTransportState.Stopping
+        get() = !transportState.isTransitioning(PlaybackMode.POLYRHYTHM)
 
     var lastPlaybackFailure by mutableStateOf<String?>(null)
         private set
@@ -90,8 +88,6 @@ class PolyrhythmViewModel @Inject constructor(
     private var lastRhythmTimeNanos: Long = 0L
     private var currentRhythmDurationNanos: Long = 0L
     private var projectedSessionId: PlaybackSessionId? = null
-    private var nextBeatIndex = 0
-    private var nextRhythmIndex = 0
     private var lastCommittedEventSequence =
         playback.committedEvents.replayCache.lastOrNull()?.sequence ?: 0L
 
@@ -276,8 +272,6 @@ class PolyrhythmViewModel @Inject constructor(
             ?.sessionId
         if (session != null && session != projectedSessionId) {
             projectedSessionId = session
-            nextBeatIndex = 0
-            nextRhythmIndex = 0
             playheadResetID += 1
         }
         if (!state.isActive(PlaybackMode.POLYRHYTHM)) {
@@ -303,18 +297,16 @@ class PolyrhythmViewModel @Inject constructor(
         val presentationTime = (rendered.presentation as? EventPresentation.Correlated)
             ?.presentationNanoTime
             ?: 0L
-        val beatIndex = nextBeatIndex
-        val rhythmIndex = nextRhythmIndex
-        if (beatFired) nextBeatIndex = (nextBeatIndex + 1) % configuration.against
-        if (rhythmFired) nextRhythmIndex = (nextRhythmIndex + 1) % configuration.beats
+        val beatDurationNanos = polyrhythmBeatDurationNanos(configuration.bpm)
+        val rhythmDurationNanos = polyrhythmRhythmDurationNanos(configuration)
         polyrhythmBeatFired(
             beatFired,
             rhythmFired,
-            beatIndex,
-            rhythmIndex,
+            rendered.roleIndex,
+            rendered.roleIndex,
             presentationTime,
-            (60_000_000_000L / configuration.bpm).toLong(),
-            (60_000_000_000L / configuration.bpm).toLong(),
+            beatDurationNanos,
+            rhythmDurationNanos,
             presentationIsFrameTime = true
         )
     }
@@ -327,9 +319,30 @@ class PolyrhythmViewModel @Inject constructor(
             this !is PlaybackTransportState.Failed
     }
 
+    private fun PlaybackTransportState.isTransitioning(mode: PlaybackMode): Boolean {
+        val session = this as? PlaybackTransportState.SessionState ?: return false
+        return session.context.mode == mode &&
+            (this is PlaybackTransportState.Preparing ||
+                this is PlaybackTransportState.Starting ||
+                this is PlaybackTransportState.Stopping)
+    }
+
     override fun onCleared() {
         super.onCleared()
         ProcessLifecycleOwner.get().lifecycle.removeObserver(appLifecycleObserver)
         stop()
     }
+
 }
+
+internal fun polyrhythmBeatDurationNanos(bpm: Float): Long =
+    (NANOS_PER_MINUTE / bpm.toDouble()).toLong()
+
+internal fun polyrhythmRhythmDurationNanos(
+    configuration: CommittedPlaybackConfiguration.Polyrhythm
+): Long = (
+    NANOS_PER_MINUTE * configuration.against /
+        (configuration.bpm.toDouble() * configuration.beats)
+    ).toLong()
+
+private const val NANOS_PER_MINUTE = 60_000_000_000.0
