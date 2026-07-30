@@ -31,6 +31,40 @@ data class AudioBackendFailure(
     val code: AudioBackendFailureCode
 )
 
+class AudioBackendFailureRing(capacity: Int) {
+    init {
+        require(capacity > 0) { "Failure capacity must be positive" }
+    }
+
+    private val storage = arrayOfNulls<AudioBackendFailure>(capacity)
+    private var count = 0
+    private var nextIndex = 0
+
+    fun record(failure: AudioBackendFailure) {
+        storage[nextIndex] = failure
+        nextIndex = (nextIndex + 1) % storage.size
+        if (count < storage.size) count++
+    }
+
+    fun reset() {
+        storage.fill(null)
+        count = 0
+        nextIndex = 0
+    }
+
+    fun snapshot(): List<AudioBackendFailure> {
+        if (count == 0) return emptyList()
+        val copy = ArrayList<AudioBackendFailure>(count)
+        val oldest = if (count == storage.size) nextIndex else 0
+        var offset = 0
+        while (offset < count) {
+            storage[(oldest + offset) % storage.size]?.let(copy::add)
+            offset++
+        }
+        return copy
+    }
+}
+
 fun interface AudioBackendFailureSink {
     fun report(failure: AudioBackendFailure)
 }

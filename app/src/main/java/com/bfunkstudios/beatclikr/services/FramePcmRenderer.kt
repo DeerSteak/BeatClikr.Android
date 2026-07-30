@@ -23,6 +23,10 @@ enum class FrameRenderResult {
 }
 
 interface PcmFrameRenderer {
+    val renderedBeatEvents: Long
+        get() = 0
+    val renderedRhythmEvents: Long
+        get() = 0
     fun prepare(maximumBlockFrames: Int)
     fun reset()
     fun render(startFrame: Long, output: ShortArray, frameCount: Int): FrameRenderResult
@@ -41,6 +45,14 @@ class FramePcmRenderer(
     private var result = FrameRenderResult.COMPLETE
     private var hasExpectedFrame = false
     private var nextExpectedFrame = 0L
+    private var blockBeatEvents = 0L
+    private var blockRhythmEvents = 0L
+
+    override var renderedBeatEvents = 0L
+        private set
+
+    override var renderedRhythmEvents = 0L
+        private set
 
     override fun accept(
         intendedFrame: Long,
@@ -49,9 +61,9 @@ class FramePcmRenderer(
         muted: Boolean
     ): Boolean {
         if (!muted) {
-            addVoice(primarySound, intendedFrame)
+            if (addVoice(primarySound, intendedFrame)) countBlockEvent(primarySound)
             if (result == FrameRenderResult.COMPLETE && secondarySound != null) {
-                addVoice(secondarySound, intendedFrame)
+                if (addVoice(secondarySound, intendedFrame)) countBlockEvent(secondarySound)
             }
         }
         return result == FrameRenderResult.COMPLETE
@@ -94,6 +106,8 @@ class FramePcmRenderer(
         blockStartFrame = startFrame
         blockFrameCount = frameCount
         result = FrameRenderResult.COMPLETE
+        blockBeatEvents = 0
+        blockRhythmEvents = 0
         accumulator.fill(0, 0, frameCount)
 
         mixExistingVoices()
@@ -106,26 +120,33 @@ class FramePcmRenderer(
             return result
         }
         writeSaturatedOutput(output, frameCount)
+        renderedBeatEvents = Math.addExact(renderedBeatEvents, blockBeatEvents)
+        renderedRhythmEvents = Math.addExact(renderedRhythmEvents, blockRhythmEvents)
         hasExpectedFrame = true
         nextExpectedFrame = endFrame
         return result
     }
 
-    private fun addVoice(role: SoundRole, intendedFrame: Long) {
+    private fun addVoice(role: SoundRole, intendedFrame: Long): Boolean {
         val offset = intendedFrame - blockStartFrame
         if (offset < 0 || offset >= blockFrameCount) {
             result = FrameRenderResult.EVENT_SOURCE_FAILED
-            return
+            return false
         }
         var slot = 0
         while (slot < activeRoles.size && activeRoles[slot] != NO_VOICE) slot++
         if (slot == activeRoles.size) {
             result = FrameRenderResult.VOICE_CAPACITY_EXCEEDED
-            return
+            return false
         }
         activeRoles[slot] = if (role == SoundRole.BEAT) BEAT_VOICE else RHYTHM_VOICE
         activePositions[slot] = 0
         mixVoice(slot, offset.toInt())
+        return true
+    }
+
+    private fun countBlockEvent(role: SoundRole) {
+        if (role == SoundRole.BEAT) blockBeatEvents++ else blockRhythmEvents++
     }
 
     private fun mixExistingVoices() {

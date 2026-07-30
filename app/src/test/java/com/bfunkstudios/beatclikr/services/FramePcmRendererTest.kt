@@ -89,6 +89,40 @@ class FramePcmRendererTest {
 
         assertEquals(FrameRenderResult.COMPLETE, renderer.render(0, output, 1))
         assertArrayEquals(shortArrayOf(0), output)
+        assertEquals(0, renderer.renderedBeatEvents)
+        assertEquals(0, renderer.renderedRhythmEvents)
+    }
+
+    @Test
+    fun countsAudibleRolesOnlyAfterSuccessfulBlock() {
+        val renderer = renderer(
+            RecordingEventSource(
+                Event(0, SoundRole.BEAT, SoundRole.RHYTHM),
+                Event(1, SoundRole.BEAT, muted = true)
+            ),
+            beat = shortArrayOf(1),
+            rhythm = shortArrayOf(1)
+        )
+
+        renderer.render(0, ShortArray(2), 2)
+
+        assertEquals(1, renderer.renderedBeatEvents)
+        assertEquals(1, renderer.renderedRhythmEvents)
+    }
+
+    @Test
+    fun failedBlockDoesNotCommitRoleCounters() {
+        val renderer = renderer(
+            RecordingEventSource(Event(0, SoundRole.BEAT, SoundRole.RHYTHM)),
+            beat = shortArrayOf(1, 2),
+            rhythm = shortArrayOf(1, 2),
+            maximumActiveVoices = 1
+        )
+
+        renderer.render(0, ShortArray(1), 1)
+
+        assertEquals(0, renderer.renderedBeatEvents)
+        assertEquals(0, renderer.renderedRhythmEvents)
     }
 
     @Test

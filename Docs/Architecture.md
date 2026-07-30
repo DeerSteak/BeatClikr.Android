@@ -30,6 +30,10 @@ A renderer publication may bind `TimelineFrameStreamRecovery` to the same immuta
 
 `StandardPreparedFrameRendererFactory` and `PolyrhythmPreparedFrameRendererFactory` publish the timeline, renderer, prepared beat/rhythm references, and recovery owner as one stream-scoped unit after backend open. Timeline construction uses the obtained sample rate, and prepared waveform references are bound once during publication rather than copied or resolved inside render blocks.
 
+`AudioTrackFrameSession` is the Android render-thread driver for the frame path. It opens `AudioTrackRenderBackend`, publishes one prepared renderer, and repeatedly performs blocking burst-sized frame renders until stop or a typed failure. Its bounded stop posts teardown to the render owner, and a failed render closes the stream instead of spinning.
+
+Each publication carries its session origin as the first output frame, so the session never assumes frame zero. Start is a bounded selection operation that returns success directly to its caller. Renderer role counters commit only for successful unmuted blocks, while the session exposes session-relative beat/rhythm totals, written-frame ownership, obtained properties, block count, and bounded failure history through a sequence-stamped consistent snapshot. Failures overwrite a fixed single-writer ring without render-thread collection allocation.
+
 ## Runtime ownership
 
 `BeatClikrApplication` creates process-scoped dependencies. Activities and ViewModels own user-facing state; audio engines own active playback state and release native resources when playback stops.

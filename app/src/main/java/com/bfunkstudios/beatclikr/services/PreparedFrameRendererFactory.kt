@@ -58,7 +58,8 @@ private fun preparedPublication(
     )
     return PublishedPcmFrameRenderer(
         renderer,
-        TimelineFrameStreamRecovery(timeline)
+        TimelineFrameStreamRecovery(timeline),
+        firstOutputFrame = timeline.origin.originFrame
     )
 }
 

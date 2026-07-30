@@ -10,7 +10,8 @@ fun interface PcmFrameRendererFactory {
 
 class PublishedPcmFrameRenderer(
     val renderer: PcmFrameRenderer,
-    val recovery: FrameStreamRecovery? = null
+    val recovery: FrameStreamRecovery? = null,
+    val firstOutputFrame: Long = 0
 )
 
 interface FrameStreamRecovery {
@@ -69,6 +70,15 @@ class FrameAudioStreamOwner(
     var properties: AudioBackendStreamProperties? = null
         private set
 
+    var publicationFirstOutputFrame: Long = 0
+        private set
+
+    val renderedBeatEvents: Long
+        get() = renderer?.renderedBeatEvents ?: 0
+
+    val renderedRhythmEvents: Long
+        get() = renderer?.renderedRhythmEvents ?: 0
+
     fun open(
         request: AudioBackendOpenRequest,
         rendererFactory: PcmFrameRendererFactory,
@@ -126,6 +136,7 @@ class FrameAudioStreamOwner(
         renderBuffer = ShortArray(blockFrames)
         renderer = publishedRenderer
         recovery = publication.recovery
+        publicationFirstOutputFrame = publication.firstOutputFrame
         properties = obtained
         return obtained
     }
@@ -226,6 +237,7 @@ class FrameAudioStreamOwner(
         backendStarted = false
         renderer = null
         recovery = null
+        publicationFirstOutputFrame = 0
         properties = null
         renderBuffer = ShortArray(0)
         return stopped

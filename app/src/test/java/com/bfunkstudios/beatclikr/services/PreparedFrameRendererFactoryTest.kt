@@ -37,6 +37,7 @@ class PreparedFrameRendererFactoryTest {
 
         assertArrayEquals(shortArrayOf(0, 3), output)
         assertNotNull(publication.recovery)
+        assertEquals(0, publication.firstOutputFrame)
     }
 
     @Test
@@ -54,6 +55,20 @@ class PreparedFrameRendererFactoryTest {
 
         assertArrayEquals(shortArrayOf(10), output)
         assertNotNull(publication.recovery)
+    }
+
+    @Test
+    fun publicationCarriesNonzeroSessionOriginIntoStreamStart() {
+        val publication = StandardPreparedFrameRendererFactory(
+            StandardMetronomeConfiguration(
+                ExactTempo.of(120),
+                StandardTiming.Regular(StandardSubdivision.QUARTER)
+            ),
+            SessionOrigin(SessionID(3), 321),
+            preparedSounds()
+        ).create(PROPERTIES)
+
+        assertEquals(321, publication.firstOutputFrame)
     }
 
     private fun preparedSounds(): ActivePreparedSounds =

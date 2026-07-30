@@ -74,6 +74,10 @@ The recovery composition test carries an active waveform tail into a discontinui
 
 The prepared publication suite verifies that standard and polyrhythm timelines use the obtained sample rate, bind the approved beat and rhythm waveforms, preserve coincident mixing, and publish matching recovery state. An architecture tripwire prevents `copySamples()` from entering the stream owner or renderer publication path.
 
+The `AudioTrackFrameSession` architecture tripwire prohibits pending-click queues, waveform enqueueing, and beat/rhythm trigger methods from entering the new Android frame driver. Physical-device qualification remains required after production selects this path.
+
+The renderer suite verifies muted events do not increment role counters and failed blocks commit no counters. Publication tests carry nonzero origins into stream start, while the session tripwire requires a synchronous start result, publication-derived origin, sequence-stamped snapshot reads, session-relative block counts, and fixed-capacity failure recording without collection growth.
+
 The Phase 2.5 recovery suite verifies multi-event stalls, direct future-event selection, constant-time range counts, exact deadline and drop counts, coincident polyrhythm drops, repeated recovery windows, overlapping render windows, immutable origins, and stale session or mode rejection. Expired events are counted but never enumerated or returned to the renderer, preventing recovery work and catch-up output from scaling with the duration of a stall.
 
 `PureCoreQualificationTest` is the permanent Phase 2 regression gate. It checks the twelve-hour fractional endpoint across every integer sample rate accepted by `AudioTrack`, streams twelve-hour minimum, fractional typical, maximum-density, and dense polyrhythm timelines at 44.1 and 48 kHz, injects stalls at every event position, and runs reproducible randomized standard and polyrhythm command batches. Together with the focused music-model tests, the suite contains executable coverage for MT-001 through MT-032 and TB-001 through TB-003, TB-009, and TB-010.
