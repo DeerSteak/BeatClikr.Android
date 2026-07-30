@@ -172,6 +172,11 @@ class MetronomeAudioEngine(private val context: Context) {
     fun getSoundPreparationFailure(): SoundPreparationFailure? =
         audioTrackEngine?.lastSoundPreparationFailure
 
+    fun getActiveSoundBank(): SoundBank? = audioTrackEngine?.activeSoundBank
+
+    fun getActiveSoundConfiguration(): ActiveSoundConfiguration? =
+        audioTrackEngine?.activeSoundConfiguration
+
     fun updateTempo(
         bpm: Float,
         subdivisions: Int,

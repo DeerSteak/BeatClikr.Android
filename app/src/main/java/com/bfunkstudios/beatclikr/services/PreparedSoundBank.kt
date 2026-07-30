@@ -2,6 +2,7 @@ package com.bfunkstudios.beatclikr.services
 
 import com.bfunkstudios.beatclikr.data.SoundBank
 import com.bfunkstudios.beatclikr.data.SoundFile
+import java.io.File
 import java.util.Collections
 import java.util.EnumMap
 import java.util.EnumSet
@@ -83,6 +84,21 @@ class PreparedSoundBankStore {
     }
 }
 
+object GeneratedPcmCacheMaintenance {
+    fun cleanup(filesDir: File, prefix: String, currentDirectory: String) {
+        filesDir.listFiles()
+            ?.filter {
+                it.isDirectory &&
+                    it.name.startsWith(prefix) &&
+                    it.name != currentDirectory
+            }
+            ?.forEach { it.deleteRecursively() }
+        File(filesDir, currentDirectory).listFiles()
+            ?.filter { it.isFile && it.name.endsWith(".tmp") }
+            ?.forEach { it.delete() }
+    }
+}
+
 data class PreparedWaveformCacheKey(
     val version: Int,
     val bank: SoundBank,
@@ -124,6 +140,99 @@ class PreparedSoundRequirements(initial: Collection<SoundFile>) {
     }
 
     fun snapshot(): Set<SoundFile> = Collections.unmodifiableSet(EnumSet.copyOf(sounds))
+}
+
+fun interface PreparedBankProvider {
+    fun prepare(
+        bank: SoundBank,
+        requiredSounds: Collection<SoundFile>
+    ): SoundPreparationResult<PreparedSoundBank>
+}
+
+class ActivePreparedSounds(
+    val bank: SoundBank,
+    val beatSound: SoundFile,
+    val rhythmSound: SoundFile,
+    internal val beat: ShortArray,
+    internal val rhythm: ShortArray
+) {
+    val configuration = ActiveSoundConfiguration(bank, beatSound, rhythmSound)
+}
+
+class ActiveSoundConfiguration(
+    val bank: SoundBank,
+    val beatSound: SoundFile,
+    val rhythmSound: SoundFile
+)
+
+class PreparedSoundSelection(
+    initialBank: SoundBank,
+    initialBeatSound: SoundFile,
+    initialRhythmSound: SoundFile,
+    private val provider: PreparedBankProvider
+) {
+    private val requirements = PreparedSoundRequirements(
+        listOf(initialBeatSound, initialRhythmSound)
+    )
+    private var requestedBeatSound = initialBeatSound
+    private var requestedRhythmSound = initialRhythmSound
+
+    var requestedBank: SoundBank = initialBank
+        private set
+
+    @Volatile
+    var active: ActivePreparedSounds? = null
+        private set
+
+    @Volatile
+    var failure: SoundPreparationFailure? = null
+        private set
+
+    fun selectBank(bank: SoundBank) {
+        requestedBank = bank
+        prepare()
+    }
+
+    fun selectSounds(beatSound: SoundFile, rhythmSound: SoundFile) {
+        requestedBeatSound = beatSound
+        requestedRhythmSound = rhythmSound
+        requirements.include(listOf(beatSound, rhythmSound))
+        prepare()
+    }
+
+    fun includeAndPrepare(sounds: Collection<SoundFile>) {
+        requirements.include(sounds)
+        prepare()
+    }
+
+    private fun prepare() {
+        when (val result = provider.prepare(requestedBank, requirements.snapshot())) {
+            is SoundPreparationResult.Success -> publish(result.value)
+            is SoundPreparationResult.Failure -> failure = result.failure
+        }
+    }
+
+    private fun publish(bank: PreparedSoundBank) {
+        val beat = bank.waveform(requestedBeatSound)?.copySamples()
+        val rhythm = bank.waveform(requestedRhythmSound)?.copySamples()
+        if (beat == null || rhythm == null) {
+            val missing = if (beat == null) requestedBeatSound else requestedRhythmSound
+            failure = SoundPreparationFailure(
+                requestedBank,
+                missing,
+                SoundPreparationFailureCode.MISSING
+            )
+            return
+        }
+        active = ActivePreparedSounds(
+            bank = bank.bank,
+            beatSound = requestedBeatSound,
+            rhythmSound = requestedRhythmSound,
+            beat = beat,
+            rhythm = rhythm
+        )
+        failure = null
+    }
 }
 
 class SoundBankPreparer(

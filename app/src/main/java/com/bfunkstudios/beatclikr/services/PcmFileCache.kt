@@ -115,13 +115,11 @@ class PcmFileCache(
 
         private fun cleanupOldVersions() {
             if (cleanedOldVersions) return
-            filesDir.listFiles()
-                ?.filter {
-                    it.isDirectory &&
-                        it.name.startsWith(CACHE_PREFIX) &&
-                        it.name != CACHE_DIRECTORY
-                }
-                ?.forEach { it.deleteRecursively() }
+            GeneratedPcmCacheMaintenance.cleanup(
+                filesDir,
+                CACHE_PREFIX,
+                CACHE_DIRECTORY
+            )
             cleanedOldVersions = true
         }
 

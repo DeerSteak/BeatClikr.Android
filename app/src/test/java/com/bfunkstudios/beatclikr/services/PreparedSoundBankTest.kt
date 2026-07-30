@@ -2,13 +2,16 @@ package com.bfunkstudios.beatclikr.services
 
 import com.bfunkstudios.beatclikr.data.SoundBank
 import com.bfunkstudios.beatclikr.data.SoundFile
+import java.nio.file.Files
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotSame
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class PreparedSoundBankTest {
@@ -87,17 +90,66 @@ class PreparedSoundBankTest {
     }
 
     @Test
-    fun requiredSoundSetCannotShrinkWhenSelectionOrBankChanges() {
-        val requirements = PreparedSoundRequirements(
-            listOf(SoundFile.CLICK_HI, SoundFile.CLICK_LO)
-        )
-        requirements.include(SoundFile.entries)
-        val complete = requirements.snapshot()
+    fun selectionControllerPublishesFullBankAfterBankAndSoundChanges() {
+        val calls = mutableListOf<Pair<SoundBank, Set<SoundFile>>>()
+        val selection = PreparedSoundSelection(
+            SoundBank.ACOUSTIC,
+            SoundFile.CLICK_HI,
+            SoundFile.CLICK_LO
+        ) { bank, sounds ->
+            calls += bank to sounds.toSet()
+            SoundPreparationResult.Success(
+                PreparedSoundBank.create(
+                    bank,
+                    48_000,
+                    sounds.associateWith { shortArrayOf(it.ordinal.toShort()) }
+                )
+            )
+        }
 
-        requirements.include(listOf(SoundFile.KICK, SoundFile.SNARE))
+        selection.includeAndPrepare(SoundFile.entries)
+        selection.selectSounds(SoundFile.KICK, SoundFile.SNARE)
+        selection.selectBank(SoundBank.SYNTH)
 
-        assertEquals(SoundFile.entries.toSet(), complete)
-        assertEquals(complete, requirements.snapshot())
+        assertEquals(SoundFile.entries.toSet(), calls.last().second)
+        assertEquals(SoundBank.SYNTH, calls.last().first)
+        assertEquals(SoundBank.SYNTH, selection.active?.bank)
+        assertEquals(SoundFile.KICK, selection.active?.beatSound)
+        assertEquals(SoundFile.SNARE, selection.active?.rhythmSound)
+    }
+
+    @Test
+    fun failedBankSwitchPreservesTruthfulLastGoodSnapshot() {
+        val selection = PreparedSoundSelection(
+            SoundBank.ACOUSTIC,
+            SoundFile.CLICK_HI,
+            SoundFile.CLICK_LO
+        ) { bank, sounds ->
+            if (bank == SoundBank.SYNTH) {
+                SoundPreparationResult.Failure(
+                    SoundPreparationFailure(
+                        bank,
+                        SoundFile.CLICK_HI,
+                        SoundPreparationFailureCode.MISSING
+                    )
+                )
+            } else {
+                SoundPreparationResult.Success(
+                    PreparedSoundBank.create(
+                        bank,
+                        48_000,
+                        sounds.associateWith { shortArrayOf(1) }
+                    )
+                )
+            }
+        }
+        selection.includeAndPrepare(SoundFile.entries)
+
+        selection.selectBank(SoundBank.SYNTH)
+
+        assertEquals(SoundBank.SYNTH, selection.requestedBank)
+        assertEquals(SoundBank.ACOUSTIC, selection.active?.bank)
+        assertEquals(SoundBank.SYNTH, selection.failure?.bank)
     }
 
     @Test
@@ -211,6 +263,30 @@ class PreparedSoundBankTest {
         preparer.prepare(SoundBank.SYNTH, listOf(SoundFile.CLICK_HI))
 
         assertNull(store.current(SoundBank.SYNTH))
+    }
+
+    @Test
+    fun cacheMaintenanceRemovesOldVersionsAndOrphanedTemporaryFiles() {
+        val root = Files.createTempDirectory("beatclikr-cache-test").toFile()
+        val current = root.resolve("audio_track_pcm_v4").apply { mkdirs() }
+        val old = root.resolve("audio_track_pcm_v3").apply { mkdirs() }
+        val orphan = current.resolve("waveform123.tmp").apply { writeText("partial") }
+        val stable = current.resolve("waveform.pcm").apply { writeText("complete") }
+        old.resolve("old.pcm").writeText("old")
+
+        try {
+            GeneratedPcmCacheMaintenance.cleanup(
+                root,
+                "audio_track_pcm_",
+                "audio_track_pcm_v4"
+            )
+
+            assertFalse(old.exists())
+            assertFalse(orphan.exists())
+            assertTrue(stable.exists())
+        } finally {
+            root.deleteRecursively()
+        }
     }
 
     private fun preparer(
