@@ -5,8 +5,15 @@ import com.bfunkstudios.beatclikr.data.SoundBank
 import com.bfunkstudios.beatclikr.data.SoundFile
 
 /** Centralized playback API backed by the metronome audio engine. */
-class AudioPlayerService private constructor(context: Context) : IAudioPlayerService, MetronomeAudioEngineDelegate {
+internal class AudioPlayerService(context: Context) : PlaybackEnginePort, MetronomeAudioEngineDelegate {
     private val audioEngine = MetronomeAudioEngine(context.applicationContext)
+
+    override var soundPreparationObserver:
+        ((ActiveSoundConfiguration?, SoundPreparationFailure?) -> Unit)?
+        get() = audioEngine.soundPreparationObserver
+        set(value) {
+            audioEngine.soundPreparationObserver = value
+        }
 
     override var delegate: MetronomeAudioEngineDelegate? = null
     override var polyrhythmDelegate: PolyrhythmAudioEngineDelegate?
@@ -31,7 +38,6 @@ class AudioPlayerService private constructor(context: Context) : IAudioPlayerSer
         accentPattern: List<Boolean>?,
         alternateSixteenth: Boolean
     ) {
-        audioEngine.stopPolyrhythm()
         audioEngine.startMetronome(bpm, subdivisions, accentPattern, alternateSixteenth, this)
     }
 
@@ -49,7 +55,6 @@ class AudioPlayerService private constructor(context: Context) : IAudioPlayerSer
     }
 
     override fun startPolyrhythm(bpm: Float, beats: Int, against: Int) {
-        audioEngine.stopMetronome()
         audioEngine.startPolyrhythm(bpm, beats, against)
     }
 
@@ -69,26 +74,19 @@ class AudioPlayerService private constructor(context: Context) : IAudioPlayerSer
         return audioEngine.getFrameAudioMetricsSnapshot()
     }
 
+    override fun activeSoundConfiguration(): ActiveSoundConfiguration? =
+        audioEngine.getActiveSoundConfiguration()
+
+    override fun soundPreparationFailure(): SoundPreparationFailure? =
+        audioEngine.getSoundPreparationFailure()
+
     override fun release() {
         audioEngine.release()
         delegate = null
-        synchronized(Companion) {
-            INSTANCE = null
-        }
     }
 
     override fun metronomeBeatFired(isBeat: Boolean, beatInterval: Float, beatTimeNanos: Long) {
         delegate?.metronomeBeatFired(isBeat, beatInterval, beatTimeNanos)
     }
 
-    companion object {
-        @Volatile
-        private var INSTANCE: AudioPlayerService? = null
-
-        fun getInstance(context: Context): AudioPlayerService {
-            return INSTANCE ?: synchronized(this) {
-                INSTANCE ?: AudioPlayerService(context).also { INSTANCE = it }
-            }
-        }
-    }
 }

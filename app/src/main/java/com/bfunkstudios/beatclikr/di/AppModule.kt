@@ -15,6 +15,8 @@ import com.bfunkstudios.beatclikr.services.AudioPlayerService
 import com.bfunkstudios.beatclikr.services.FlashlightService
 import com.bfunkstudios.beatclikr.services.HapticFeedbackService
 import com.bfunkstudios.beatclikr.services.IAudioPlayerService
+import com.bfunkstudios.beatclikr.services.PlaybackCoordinator
+import com.bfunkstudios.beatclikr.services.PlaybackEnginePort
 import com.bfunkstudios.beatclikr.services.IFlashlightService
 import com.bfunkstudios.beatclikr.services.IHapticFeedbackService
 import com.bfunkstudios.beatclikr.services.IPracticeReminderScheduler
@@ -49,8 +51,16 @@ abstract class AppModule {
     companion object {
 
         @Provides @Singleton
-        fun provideAudioPlayerService(@ApplicationContext context: Context): IAudioPlayerService =
-            AudioPlayerService.getInstance(context)
+        fun providePlaybackEngine(@ApplicationContext context: Context): PlaybackEnginePort =
+            AudioPlayerService(context)
+
+        @Provides @Singleton
+        fun providePlaybackCoordinator(engine: PlaybackEnginePort): PlaybackCoordinator =
+            PlaybackCoordinator(engine)
+
+        @Provides @Singleton
+        fun provideAudioPlayerService(coordinator: PlaybackCoordinator): IAudioPlayerService =
+            coordinator
 
         @Provides @Singleton
         fun provideFlashlightService(@ApplicationContext context: Context): IFlashlightService =

@@ -90,6 +90,10 @@ Phase 3.5 diagnostics time mixing separately from the required blocking `AudioTr
 
 The release-equivalent five-minute Pixel 8a decision run is recorded in `benchmarks/2026-07-30-phase-3.5-pixel-8a.md`. It is the current evidence for retaining `AudioTrack`; AAudio or Oboe comparison is conditional on a reproducible approved-gate failure that remains after `AudioTrack` tuning or on unmet required device coverage.
 
+The Phase 4.1 coordinator suite verifies that production DI exposes one application-scoped playback owner, concurrent intents execute on one control thread, and cross-mode replacement stops the old mode before starting the new one. Separate tests prove standard retunes, polyrhythm retunes, and mute changes remain in place without teardown.
+
+Coordinator boundary tests translate invalid input and engine exceptions into typed outcomes, preserve the last-good audible sound snapshot after preparation failure, and reject stale sound publication that does not match the latest request. The coordinator exposes ownership state and bounded provisional timing events; these wall-clock callbacks are intentionally not called audio-committed events. Phase 4.2 adds renderer-originated, frame-correlated committed events.
+
 Renderer regressions also cover live mute changes and a delayed first event derived from the obtained sample rate. Recovery before that delayed timeline origin remains valid and clamps its event cursor without changing output-frame ownership.
 
 The standard-update regression changes tempo after rendering has begun and requires the replacement's first event to remain on the next old-tempo boundary. It also requires the pattern role and `EventSequence` index to continue across that boundary, proving that ramps do not restart the stream or reset musical phase.

@@ -35,6 +35,9 @@ interface PolyrhythmAudioEngineDelegate {
 
 class MetronomeAudioEngine(private val context: Context) {
     @Volatile
+    var soundPreparationObserver:
+        ((ActiveSoundConfiguration?, SoundPreparationFailure?) -> Unit)? = null
+    @Volatile
     private var frameAudioEngine: FrameAudioEngine? = null
     private val handlerThread = HandlerThread("MetronomeThread").also { it.start() }
     private val handler = Handler(handlerThread.looper)
@@ -74,6 +77,7 @@ class MetronomeAudioEngine(private val context: Context) {
             field = value
             handler.post {
                 frameAudioEngine?.soundBank = value
+                notifySoundPreparation()
             }
         }
 
@@ -117,6 +121,7 @@ class MetronomeAudioEngine(private val context: Context) {
             this.beatResourceId = beatResourceId
             this.rhythmResourceId = rhythmResourceId
             getOrCreateFrameAudioEngine().setSounds(beatResourceId, rhythmResourceId)
+            notifySoundPreparation()
         }
     }
 
@@ -193,6 +198,7 @@ class MetronomeAudioEngine(private val context: Context) {
     fun prepareAudioTrackSounds(soundFiles: Collection<SoundFile>) {
         handler.post {
             getOrCreateFrameAudioEngine().prepareSounds(soundFiles)
+            notifySoundPreparation()
         }
     }
 
@@ -210,6 +216,13 @@ class MetronomeAudioEngine(private val context: Context) {
 
     fun getActiveSoundConfiguration(): ActiveSoundConfiguration? =
         frameAudioEngine?.activeSoundConfiguration
+
+    private fun notifySoundPreparation() {
+        soundPreparationObserver?.invoke(
+            getActiveSoundConfiguration(),
+            getSoundPreparationFailure()
+        )
+    }
 
     fun updateTempo(
         bpm: Float,
