@@ -568,6 +568,35 @@ class PlaybackCoordinatorTest {
     }
 
     @Test
+    fun activeMediaServerFailureFailsAndStopsSession() {
+        val engine = FakePlaybackEngine().apply {
+            autoStopAcknowledgement = false
+        }
+        val coordinator = PlaybackCoordinator(engine)
+        try {
+            coordinator.submit(PlaybackIntent.StartStandard(120f, 4, null, false))
+            assertTrue(coordinator.awaitControlIdle())
+            val sessionId =
+                (coordinator.transportState.value as PlaybackTransportState.Playing)
+                    .context.sessionId
+
+            coordinator.submitSystemInput(
+                PlaybackSystemInput.EngineFailed(sessionId, "RENDER: DEVICE_DISCONNECTED")
+            )
+            assertTrue(coordinator.awaitControlIdle())
+
+            val failed = coordinator.transportState.value as PlaybackTransportState.Failed
+            assertEquals(
+                PlaybackFailureReason.Engine("RENDER: DEVICE_DISCONNECTED"),
+                failed.reason
+            )
+            assertEquals(1, engine.operations.count { it == "stopStandard" })
+        } finally {
+            coordinator.release()
+        }
+    }
+
+    @Test
     fun staleInterruptionAndEngineFailureInputsAreIgnored() {
         val engine = FakePlaybackEngine()
         val coordinator = PlaybackCoordinator(engine)
