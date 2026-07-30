@@ -110,7 +110,7 @@ class PolyrhythmTimeline(
                         },
                         secondary,
                         configuration.muteMetronome,
-                        roleIndices = (primaryIndex shl 16) or secondaryIndex
+                        roleIndices = packRoleIndices(primaryIndex, secondaryIndex)
                     )
                 ) {
                     return true

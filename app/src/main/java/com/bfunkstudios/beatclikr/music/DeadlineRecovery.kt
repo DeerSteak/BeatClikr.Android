@@ -35,6 +35,15 @@ interface FrameEventTimeline : FrameRangeEventSource {
     fun eventCountIn(range: FrameRange): Long
 }
 
+internal const val ROLE_INDEX_BITS = 16
+internal const val ROLE_INDEX_MASK = 0xffff
+
+internal fun packRoleIndices(primaryIndex: Int, secondaryIndex: Int = 0): Int {
+    require(primaryIndex in 0..ROLE_INDEX_MASK) { "Primary role index is out of range" }
+    require(secondaryIndex in 0..ROLE_INDEX_MASK) { "Secondary role index is out of range" }
+    return (primaryIndex shl ROLE_INDEX_BITS) or secondaryIndex
+}
+
 data class DeadlineDiagnostics(
     val sessionID: SessionID,
     val mode: TimelineMode,

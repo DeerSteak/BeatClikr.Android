@@ -164,7 +164,7 @@ class MetronomeViewModelTest {
     }
 
     @Test
-    fun `committed standard event drives feedback projection`() {
+    fun `committed standard event uses authoritative role index`() {
         every { prefs.useVibration } returns true
         val playing = standardPlaying()
         transportState.value = playing
@@ -173,11 +173,12 @@ class MetronomeViewModelTest {
             PlaybackCommittedEvent.Rendered(
                 1,
                 playing.context.sessionId,
-                0,
+                1,
                 MusicalEventRole.STANDARD,
                 0,
                 false,
-                EventPresentation.Unavailable
+                EventPresentation.Unavailable,
+                roleIndex = 0
             )
         )
 

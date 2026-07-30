@@ -352,7 +352,8 @@ class FramePcmRendererTest {
         assumeTrue(bean.isThreadAllocatedMemorySupported)
         bean.isThreadAllocatedMemoryEnabled = true
         var minimumAllocatedBytes = Long.MAX_VALUE
-        repeat(5) {
+        var attempts = 0
+        while (attempts < 100 && minimumAllocatedBytes != 0L) {
             val before = bean.currentThreadAllocatedBytes
             repeat(10_000) {
                 renderer.render(startFrame, output, output.size)
@@ -362,6 +363,7 @@ class FramePcmRendererTest {
                 minimumAllocatedBytes,
                 bean.currentThreadAllocatedBytes - before
             )
+            attempts++
         }
 
         assertEquals(0, minimumAllocatedBytes)

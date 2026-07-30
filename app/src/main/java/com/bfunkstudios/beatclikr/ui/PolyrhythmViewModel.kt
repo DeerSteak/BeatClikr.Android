@@ -49,10 +49,10 @@ class PolyrhythmViewModel @Inject constructor(
     private var transportState by mutableStateOf(playback.transportState.value)
 
     val isPlaying: Boolean
-        get() = transportState.isActive(PlaybackMode.POLYRHYTHM)
+        get() = transportState.isModeActive(PlaybackMode.POLYRHYTHM)
 
     val controlsEnabled: Boolean
-        get() = !transportState.isTransitioning(PlaybackMode.POLYRHYTHM)
+        get() = !transportState.isModeTransitioning(PlaybackMode.POLYRHYTHM)
 
     var lastPlaybackFailure by mutableStateOf<String?>(null)
         private set
@@ -274,7 +274,7 @@ class PolyrhythmViewModel @Inject constructor(
             projectedSessionId = session
             playheadResetID += 1
         }
-        if (!state.isActive(PlaybackMode.POLYRHYTHM)) {
+        if (!state.isModeActive(PlaybackMode.POLYRHYTHM)) {
             stopChoreographerLoop()
             beatPulse = 0f
             rhythmPulse = 0f
@@ -302,29 +302,13 @@ class PolyrhythmViewModel @Inject constructor(
         polyrhythmBeatFired(
             beatFired,
             rhythmFired,
-            rendered.roleIndex,
-            rendered.roleIndex,
+            if (beatFired) rendered.roleIndex else activeBeatIndex,
+            if (rhythmFired) rendered.roleIndex else activeRhythmIndex,
             presentationTime,
             beatDurationNanos,
             rhythmDurationNanos,
             presentationIsFrameTime = true
         )
-    }
-
-    private fun PlaybackTransportState.isActive(mode: PlaybackMode): Boolean {
-        val session = this as? PlaybackTransportState.SessionState ?: return false
-        return session.context.mode == mode &&
-            this !is PlaybackTransportState.Stopping &&
-            this !is PlaybackTransportState.Interrupted &&
-            this !is PlaybackTransportState.Failed
-    }
-
-    private fun PlaybackTransportState.isTransitioning(mode: PlaybackMode): Boolean {
-        val session = this as? PlaybackTransportState.SessionState ?: return false
-        return session.context.mode == mode &&
-            (this is PlaybackTransportState.Preparing ||
-                this is PlaybackTransportState.Starting ||
-                this is PlaybackTransportState.Stopping)
     }
 
     override fun onCleared() {

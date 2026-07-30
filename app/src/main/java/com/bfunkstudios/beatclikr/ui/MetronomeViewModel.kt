@@ -53,10 +53,10 @@ class MetronomeViewModel @Inject constructor(
     private var transportState by mutableStateOf(playback.transportState.value)
 
     val isPlaying: Boolean
-        get() = transportState.isActive(PlaybackMode.STANDARD)
+        get() = transportState.isModeActive(PlaybackMode.STANDARD)
 
     val controlsEnabled: Boolean
-        get() = !transportState.isTransitioning(PlaybackMode.STANDARD)
+        get() = !transportState.isModeTransitioning(PlaybackMode.STANDARD)
 
     var lastPlaybackFailure by mutableStateOf<String?>(null)
         private set
@@ -436,7 +436,7 @@ class MetronomeViewModel @Inject constructor(
         lastPlaybackFailure = (state as? PlaybackTransportState.Failed)
             ?.reason
             ?.toString()
-        if (!state.isActive(PlaybackMode.STANDARD)) {
+        if (!state.isModeActive(PlaybackMode.STANDARD)) {
             stopChoreographerLoop()
             pendingBeatEvent.set(null)
             iconScale = MetronomeConstants.ICON_SCALE_MIN
@@ -455,30 +455,13 @@ class MetronomeViewModel @Inject constructor(
         }
         val configuration =
             playing.context.configuration as CommittedPlaybackConfiguration.Standard
-        val patternSize = configuration.accentPattern?.size ?: configuration.subdivisions
-        val index = Math.floorMod(rendered.eventSequence, patternSize.toLong()).toInt()
+        val index = rendered.roleIndex
         val isBeat = configuration.accentPattern?.get(index) ?: (index == 0)
         val beatInterval = 60f / configuration.bpm
         val presentationTime = (rendered.presentation as? EventPresentation.Correlated)
             ?.presentationNanoTime
             ?: 0L
         applyStandardEvent(isBeat, beatInterval, presentationTime, presentationIsFrameTime = true)
-    }
-
-    private fun PlaybackTransportState.isActive(mode: PlaybackMode): Boolean {
-        val session = this as? PlaybackTransportState.SessionState ?: return false
-        return session.context.mode == mode &&
-            this !is PlaybackTransportState.Stopping &&
-            this !is PlaybackTransportState.Interrupted &&
-            this !is PlaybackTransportState.Failed
-    }
-
-    private fun PlaybackTransportState.isTransitioning(mode: PlaybackMode): Boolean {
-        val session = this as? PlaybackTransportState.SessionState ?: return false
-        return session.context.mode == mode &&
-            (this is PlaybackTransportState.Preparing ||
-                this is PlaybackTransportState.Starting ||
-                this is PlaybackTransportState.Stopping)
     }
 
     override fun onCleared() {

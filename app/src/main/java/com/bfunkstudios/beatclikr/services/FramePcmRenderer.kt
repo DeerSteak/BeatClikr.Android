@@ -3,6 +3,8 @@ package com.bfunkstudios.beatclikr.services
 import com.bfunkstudios.beatclikr.music.FrameRangeEventConsumer
 import com.bfunkstudios.beatclikr.music.FrameRangeEventSource
 import com.bfunkstudios.beatclikr.music.MusicalEventRole
+import com.bfunkstudios.beatclikr.music.ROLE_INDEX_BITS
+import com.bfunkstudios.beatclikr.music.ROLE_INDEX_MASK
 import com.bfunkstudios.beatclikr.music.SoundRole
 
 /** Stable waveform references prepared and published before rendering begins. */
@@ -82,7 +84,7 @@ class FramePcmRenderer(
             eventSequence,
             intendedFrame,
             primaryRole,
-            roleIndices ushr 16,
+            roleIndices ushr ROLE_INDEX_BITS,
             muted
         )
         if (secondaryRole != null) {
@@ -91,7 +93,7 @@ class FramePcmRenderer(
                 eventSequence,
                 intendedFrame,
                 secondaryRole,
-                roleIndices and 0xffff,
+                roleIndices and ROLE_INDEX_MASK,
                 muted
             )
         }

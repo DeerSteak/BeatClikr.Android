@@ -161,7 +161,7 @@ class StandardMetronomeTimeline(
                         null,
                         null,
                         configuration.muteMetronome,
-                        roleIndices = index shl 16
+                        roleIndices = packRoleIndices(index)
                     )
                 ) {
                     return true

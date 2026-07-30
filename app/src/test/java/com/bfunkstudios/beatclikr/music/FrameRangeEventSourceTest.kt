@@ -1,9 +1,21 @@
 package com.bfunkstudios.beatclikr.music
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertThrows
 import org.junit.Test
 
 class FrameRangeEventSourceTest {
+    @Test
+    fun packedRoleIndicesPreserveUnsignedSixteenBitValues() {
+        val packed = packRoleIndices(0xffff, 0xffff)
+
+        assertEquals(0xffff, packed ushr ROLE_INDEX_BITS)
+        assertEquals(0xffff, packed and ROLE_INDEX_MASK)
+        assertThrows(IllegalArgumentException::class.java) {
+            packRoleIndices(0x1_0000)
+        }
+    }
+
     @Test
     fun standardVisitorMatchesObjectTimeline() {
         val timeline = StandardMetronomeTimeline(
