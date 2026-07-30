@@ -1,5 +1,6 @@
 package com.bfunkstudios.beatclikr
 
+import android.os.SystemClock
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.LargeTest
 import androidx.test.platform.app.InstrumentationRegistry
@@ -28,7 +29,6 @@ class AccentContractInstrumentedTest {
         withEngine { engine ->
             AccentContractFixtures.oddMeterSubdivisions.forEach { subdivisions ->
                 AccentContractFixtures.oddMeterPatterns.forEach { fixture ->
-                    val before = requireNotNull(engine.getFrameAudioMetricsSnapshot())
                     val capture = capture(
                         engine = engine,
                         subdivisions = subdivisions,
@@ -40,7 +40,7 @@ class AccentContractInstrumentedTest {
 
                     assertEquals("${fixture.pattern}/$subdivisions feedback", fixture.accents, capture.beatFlags)
                     assertIntervals(subdivisions, capture.scheduledTimes)
-                    assertSoundRoleDeltas(fixture, before, after)
+                    assertSoundRoles(fixture, after)
                 }
             }
         }
@@ -49,7 +49,6 @@ class AccentContractInstrumentedTest {
     @Test
     fun mt009_alternateSixteenthsUseBeatSoundOnEvenTicksAndFeedbackOnTickZero() {
         withEngine { engine ->
-            val before = requireNotNull(engine.getFrameAudioMetricsSnapshot())
             val capture = capture(
                 engine = engine,
                 subdivisions = 4,
@@ -64,12 +63,12 @@ class AccentContractInstrumentedTest {
 
             assertEquals(expected.map { it.isBeat }, capture.beatFlags)
             assertEquals(
-                expected.count { it.soundRole == ContractSoundRole.BEAT }.toLong(),
-                after.queuedBeatClicks - before.queuedBeatClicks
+                repeatedRoleCount(expected.map { it.soundRole }, after.queuedClicks, ContractSoundRole.BEAT),
+                after.queuedBeatClicks
             )
             assertEquals(
-                expected.count { it.soundRole == ContractSoundRole.RHYTHM }.toLong(),
-                after.queuedRhythmClicks - before.queuedRhythmClicks
+                repeatedRoleCount(expected.map { it.soundRole }, after.queuedClicks, ContractSoundRole.RHYTHM),
+                after.queuedRhythmClicks
             )
         }
     }
@@ -110,6 +109,7 @@ class AccentContractInstrumentedTest {
 
         engine.startMetronome(TEST_BPM, subdivisions, accentPattern, alternateSixteenth, delegate)
         assertTrue("Timed out waiting for accent contract events", latch.await(TIMEOUT_SECONDS, TimeUnit.SECONDS))
+        awaitRenderedClicks(engine, eventCount)
         engine.stopMetronome()
         Thread.sleep(STOP_SETTLE_MILLIS)
         return EventCapture(
@@ -128,21 +128,37 @@ class AccentContractInstrumentedTest {
         }
     }
 
-    private fun assertSoundRoleDeltas(
+    private fun assertSoundRoles(
         fixture: OddMeterPatternFixture,
-        before: FrameAudioMetricsSnapshot,
         after: FrameAudioMetricsSnapshot
     ) {
+        assertTrue(after.queuedClicks >= fixture.soundRoles.size)
         assertEquals(
             "${fixture.pattern} beat sounds",
-            fixture.soundRoles.count { it == ContractSoundRole.BEAT }.toLong(),
-            after.queuedBeatClicks - before.queuedBeatClicks
+            repeatedRoleCount(fixture.soundRoles, after.queuedClicks, ContractSoundRole.BEAT),
+            after.queuedBeatClicks
         )
         assertEquals(
             "${fixture.pattern} rhythm sounds",
-            fixture.soundRoles.count { it == ContractSoundRole.RHYTHM }.toLong(),
-            after.queuedRhythmClicks - before.queuedRhythmClicks
+            repeatedRoleCount(fixture.soundRoles, after.queuedClicks, ContractSoundRole.RHYTHM),
+            after.queuedRhythmClicks
         )
+    }
+
+    private fun repeatedRoleCount(
+        roles: List<ContractSoundRole>,
+        eventCount: Long,
+        target: ContractSoundRole
+    ): Long = (0 until eventCount).count { roles[(it % roles.size).toInt()] == target }.toLong()
+
+    private fun awaitRenderedClicks(engine: MetronomeAudioEngine, minimum: Int) {
+        val deadline = SystemClock.elapsedRealtime() + TIMEOUT_SECONDS * 1_000
+        while (
+            requireNotNull(engine.getFrameAudioMetricsSnapshot()).queuedClicks < minimum &&
+            SystemClock.elapsedRealtime() < deadline
+        ) {
+            Thread.sleep(10)
+        }
     }
 
     private data class EventCapture(

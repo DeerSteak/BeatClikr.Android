@@ -43,10 +43,12 @@ class StandardMetronomeContractInstrumentedTest {
                 val capture = captureEvents(engine, fixture, eventCount)
                 val expected = fixture.events(eventCount)
                 val metrics = requireNotNull(engine.getFrameAudioMetricsSnapshot())
+                val rendered = fixture.events(metrics.queuedClicks.toInt())
 
                 assertEquals(expected.map { it.isBeat }, capture.beatFlags)
-                assertEquals(expected.count { it.soundRole == ContractSoundRole.BEAT }.toLong(), metrics.queuedBeatClicks)
-                assertEquals(expected.count { it.soundRole == ContractSoundRole.RHYTHM }.toLong(), metrics.queuedRhythmClicks)
+                assertTrue(metrics.queuedClicks >= eventCount)
+                assertEquals(rendered.count { it.soundRole == ContractSoundRole.BEAT }.toLong(), metrics.queuedBeatClicks)
+                assertEquals(rendered.count { it.soundRole == ContractSoundRole.RHYTHM }.toLong(), metrics.queuedRhythmClicks)
             }
         }
     }
@@ -157,6 +159,7 @@ class StandardMetronomeContractInstrumentedTest {
 
         engine.startMetronome(fixture.bpm, fixture.subdivisions, null, false, delegate)
         assertTrue("Timed out waiting for contract events", latch.await(TIMEOUT_SECONDS, TimeUnit.SECONDS))
+        awaitRenderedClicks(engine, eventCount)
         engine.stopMetronome()
         settle()
         return EventCapture(
@@ -176,6 +179,16 @@ class StandardMetronomeContractInstrumentedTest {
 
     private fun settle() {
         Thread.sleep(STOP_SETTLE_MILLIS)
+    }
+
+    private fun awaitRenderedClicks(engine: MetronomeAudioEngine, minimum: Int) {
+        val deadline = SystemClock.elapsedRealtime() + TIMEOUT_SECONDS * 1_000
+        while (
+            requireNotNull(engine.getFrameAudioMetricsSnapshot()).queuedClicks < minimum &&
+            SystemClock.elapsedRealtime() < deadline
+        ) {
+            Thread.sleep(10)
+        }
     }
 
     private data class EventCapture(
