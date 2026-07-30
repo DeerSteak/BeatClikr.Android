@@ -74,7 +74,8 @@ private class RenderFramePeriod(period: ExactFraction) {
 class StandardMetronomeTimeline(
     val configuration: StandardMetronomeConfiguration,
     val sampleRate: Int,
-    override val origin: SessionOrigin
+    override val origin: SessionOrigin,
+    private val initialEventIndex: Long = 0
 ) : FrameEventTimeline {
     override val mode = TimelineMode.STANDARD
     private val patternSize: Int
@@ -92,9 +93,21 @@ class StandardMetronomeTimeline(
                 subdivisions = timing.stepUnit.subdivisions
             }
         }
+        require(initialEventIndex >= 0) { "Initial event index must not be negative" }
         val intervalsPerMinute =
             configuration.bpm.beatsPerMinute * ExactFraction.of(subdivisions.toLong())
         timeline = AbsoluteAudioTimeline(sampleRate, intervalsPerMinute)
+    }
+
+    fun continuationAtOrAfter(frame: Long): StandardTimelineContinuation {
+        if (frame <= origin.originFrame) {
+            return StandardTimelineContinuation(origin.originFrame, initialEventIndex)
+        }
+        val intervalIndex = timeline.firstIntervalAtOrAfter(frame - origin.originFrame)
+        return StandardTimelineContinuation(
+            frame = Math.addExact(origin.originFrame, timeline.framePosition(intervalIndex)),
+            eventIndex = eventIndex(intervalIndex)
+        )
     }
 
     override fun eventsIn(range: FrameRange): Sequence<FrameEvent> = sequence {
@@ -136,7 +149,7 @@ class StandardMetronomeTimeline(
             val intendedFrame = Math.addExact(origin.originFrame, timeline.framePosition(intervalIndex))
             if (intendedFrame >= endFrameExclusive) return true
             if (intendedFrame >= startFrame) {
-                val index = (intervalIndex % patternSize).toInt()
+                val index = patternIndex(intervalIndex)
                 val isBeat = isBeat(index)
                 val role = if (usesBeatSound(index, isBeat)) SoundRole.BEAT else SoundRole.RHYTHM
                 if (!consumer.accept(intendedFrame, role, null, configuration.muteMetronome)) {
@@ -148,24 +161,31 @@ class StandardMetronomeTimeline(
     }
 
     private fun eventAt(intervalIndex: Long, intendedFrame: Long): FrameEvent {
-        val index = (intervalIndex % patternSize).toInt()
+        val eventIndex = eventIndex(intervalIndex)
+        val index = patternIndex(intervalIndex)
         val isBeat = isBeat(index)
         val usesBeatSound = usesBeatSound(index, isBeat)
         return FrameEvent(
-            sequence = EventSequence(origin.sessionID, intervalIndex),
+            sequence = EventSequence(origin.sessionID, eventIndex),
             intendedFrame = intendedFrame,
             primary = EventVoice(
                 role = MusicalEventRole.STANDARD,
                 soundRole = if (usesBeatSound) SoundRole.BEAT else SoundRole.RHYTHM,
                 beatIdentity = beatIdentity(index, isBeat),
                 position = CyclePosition(
-                    cycleIndex = intervalIndex / patternSize,
+                    cycleIndex = eventIndex / patternSize,
                     index = index
                 )
             ),
             muteMetronome = configuration.muteMetronome
         )
     }
+
+    private fun eventIndex(intervalIndex: Long): Long =
+        Math.addExact(initialEventIndex, intervalIndex)
+
+    private fun patternIndex(intervalIndex: Long): Int =
+        (eventIndex(intervalIndex) % patternSize).toInt()
 
     private fun isBeat(index: Int): Boolean =
         when (val timing = configuration.timing) {
@@ -191,3 +211,8 @@ class StandardMetronomeTimeline(
                 if (index == 0) BeatIdentity.BEAT else BeatIdentity.SUBDIVISION
         }
 }
+
+data class StandardTimelineContinuation(
+    val frame: Long,
+    val eventIndex: Long
+)

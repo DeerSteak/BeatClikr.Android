@@ -50,6 +50,20 @@ class DeadlineRecoveryTest {
     }
 
     @Test
+    fun recoverToDropsOnlyExpiredEventsAndDoesNotCommitFutureWindow() {
+        val timeline = standardTimeline()
+        val written = DeadlineRecoveryState.atOrigin(timeline).synchronizedTo(4)
+
+        val recovered = DeadlineRecovery.recoverTo(timeline, written, 24_000)
+
+        assertEquals(24_000, recovered.nextUnprocessedFrame)
+        assertEquals(1, recovered.diagnostics.deadlineMisses)
+        assertEquals(1, recovered.diagnostics.droppedEvents)
+        assertEquals(0, recovered.diagnostics.committedEvents)
+        assertEquals(1, recovered.diagnostics.recoveryWindows)
+    }
+
+    @Test
     fun adjacentAndOverlappingWindowsCannotDuplicateFramesOrSequences() {
         val timeline = standardTimeline()
         var state = DeadlineRecoveryState.atOrigin(timeline)

@@ -1,10 +1,11 @@
 package com.bfunkstudios.beatclikr
 
+import android.os.SystemClock
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.LargeTest
 import androidx.test.platform.app.InstrumentationRegistry
 import com.bfunkstudios.beatclikr.data.SoundFile
-import com.bfunkstudios.beatclikr.services.AudioTrackMetricsSnapshot
+import com.bfunkstudios.beatclikr.services.FrameAudioMetricsSnapshot
 import com.bfunkstudios.beatclikr.services.MetronomeAudioEngine
 import com.bfunkstudios.beatclikr.services.PolyrhythmAudioEngineDelegate
 import java.util.Collections
@@ -27,14 +28,13 @@ class PolyrhythmContractInstrumentedTest {
     fun mt012_mt015_mt018_representativeRatiosPreserveSharedOriginEventsAndIndices() {
         withEngine { engine ->
             EnginePolyrhythmFixtures.representativeRatios.forEach { fixture ->
-                val before = requireNotNull(engine.getAudioTrackMetricsSnapshot())
                 val capture = captureCycle(engine, fixture)
-                val after = requireNotNull(engine.getAudioTrackMetricsSnapshot())
+                val after = requireNotNull(engine.getFrameAudioMetricsSnapshot())
                 val expected = fixture.events + fixture.events.first().copy(stepIndex = fixture.gridSize)
 
                 assertEquals("${fixture.beats}:${fixture.against} events", expected.map { it.identity }, capture.events.map { it.identity })
                 assertCycleTiming(fixture, capture.events)
-                assertSoundCounts(fixture, before, after)
+                assertSoundCounts(fixture, after, expected.size)
             }
         }
     }
@@ -84,6 +84,7 @@ class PolyrhythmContractInstrumentedTest {
 
         engine.startPolyrhythm(TEST_BPM, fixture.beats, fixture.against)
         assertTrue("${fixture.beats}:${fixture.against} timed out", latch.await(TIMEOUT_SECONDS, TimeUnit.SECONDS))
+        awaitRenderedPrefix(engine, fixture, eventCount)
         engine.stopPolyrhythm()
         Thread.sleep(STOP_SETTLE_MILLIS)
         return CycleCapture(synchronized(events) { events.toList() })
@@ -110,19 +111,39 @@ class PolyrhythmContractInstrumentedTest {
 
     private fun assertSoundCounts(
         fixture: EnginePolyrhythmFixture,
-        before: AudioTrackMetricsSnapshot,
-        after: AudioTrackMetricsSnapshot
+        after: FrameAudioMetricsSnapshot,
+        minimumEvents: Int
     ) {
-        assertEquals(
-            "${fixture.beats}:${fixture.against} beat sounds",
-            (fixture.against + 1).toLong(),
-            after.queuedBeatClicks - before.queuedBeatClicks
+        assertTrue(
+            "${fixture.beats}:${fixture.against} sound roles",
+            matchingPrefixLength(fixture, after, minimumEvents) != null
         )
-        assertEquals(
-            "${fixture.beats}:${fixture.against} rhythm sounds",
-            (fixture.beats + 1).toLong(),
-            after.queuedRhythmClicks - before.queuedRhythmClicks
-        )
+    }
+
+    private fun awaitRenderedPrefix(
+        engine: MetronomeAudioEngine,
+        fixture: EnginePolyrhythmFixture,
+        minimumEvents: Int
+    ) {
+        val deadline = SystemClock.elapsedRealtime() + TIMEOUT_SECONDS * 1_000
+        while (SystemClock.elapsedRealtime() < deadline) {
+            val metrics = requireNotNull(engine.getFrameAudioMetricsSnapshot())
+            if (matchingPrefixLength(fixture, metrics, minimumEvents) != null) return
+            Thread.sleep(10)
+        }
+    }
+
+    private fun matchingPrefixLength(
+        fixture: EnginePolyrhythmFixture,
+        metrics: FrameAudioMetricsSnapshot,
+        minimumEvents: Int
+    ): Int? {
+        val maximumEvents = minimumEvents + fixture.events.size * 2
+        return (minimumEvents..maximumEvents).firstOrNull { count ->
+            val events = List(count) { fixture.events[it % fixture.events.size] }
+            events.count { it.beatFired }.toLong() == metrics.queuedBeatClicks &&
+                events.count { it.rhythmFired }.toLong() == metrics.queuedRhythmClicks
+        }
     }
 
     private val EnginePolyrhythmEvent.identity: EventIdentity

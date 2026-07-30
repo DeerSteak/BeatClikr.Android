@@ -16,6 +16,7 @@ import java.util.concurrent.TimeUnit
 
 interface MetronomeAudioEngineDelegate {
     fun metronomeBeatFired(isBeat: Boolean, beatInterval: Float, beatTimeNanos: Long = 0L)
+    fun metronomeStartFailed() {}
 }
 
 interface PolyrhythmAudioEngineDelegate {
@@ -28,11 +29,13 @@ interface PolyrhythmAudioEngineDelegate {
         beatDurationNanos: Long = 0L,
         rhythmDurationNanos: Long = 0L
     )
+
+    fun polyrhythmStartFailed() {}
 }
 
 class MetronomeAudioEngine(private val context: Context) {
     @Volatile
-    private var audioTrackEngine: AudioTrackEngine? = null
+    private var frameAudioEngine: FrameAudioEngine? = null
     private val handlerThread = HandlerThread("MetronomeThread").also { it.start() }
     private val handler = Handler(handlerThread.looper)
     private val audioManager = context.getSystemService(AudioManager::class.java)
@@ -48,6 +51,9 @@ class MetronomeAudioEngine(private val context: Context) {
     private var currentAlternateSixteenth = false
     private var subdivisionCounter: Int = 0
     private var nextBeatTimeNanos: Long = 0L
+    private var frameAudioActive = false
+    private var framePolyrhythmActive = false
+    private var polyrhythmPlaying = false
 
     private var delegate: MetronomeAudioEngineDelegate? = null
 
@@ -55,18 +61,22 @@ class MetronomeAudioEngine(private val context: Context) {
         get() = polyrhythmEngine.delegate
         set(value) { polyrhythmEngine.delegate = value }
 
-    @Volatile var isMuted: Boolean = false
+    @Volatile
+    var isMuted: Boolean = false
+        set(value) {
+            field = value
+            frameAudioEngine?.setFrameMuted(value)
+        }
 
     @Volatile
     var soundBank: SoundBank = SoundBank.ACOUSTIC
         set(value) {
             field = value
             handler.post {
-                audioTrackEngine?.soundBank = value
+                frameAudioEngine?.soundBank = value
             }
         }
 
-    private val checkInterval = MetronomeConstants.TIMER_CHECK_INTERVAL_MS
     private val firstBeatDelayMs = MetronomeConstants.FIRST_BEAT_DELAY_MS
     private val lookaheadToleranceMs = MetronomeConstants.LOOKAHEAD_TOLERANCE_MS
 
@@ -96,16 +106,9 @@ class MetronomeAudioEngine(private val context: Context) {
 
     private val polyrhythmEngine = PolyrhythmTimingEngine(
         handler = handler,
-        isMuted = { isMuted },
-        isLoaded = { true },
-        playBeatSound = { audioTrackEngine?.playBeat() },
-        playRhythmSound = { audioTrackEngine?.playRhythm() },
-        playBeatAndRhythmSounds = { audioTrackEngine?.playBeatAndRhythm() },
-        outputLatencyNanos = { if (!isMuted) audioTrackEngine?.estimatedOutputLatencyNanos ?: 0L else 0L },
-        checkIntervalMs = checkInterval,
+        outputLatencyNanos = { if (!isMuted) frameAudioEngine?.estimatedOutputLatencyNanos ?: 0L else 0L },
         firstBeatDelayMs = firstBeatDelayMs,
-        lookaheadToleranceMs = lookaheadToleranceMs,
-        requestAudioFocus = ::requestAudioFocus
+        lookaheadToleranceMs = lookaheadToleranceMs
     )
 
     fun loadSounds(beatResourceId: Int, rhythmResourceId: Int) {
@@ -113,7 +116,7 @@ class MetronomeAudioEngine(private val context: Context) {
             if (this.beatResourceId == beatResourceId && this.rhythmResourceId == rhythmResourceId) return@post
             this.beatResourceId = beatResourceId
             this.rhythmResourceId = rhythmResourceId
-            getOrCreateAudioTrackEngine().setSounds(beatResourceId, rhythmResourceId)
+            getOrCreateFrameAudioEngine().setSounds(beatResourceId, rhythmResourceId)
         }
     }
 
@@ -134,48 +137,79 @@ class MetronomeAudioEngine(private val context: Context) {
         handler.post {
             isPlaying = false
             handler.removeCallbacks(timerRunnable)
-            audioTrackEngine?.stop()
+            frameAudioEngine?.stop()
+            frameAudioActive = false
+            framePolyrhythmActive = false
             subdivisionCounter = 0
         }
     }
 
     fun startPolyrhythm(bpm: Float, beats: Int, against: Int) {
         handler.post {
-            getOrCreateAudioTrackEngine().start()
+            val engine = getOrCreateFrameAudioEngine()
+            if (polyrhythmPlaying) {
+                if (frameAudioActive && framePolyrhythmActive) {
+                    engine.updatePolyrhythm(bpm, beats, against, isMuted)
+                }
+                polyrhythmEngine.updateAtCycleBoundary(bpm, beats, against)
+                return@post
+            }
+            if (!requestAudioFocus()) return@post
+            if (frameAudioActive) engine.stop()
+            frameAudioActive = engine.startPolyrhythm(
+                bpm,
+                beats,
+                against,
+                isMuted,
+                firstBeatDelayMs
+            )
+            framePolyrhythmActive = frameAudioActive
+            if (!frameAudioActive) {
+                polyrhythmEngine.delegate?.polyrhythmStartFailed()
+                abandonAudioFocus()
+                return@post
+            }
             polyrhythmEngine.start(bpm, beats, against)
+            polyrhythmPlaying = true
         }
     }
 
     fun stopPolyrhythm() {
         handler.post {
             polyrhythmEngine.stop()
-            audioTrackEngine?.stop()
+            frameAudioEngine?.stop()
+            frameAudioActive = false
+            framePolyrhythmActive = false
+            polyrhythmPlaying = false
         }
     }
 
     fun prewarm() {
         handler.post {
-            getOrCreateAudioTrackEngine().prewarm()
+            getOrCreateFrameAudioEngine().prewarm()
         }
     }
 
     fun prepareAudioTrackSounds(soundFiles: Collection<SoundFile>) {
         handler.post {
-            getOrCreateAudioTrackEngine().prepareSounds(soundFiles)
+            getOrCreateFrameAudioEngine().prepareSounds(soundFiles)
         }
     }
 
-    fun getAudioTrackMetricsSnapshot(): AudioTrackMetricsSnapshot? {
-        return audioTrackEngine?.metricsSnapshot()
+    fun getFrameAudioMetricsSnapshot(): FrameAudioMetricsSnapshot? {
+        return frameAudioEngine?.metricsSnapshot()
     }
 
     fun getSoundPreparationFailure(): SoundPreparationFailure? =
-        audioTrackEngine?.lastSoundPreparationFailure
+        frameAudioEngine?.lastSoundPreparationFailure
 
-    fun getActiveSoundBank(): SoundBank? = audioTrackEngine?.activeSoundBank
+    fun getFramePublicationFailure(): FramePublicationResult.Rejected? =
+        frameAudioEngine?.lastFramePublicationFailure
+
+    fun getActiveSoundBank(): SoundBank? = frameAudioEngine?.activeSoundBank
 
     fun getActiveSoundConfiguration(): ActiveSoundConfiguration? =
-        audioTrackEngine?.activeSoundConfiguration
+        frameAudioEngine?.activeSoundConfiguration
 
     fun updateTempo(
         bpm: Float,
@@ -191,6 +225,17 @@ class MetronomeAudioEngine(private val context: Context) {
             if (currentAccentPattern != null && subdivisionCounter >= currentAccentPattern!!.size) {
                 subdivisionCounter = 0
             }
+            if (isPlaying && frameAudioActive) {
+                if (framePolyrhythmActive) return@post
+                val engine = getOrCreateFrameAudioEngine()
+                engine.updateStandard(
+                    bpm,
+                    subdivisions,
+                    accentPattern,
+                    alternateSixteenth,
+                    isMuted
+                )
+            }
         }
     }
 
@@ -199,8 +244,8 @@ class MetronomeAudioEngine(private val context: Context) {
         handler.post {
             isPlaying = false
             handler.removeCallbacks(timerRunnable)
-            audioTrackEngine?.release()
-            audioTrackEngine = null
+            frameAudioEngine?.release()
+            frameAudioEngine = null
             polyrhythmEngine.stop()
             polyrhythmEngine.delegate = null
             delegate = null
@@ -243,6 +288,7 @@ class MetronomeAudioEngine(private val context: Context) {
     ) {
         if (!requestAudioFocus()) return
 
+        polyrhythmPlaying = false
         this.delegate = delegate
         this.currentBPM = bpm
         this.currentSubdivisions = subdivisions
@@ -253,8 +299,24 @@ class MetronomeAudioEngine(private val context: Context) {
         val currentTimeNanos = SystemClock.elapsedRealtimeNanos()
         this.nextBeatTimeNanos = currentTimeNanos + (firstBeatDelayMs * 1_000_000L)
 
+        val engine = getOrCreateFrameAudioEngine()
+        if (frameAudioActive) engine.stop()
+        frameAudioActive = engine.startStandard(
+            bpm,
+            subdivisions,
+            accentPattern,
+            alternateSixteenth,
+            isMuted,
+            firstBeatDelayMs
+        )
+        framePolyrhythmActive = false
+        if (!frameAudioActive) {
+            this.delegate?.metronomeStartFailed()
+            this.delegate = null
+            abandonAudioFocus()
+            return
+        }
         this.isPlaying = true
-        getOrCreateAudioTrackEngine().start()
         startTimer()
     }
 
@@ -265,39 +327,55 @@ class MetronomeAudioEngine(private val context: Context) {
 
     private val timerRunnable = object : Runnable {
         override fun run() {
-            checkAndPlayBeat()
-            if (isPlaying) {
-                handler.postDelayed(this, checkInterval)
-            }
+            playScheduledBeat()
+            if (isPlaying) scheduleNextBeat()
         }
     }
 
     private fun startTimer() {
         handler.removeCallbacks(timerRunnable)
-        handler.post(timerRunnable)
+        scheduleNextBeat()
     }
 
-    private fun checkAndPlayBeat() {
+    private fun playScheduledBeat() {
         if (!isPlaying) {
             handler.removeCallbacks(timerRunnable)
             return
         }
 
-        val nowNanos = SystemClock.elapsedRealtimeNanos()
-        val lookaheadNanos = lookaheadToleranceMs * 1_000_000L
+        val subdivisionDurationNanos = getSubdivisionDurationNanos()
+        dropExpiredVisualBeats(subdivisionDurationNanos)
+        playCurrentBeat(subdivisionDurationNanos, nextBeatTimeNanos)
 
-        if (nowNanos >= nextBeatTimeNanos - lookaheadNanos) {
-            val subdivisionDurationNanos = getSubdivisionDurationNanos()
-            playCurrentBeat(subdivisionDurationNanos, nextBeatTimeNanos)
+        nextBeatTimeNanos += subdivisionDurationNanos
 
-            // Increment from the scheduled time (not nowNanos) so late callbacks self-correct
-            nextBeatTimeNanos += subdivisionDurationNanos
-
-            subdivisionCounter++
-            if (subdivisionCounter >= currentStepCount()) {
-                subdivisionCounter = 0
-            }
+        subdivisionCounter++
+        if (subdivisionCounter >= currentStepCount()) {
+            subdivisionCounter = 0
         }
+    }
+
+    private fun dropExpiredVisualBeats(subdivisionDurationNanos: Long) {
+        val skippedBeats = expiredEventCount(
+            SystemClock.elapsedRealtimeNanos(),
+            nextBeatTimeNanos,
+            lookaheadToleranceMs * NANOS_PER_MILLISECOND,
+            subdivisionDurationNanos
+        )
+        if (skippedBeats == 0L) return
+        nextBeatTimeNanos = Math.addExact(
+            nextBeatTimeNanos,
+            Math.multiplyExact(skippedBeats, subdivisionDurationNanos)
+        )
+        val stepCount = currentStepCount()
+        subdivisionCounter = (
+            subdivisionCounter + skippedBeats % stepCount
+        ).toInt() % stepCount
+    }
+
+    private fun scheduleNextBeat() {
+        val triggerNanos = nextBeatTimeNanos - lookaheadToleranceMs * NANOS_PER_MILLISECOND
+        handler.postDelayed(timerRunnable, delayUntil(triggerNanos))
     }
 
     private fun playCurrentBeat(subdivisionDurationNanos: Long, scheduledTimeNanos: Long) {
@@ -306,25 +384,14 @@ class MetronomeAudioEngine(private val context: Context) {
         val ticksToNextBeat = accentPattern?.let { ticksToNextAccent(it, subdivisionCounter) }
             ?: currentSubdivisions
         val beatInterval = ticksToNextBeat * (subdivisionDurationNanos / 1_000_000_000f)
-        val shouldPlayBeatSound = isBeat ||
-            (accentPattern == null && currentAlternateSixteenth && currentSubdivisions == 4 && subdivisionCounter == 2)
-
-        if (!isMuted) {
-            if (shouldPlayBeatSound) {
-                audioTrackEngine?.playBeat()
-            } else {
-                audioTrackEngine?.playRhythm()
-            }
-        }
-
         val visualBeatTimeNanos = scheduledTimeNanos +
-            if (!isMuted) audioTrackEngine?.estimatedOutputLatencyNanos ?: 0L else 0L
+            if (!isMuted) frameAudioEngine?.estimatedOutputLatencyNanos ?: 0L else 0L
         delegate?.metronomeBeatFired(isBeat, beatInterval, visualBeatTimeNanos)
     }
 
-    private fun getOrCreateAudioTrackEngine(): AudioTrackEngine {
-        return audioTrackEngine ?: AudioTrackEngine(audioManager, pcmFileCache).also { engine ->
-            audioTrackEngine = engine
+    private fun getOrCreateFrameAudioEngine(): FrameAudioEngine {
+        return frameAudioEngine ?: FrameAudioEngine(audioManager, pcmFileCache).also { engine ->
+            frameAudioEngine = engine
             engine.soundBank = soundBank
             val beatResource = beatResourceId
             val rhythmResource = rhythmResourceId
@@ -355,5 +422,12 @@ class MetronomeAudioEngine(private val context: Context) {
 
     private companion object {
         const val DEFAULT_SAMPLE_RATE = 44_100
+        const val NANOS_PER_MILLISECOND = 1_000_000L
+
+        fun delayUntil(triggerNanos: Long): Long {
+            val remaining = triggerNanos - SystemClock.elapsedRealtimeNanos()
+            return if (remaining <= 0) 0 else (remaining + NANOS_PER_MILLISECOND - 1) /
+                NANOS_PER_MILLISECOND
+        }
     }
 }

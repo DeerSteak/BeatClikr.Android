@@ -6,16 +6,9 @@ import com.bfunkstudios.beatclikr.data.PolyrhythmGrid
 
 internal class PolyrhythmTimingEngine(
     private val handler: Handler,
-    private val isMuted: () -> Boolean,
-    private val playBeatSound: () -> Unit,
-    private val playRhythmSound: () -> Unit,
-    private val playBeatAndRhythmSounds: () -> Unit,
     private val outputLatencyNanos: () -> Long,
-    private val checkIntervalMs: Long,
     private val firstBeatDelayMs: Long,
-    private val lookaheadToleranceMs: Long,
-    private val requestAudioFocus: () -> Boolean,
-    isLoaded: () -> Boolean
+    private val lookaheadToleranceMs: Long
 ) {
     var delegate: PolyrhythmAudioEngineDelegate? = null
 
@@ -31,21 +24,32 @@ internal class PolyrhythmTimingEngine(
     private var stepDurationNanos = 0L
     private var stepIndex = 0
     private var nextStepTimeNanos = 0L
+    private var pendingBpm = 0f
+    private var pendingBeats = 0
+    private var pendingAgainst = 0
+    private var hasPendingUpdate = false
 
     fun start(bpm: Float, beats: Int, against: Int) {
         handler.removeCallbacks(runnable)
         doStart(bpm, beats, against)
     }
 
+    fun updateAtCycleBoundary(bpm: Float, beats: Int, against: Int) {
+        pendingBpm = bpm
+        pendingBeats = beats
+        pendingAgainst = against
+        hasPendingUpdate = true
+        if (stepIndex == 0) applyPendingUpdate()
+    }
+
     fun stop() {
         isPlaying = false
         handler.removeCallbacks(runnable)
         stepIndex = 0
+        hasPendingUpdate = false
     }
 
     private fun doStart(bpm: Float, beats: Int, against: Int) {
-        if (!requestAudioFocus()) return
-
         this.bpm = bpm
         this.against = against.coerceIn(1, 15)
         this.beats = beats.coerceIn(1, 15)
@@ -57,33 +61,82 @@ internal class PolyrhythmTimingEngine(
         nextStepTimeNanos = SystemClock.elapsedRealtimeNanos() + (firstBeatDelayMs * 1_000_000L)
         isPlaying = true
         handler.removeCallbacks(runnable)
-        handler.post(runnable)
+        scheduleNextStep()
     }
 
     private val runnable = object : Runnable {
         override fun run() {
-            checkAndPlayStep()
-            if (isPlaying) {
-                handler.postDelayed(this, checkIntervalMs)
-            }
+            playScheduledStep()
+            if (isPlaying) scheduleNextStep()
         }
     }
 
-    private fun checkAndPlayStep() {
+    private fun playScheduledStep() {
         if (!isPlaying) {
             handler.removeCallbacks(runnable)
             return
         }
 
-        val nowNanos = SystemClock.elapsedRealtimeNanos()
-        val lookaheadNanos = lookaheadToleranceMs * 1_000_000L
+        dropExpiredVisualSteps()
+        playCurrentStep(nextStepTimeNanos)
+        nextStepTimeNanos += stepDurationNanos
+        stepIndex = (stepIndex + 1) % grid.lcm
+        if (stepIndex == 0) applyPendingUpdate()
+    }
 
-        if (nowNanos >= nextStepTimeNanos - lookaheadNanos) {
-            playCurrentStep(nextStepTimeNanos)
-            // Increment from the scheduled time (not nowNanos) so late callbacks self-correct
-            nextStepTimeNanos += stepDurationNanos
-            stepIndex = (stepIndex + 1) % grid.lcm
+    private fun dropExpiredVisualSteps() {
+        while (true) {
+            val expiredSteps = expiredEventCount(
+                SystemClock.elapsedRealtimeNanos(),
+                nextStepTimeNanos,
+                lookaheadToleranceMs * NANOS_PER_MILLISECOND,
+                stepDurationNanos
+            )
+            if (expiredSteps == 0L) return
+            val stepsToPendingBoundary = if (hasPendingUpdate && stepIndex != 0) {
+                grid.lcm - stepIndex
+            } else {
+                0
+            }
+            if (stepsToPendingBoundary > 0 && expiredSteps >= stepsToPendingBoundary) {
+                advanceVisualSteps(stepsToPendingBoundary.toLong())
+                applyPendingUpdate()
+            } else {
+                advanceVisualSteps(expiredSteps)
+                return
+            }
         }
+    }
+
+    private fun advanceVisualSteps(stepCount: Long) {
+        nextStepTimeNanos = Math.addExact(
+            nextStepTimeNanos,
+            Math.multiplyExact(stepCount, stepDurationNanos)
+        )
+        stepIndex = ((stepIndex + stepCount % grid.lcm).toInt()) % grid.lcm
+    }
+
+    private fun scheduleNextStep() {
+        val triggerNanos = nextStepTimeNanos -
+            lookaheadToleranceMs * NANOS_PER_MILLISECOND
+        val remaining = triggerNanos - SystemClock.elapsedRealtimeNanos()
+        val delayMillis = if (remaining <= 0) {
+            0
+        } else {
+            (remaining + NANOS_PER_MILLISECOND - 1) / NANOS_PER_MILLISECOND
+        }
+        handler.postDelayed(runnable, delayMillis)
+    }
+
+    private fun applyPendingUpdate() {
+        if (!hasPendingUpdate) return
+        bpm = pendingBpm
+        beats = pendingBeats.coerceIn(1, 15)
+        against = pendingAgainst.coerceIn(1, 15)
+        grid = PolyrhythmGrid.create(beats = beats, against = against)
+        val nanosPerBeat = 60_000_000_000.0 / bpm
+        stepDurationNanos = (against * nanosPerBeat / grid.lcm).toLong()
+        hasPendingUpdate = false
     }
 
     private fun playCurrentStep(scheduledTimeNanos: Long) {
@@ -91,14 +144,6 @@ internal class PolyrhythmTimingEngine(
         val beatFired = step.beatFired
         val rhythmFired = step.rhythmFired
         if (!beatFired && !rhythmFired) return
-
-        if (!isMuted()) {
-            when {
-                beatFired && rhythmFired -> playBeatAndRhythmSounds()
-                beatFired -> playBeatSound()
-                rhythmFired -> playRhythmSound()
-            }
-        }
 
         val visualStepTimeNanos = scheduledTimeNanos + outputLatencyNanos()
         delegate?.polyrhythmBeatFired(
@@ -110,5 +155,9 @@ internal class PolyrhythmTimingEngine(
             beatDurationNanos = (60_000_000_000.0 / bpm).toLong().coerceAtLeast(1L),
             rhythmDurationNanos = (against * (60_000_000_000.0 / bpm) / beats).toLong().coerceAtLeast(1L)
         )
+    }
+
+    private companion object {
+        const val NANOS_PER_MILLISECOND = 1_000_000L
     }
 }

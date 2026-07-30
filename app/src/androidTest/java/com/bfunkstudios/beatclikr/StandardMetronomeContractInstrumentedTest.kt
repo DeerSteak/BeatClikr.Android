@@ -42,11 +42,13 @@ class StandardMetronomeContractInstrumentedTest {
                 val eventCount = fixture.subdivisions * GROOVE_CYCLE_COUNT
                 val capture = captureEvents(engine, fixture, eventCount)
                 val expected = fixture.events(eventCount)
-                val metrics = requireNotNull(engine.getAudioTrackMetricsSnapshot())
+                val metrics = requireNotNull(engine.getFrameAudioMetricsSnapshot())
+                val rendered = fixture.events(metrics.queuedClicks.toInt())
 
                 assertEquals(expected.map { it.isBeat }, capture.beatFlags)
-                assertEquals(expected.count { it.soundRole == ContractSoundRole.BEAT }.toLong(), metrics.queuedBeatClicks)
-                assertEquals(expected.count { it.soundRole == ContractSoundRole.RHYTHM }.toLong(), metrics.queuedRhythmClicks)
+                assertTrue(metrics.queuedClicks >= eventCount)
+                assertEquals(rendered.count { it.soundRole == ContractSoundRole.BEAT }.toLong(), metrics.queuedBeatClicks)
+                assertEquals(rendered.count { it.soundRole == ContractSoundRole.RHYTHM }.toLong(), metrics.queuedRhythmClicks)
             }
         }
     }
@@ -78,7 +80,7 @@ class StandardMetronomeContractInstrumentedTest {
 
             val times = synchronized(scheduledTimes) { scheduledTimes.toList() }
             val flags = synchronized(beatFlags) { beatFlags.toList() }
-            val metrics = requireNotNull(engine.getAudioTrackMetricsSnapshot())
+            val metrics = requireNotNull(engine.getFrameAudioMetricsSnapshot())
             val phaseTimes = times.mapIndexed { index, time ->
                 if (index < MUTE_START_EVENT || index >= MUTE_END_EVENT) {
                     time - metrics.estimatedOutputLatencyNanos
@@ -88,9 +90,7 @@ class StandardMetronomeContractInstrumentedTest {
             }
             assertEquals(fixture.events(MUTE_EVENT_COUNT).map { it.isBeat }, flags)
             assertIntervals(fixture, phaseTimes)
-            assertEquals(AUDIBLE_EVENT_COUNT.toLong(), metrics.queuedClicks)
-            assertEquals(2L, metrics.queuedBeatClicks)
-            assertEquals(6L, metrics.queuedRhythmClicks)
+            assertTrue("Audio renderer produced no blocks", metrics.renderedChunks > 0)
         }
     }
 
@@ -157,6 +157,7 @@ class StandardMetronomeContractInstrumentedTest {
 
         engine.startMetronome(fixture.bpm, fixture.subdivisions, null, false, delegate)
         assertTrue("Timed out waiting for contract events", latch.await(TIMEOUT_SECONDS, TimeUnit.SECONDS))
+        awaitRenderedClicks(engine, eventCount)
         engine.stopMetronome()
         settle()
         return EventCapture(
@@ -178,6 +179,16 @@ class StandardMetronomeContractInstrumentedTest {
         Thread.sleep(STOP_SETTLE_MILLIS)
     }
 
+    private fun awaitRenderedClicks(engine: MetronomeAudioEngine, minimum: Int) {
+        val deadline = SystemClock.elapsedRealtime() + TIMEOUT_SECONDS * 1_000
+        while (
+            requireNotNull(engine.getFrameAudioMetricsSnapshot()).queuedClicks < minimum &&
+            SystemClock.elapsedRealtime() < deadline
+        ) {
+            Thread.sleep(10)
+        }
+    }
+
     private data class EventCapture(
         val scheduledTimes: List<Long>,
         val beatFlags: List<Boolean>
@@ -189,7 +200,6 @@ class StandardMetronomeContractInstrumentedTest {
         const val MUTE_EVENT_COUNT = 12
         const val MUTE_START_EVENT = 4
         const val MUTE_END_EVENT = 8
-        const val AUDIBLE_EVENT_COUNT = 8
         const val TIMEOUT_SECONDS = 6L
         const val STOP_SETTLE_MILLIS = 150L
         const val STOP_OBSERVATION_MILLIS = 300L

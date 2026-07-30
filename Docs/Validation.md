@@ -66,6 +66,38 @@ The Phase 3.1 renderer suite verifies exact in-block offsets, adjacent-block wav
 
 The Phase 3.2 sound suite verifies WAV structure and format failures, empty resources, leading-silence preservation, stereo downmixing, resampling, immutable snapshots, atomic replacement, cache regeneration and versioning, bank switching, concurrent preparation, and failure without partial publication. Its architecture test prevents decoder or cache access from returning to the current `AudioTrack` render loop.
 
+The Phase 3.3 backend boundary suite verifies that mono and stereo obtained layouts preserve one renderer frame per output frame, duplicate mono samples into every channel, reject invalid ranges, and reuse the prepared interleaving buffer.
+
+The Phase 3.3 stream-owner suite verifies renderer publication from obtained stream facts, absolute frame ranges, partial-write continuation in frame units, written-frame ownership after failure, typed owner failures routed to the responsible caller, halted-loop liveness, resync rejection before backend start, no-teardown recovery after failure, reset boundaries, idempotent stop, and zero measured allocation in the prepared owner render path.
+
+The recovery composition test carries an active waveform tail into a discontinuity, synchronizes recovery to the written-frame boundary, counts the expired event arithmetically, and verifies the first recovered block contains only the new event. Backward recovery is rejected without changing frame ownership or resetting the renderer.
+
+The prepared publication suite verifies that standard and polyrhythm timelines use the obtained sample rate, bind the approved beat and rhythm waveforms, preserve coincident mixing, and publish matching recovery state. An architecture tripwire prevents `copySamples()` from entering the stream owner or renderer publication path.
+
+The `AudioTrackFrameSession` architecture tripwire prohibits pending-click queues, waveform enqueueing, and beat/rhythm trigger methods from entering the new Android frame driver. Physical-device qualification remains required after production selects this path.
+
+The renderer suite verifies muted events do not increment role counters and failed blocks commit no counters. Publication tests carry nonzero origins into stream start, while the session tripwire requires a synchronous start result, publication-derived origin, sequence-stamped snapshot reads, session-relative block counts, and fixed-capacity failure recording without collection growth.
+
+The publication-boundary suite accepts regular, additive, and polyrhythm requests, retains domain rejection causes, and translates missing sounds or invalid legacy inputs into typed failures. A ramp-derived fractional tempo verifies float-to-exact conversion at its expected output frame. Session architecture checks also require late-start cancellation and idempotent release so a rejected selection cannot leave a hidden render loop.
+
+The production-selection tripwire requires standard and polyrhythm starts to use frame audio and prohibits the pending-click queue, waveform enqueue method, trigger methods, and legacy render runnable from the production output owner. Existing instrumentation metrics are backed by frame-rendered role counters, written-frame ownership, obtained stream facts, and the real `AudioTrack` underrun count.
+
+The same tripwire prohibits the former check-interval polling fields and methods and requires one-shot standard and polyrhythm scheduling helpers.
+
+The frame-session tripwire requires one reusable timestamp holder, captures written/presented frame correlation into the consistent snapshot, and requires an advancing underrun count to skip timestamp-estimated missing presentation frames before owner resynchronization. Pure policy tests cover timestamp-gap conversion and constant-time visual event dropping.
+
+Phase 3.5 diagnostics time mixing separately from the required blocking `AudioTrack.write`. Fixed-memory histograms use 5 µs buckets through 500 µs and progressively wider buckets above that range; reported p50, p95, and p99 values are bucket upper bounds, while maxima are exact. Snapshots also distinguish intended, rendered, written, and nullable estimated-presented frames and report route changes without allocating on the per-block record path.
+
+The release-equivalent five-minute Pixel 8a decision run is recorded in `benchmarks/2026-07-30-phase-3.5-pixel-8a.md`. It is the current evidence for retaining `AudioTrack`; AAudio or Oboe comparison is conditional on a reproducible approved-gate failure that remains after `AudioTrack` tuning or on unmet required device coverage.
+
+Renderer regressions also cover live mute changes and a delayed first event derived from the obtained sample rate. Recovery before that delayed timeline origin remains valid and clamps its event cursor without changing output-frame ownership.
+
+The standard-update regression changes tempo after rendering has begun and requires the replacement's first event to remain on the next old-tempo boundary. It also requires the pattern role and `EventSequence` index to continue across that boundary, proving that ramps do not restart the stream or reset musical phase.
+
+The polyrhythm-update regression changes tempo and ratio mid-cycle, then requires the replacement to begin at the next old shared-cycle boundary with both roles coincident and event/cycle identity preserved. A production-selection tripwire requires this retune branch to return before a new frame start.
+
+These deterministic tests prove phase rules in each clock domain, not physical audio/visual coincidence. Phase 8 must measure retunes because audio selects a boundary from buffer-ahead `nextFrame`, while visual timing reaches its boundary on the monotonic wall clock; the resulting skew must be recorded rather than inferred from the configured buffer size.
+
 The Phase 2.5 recovery suite verifies multi-event stalls, direct future-event selection, constant-time range counts, exact deadline and drop counts, coincident polyrhythm drops, repeated recovery windows, overlapping render windows, immutable origins, and stale session or mode rejection. Expired events are counted but never enumerated or returned to the renderer, preventing recovery work and catch-up output from scaling with the duration of a stall.
 
 `PureCoreQualificationTest` is the permanent Phase 2 regression gate. It checks the twelve-hour fractional endpoint across every integer sample rate accepted by `AudioTrack`, streams twelve-hour minimum, fractional typical, maximum-density, and dense polyrhythm timelines at 44.1 and 48 kHz, injects stalls at every event position, and runs reproducible randomized standard and polyrhythm command batches. Together with the focused music-model tests, the suite contains executable coverage for MT-001 through MT-032 and TB-001 through TB-003, TB-009, and TB-010.

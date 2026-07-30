@@ -8,6 +8,7 @@ import androidx.test.platform.app.InstrumentationRegistry
 import com.bfunkstudios.beatclikr.data.SoundFile
 import com.bfunkstudios.beatclikr.services.MetronomeAudioEngine
 import com.bfunkstudios.beatclikr.services.MetronomeAudioEngineDelegate
+import com.bfunkstudios.beatclikr.services.AudioBackendType
 import java.util.Collections
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
@@ -77,7 +78,7 @@ class AudioEngineStressInstrumentedTest {
             val arrivalErrors = intervalErrors(arrivals, expectedIntervalNanos)
             val expectedSpan = expectedIntervalNanos * (expectedEvents - 1L)
             val scheduledDrift = abs((scheduled.last() - scheduled.first()) - expectedSpan)
-            val metrics = requireNotNull(engine.getAudioTrackMetricsSnapshot())
+            val metrics = requireNotNull(engine.getFrameAudioMetricsSnapshot())
 
             Log.i(
                 TAG,
@@ -87,8 +88,25 @@ class AudioEngineStressInstrumentedTest {
                     "callbackP95Ms=${toMillis(percentile(arrivalErrors, 0.95))} " +
                     "callbackP99Ms=${toMillis(percentile(arrivalErrors, 0.99))} " +
                     "callbackMaxMs=${toMillis(arrivalErrors.max())} " +
+                    "backend=${metrics.backend} route=${metrics.route} " +
+                    "sampleRate=${metrics.sampleRate} channels=${metrics.channelCount} " +
+                    "burstFrames=${metrics.outputFramesPerBuffer} " +
+                    "bufferFrames=${metrics.bufferFrames} mode=${metrics.performanceMode} " +
+                    "mixP50UpperMs=${toMillis(metrics.mixDurationP50UpperBoundNanos)} " +
+                    "mixP95UpperMs=${toMillis(metrics.mixDurationP95UpperBoundNanos)} " +
+                    "mixP99UpperMs=${toMillis(metrics.mixDurationP99UpperBoundNanos)} " +
+                    "mixMaxMs=${toMillis(metrics.maximumMixDurationNanos)} " +
+                    "writeP50UpperMs=${toMillis(metrics.writeDurationP50UpperBoundNanos)} " +
+                    "writeP95UpperMs=${toMillis(metrics.writeDurationP95UpperBoundNanos)} " +
+                    "writeP99UpperMs=${toMillis(metrics.writeDurationP99UpperBoundNanos)} " +
+                    "writeMaxMs=${toMillis(metrics.maximumWriteDurationNanos)} " +
+                    "routeChanges=${metrics.routeChangeCount} " +
+                    "deadlines=${metrics.deadlineMisses} drops=${metrics.droppedEvents} " +
                     "underruns=${metrics.underrunCount} chunks=${metrics.renderedChunks} " +
-                    "writtenFrames=${metrics.writtenFrames}"
+                    "intendedFrames=${metrics.intendedFrames} " +
+                    "renderedFrames=${metrics.renderedFrames} " +
+                    "writtenFrames=${metrics.writtenFrames} " +
+                    "presentedFrames=${metrics.estimatedPresentedFrames}"
             )
 
             assertEquals(expectedEvents, scheduled.size)
@@ -98,6 +116,15 @@ class AudioEngineStressInstrumentedTest {
             assertTrue("Scheduled drift exceeded 2 ms", scheduledDrift <= 2_000_000L)
             assertTrue("AudioTrack rendered no chunks", metrics.renderedChunks > 0)
             assertTrue("AudioTrack wrote no frames", metrics.writtenFrames > 0)
+            assertEquals(AudioBackendType.AUDIO_TRACK, metrics.backend)
+            assertTrue("Obtained channel count was invalid", metrics.channelCount > 0)
+            assertTrue("Obtained buffer was smaller than its burst", metrics.bufferFrames >= metrics.outputFramesPerBuffer)
+            assertEquals(metrics.intendedFrames, metrics.renderedFrames)
+            assertEquals(metrics.renderedFrames, metrics.writtenFrames)
+            assertTrue("Mix duration diagnostics were empty", metrics.mixDurationP50UpperBoundNanos > 0)
+            assertTrue("Write duration diagnostics were empty", metrics.writeDurationP50UpperBoundNanos > 0)
+            assertEquals("Render deadline misses occurred", 0, metrics.deadlineMisses)
+            assertEquals("Rendered events were dropped", 0, metrics.droppedEvents)
             assertEquals("AudioTrack underruns occurred", 0, metrics.underrunCount)
         } finally {
             engine.release()

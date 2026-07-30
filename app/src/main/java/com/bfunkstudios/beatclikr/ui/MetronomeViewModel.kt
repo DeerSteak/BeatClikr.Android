@@ -332,6 +332,15 @@ class MetronomeViewModel @Inject constructor(
         }
     }
 
+    override fun metronomeStartFailed() {
+        viewModelScope.launch(Dispatchers.Main) {
+            isPlaying = false
+            stopChoreographerLoop()
+            pendingBeatEvent.set(null)
+            iconScale = MetronomeConstants.ICON_SCALE_MIN
+        }
+    }
+
     private fun handleBeat() {
         if (prefs.useFlashlight) flashlight.turnFlashlightOn()
         if (prefs.useVibration) haptics.playBeatHaptic()

@@ -6,15 +6,15 @@ Services isolate audio, device feedback, reminder scheduling, and repository beh
 
 `AudioPlayerService` is the application-facing implementation of `IAudioPlayerService`. It owns `MetronomeAudioEngine`, forwards delegate events, and exposes standard and polyrhythm setup, start, stop, sound-bank, and metrics operations.
 
-`MetronomeAudioEngine` manages audio focus, timing threads, standard beat scheduling, and the polyrhythm engine. `PolyrhythmTimingEngine` advances two rhythms on a shared monotonic timeline. `AudioTrackEngine` mixes prepared mono PCM samples into a streaming `AudioTrack`; `PcmFileCache` reads versioned generated PCM while `SoundBankPreparer` decodes and validates Android raw resources on the control context.
+`MetronomeAudioEngine` manages audio focus, one-shot visual scheduling, frame-audio publication, and the polyrhythm visual engine. `PolyrhythmTimingEngine` advances two visual rhythms on a shared monotonic timeline. `FrameAudioEngine` owns prepared sound selection and frame-session publication; `AudioTrackFrameSession` drives the streaming backend. `PcmFileCache` reads versioned generated PCM while `SoundBankPreparer` decodes and validates Android raw resources on the control context.
 
 Prepared sound banks are immutable snapshots keyed by sound bank and `SoundFile`. A complete replacement is published atomically only after every required resource succeeds. WAV decoding preserves leading silence, downmixes supported channel layouts to mono, resamples before publication, and returns typed missing, corrupt, empty, or incompatible failures.
 
 Sound preparation APIs perform blocking resource and cache work and may only be called from the serialized metronome control context. The engine retains its complete required-sound set across bank switches and preserves the last usable waveform snapshot on preparation failure. Requested configuration, actual audible bank/sound identities, and the typed failure remain separately readable until Phase 4 makes them authoritative application state. `PreparedPcmWaveform.copySamples()` is a publication-time operation and must never be called per render block.
 
-`AudioTrackMetricsSnapshot` reports aggregate queued clicks and separate beat/rhythm enqueue counts so contract tests can verify sound roles without depending on Android resource IDs or inspecting proprietary waveforms.
+`FrameAudioMetricsSnapshot` preserves its existing field schema for instrumentation compatibility, but role counts now come from successfully rendered frame events rather than enqueue operations.
 
-The current scheduler is polling-based and does not place events at exact sample offsets within render blocks. See [PlaybackPerformance.md](PlaybackPerformance.md) and the [adversarial review](../ADVERSARIAL_PROJECT_REVIEW.md) for the replacement requirements.
+Audio events are positioned by absolute frames inside render blocks. Secondary-output callbacks use one-shot monotonic scheduling and drop expired intervals rather than producing catch-up bursts.
 
 ## Secondary output services
 
