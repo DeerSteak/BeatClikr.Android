@@ -161,14 +161,21 @@ class MetronomeAudioEngine(private val context: Context) {
 
     fun prepareAudioTrackSounds(soundFiles: Collection<SoundFile>) {
         handler.post {
-            pcmFileCache.prepare(soundFiles, soundBank)
-            audioTrackEngine?.prepareSounds(soundFiles)
+            getOrCreateAudioTrackEngine().prepareSounds(soundFiles)
         }
     }
 
     fun getAudioTrackMetricsSnapshot(): AudioTrackMetricsSnapshot? {
         return audioTrackEngine?.metricsSnapshot()
     }
+
+    fun getSoundPreparationFailure(): SoundPreparationFailure? =
+        audioTrackEngine?.lastSoundPreparationFailure
+
+    fun getActiveSoundBank(): SoundBank? = audioTrackEngine?.activeSoundBank
+
+    fun getActiveSoundConfiguration(): ActiveSoundConfiguration? =
+        audioTrackEngine?.activeSoundConfiguration
 
     fun updateTempo(
         bpm: Float,

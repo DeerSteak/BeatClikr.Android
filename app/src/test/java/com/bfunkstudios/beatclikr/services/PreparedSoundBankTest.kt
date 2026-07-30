@@ -1,0 +1,342 @@
+package com.bfunkstudios.beatclikr.services
+
+import com.bfunkstudios.beatclikr.data.SoundBank
+import com.bfunkstudios.beatclikr.data.SoundFile
+import java.nio.file.Files
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.Executors
+import org.junit.Assert.assertArrayEquals
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotSame
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertSame
+import org.junit.Assert.assertTrue
+import org.junit.Test
+
+class PreparedSoundBankTest {
+    @Test
+    fun publishesCompleteImmutableReplacementAtomically() {
+        val store = PreparedSoundBankStore()
+        val reader = MapReader(
+            mutableMapOf(
+                key(SoundBank.ACOUSTIC, SoundFile.CLICK_HI) to wav(shortArrayOf(1, 2)),
+                key(SoundBank.ACOUSTIC, SoundFile.CLICK_LO) to wav(shortArrayOf(3, 4))
+            )
+        )
+        val preparer = preparer(reader, MemoryCache(), store)
+
+        val first = success(
+            preparer.prepare(SoundBank.ACOUSTIC, listOf(SoundFile.CLICK_HI))
+        )
+        val sourceCopy = first.waveform(SoundFile.CLICK_HI)!!.copySamples()
+        sourceCopy[0] = 99
+        val replacement = success(
+            preparer.prepare(
+                SoundBank.ACOUSTIC,
+                listOf(SoundFile.CLICK_HI, SoundFile.CLICK_LO)
+            )
+        )
+
+        assertSame(replacement, store.current(SoundBank.ACOUSTIC))
+        assertEquals(2, replacement.size)
+        assertArrayEquals(
+            shortArrayOf(1, 2),
+            replacement.waveform(SoundFile.CLICK_HI)!!.copySamples()
+        )
+        assertNotSame(first, replacement)
+    }
+
+    @Test
+    fun failedReplacementLeavesPublishedBankUntouched() {
+        val store = PreparedSoundBankStore()
+        val reader = MapReader(
+            mutableMapOf(
+                key(SoundBank.ACOUSTIC, SoundFile.CLICK_HI) to wav(shortArrayOf(1))
+            )
+        )
+        val preparer = preparer(reader, MemoryCache(), store)
+        val published = success(
+            preparer.prepare(SoundBank.ACOUSTIC, listOf(SoundFile.CLICK_HI))
+        )
+
+        val failure = preparer.prepare(
+            SoundBank.ACOUSTIC,
+            listOf(SoundFile.CLICK_HI, SoundFile.CLICK_LO)
+        ) as SoundPreparationResult.Failure
+
+        assertEquals(SoundPreparationFailureCode.MISSING, failure.failure.code)
+        assertSame(published, store.current(SoundBank.ACOUSTIC))
+    }
+
+    @Test
+    fun bankSwitchingKeepsIndependentAtomicSnapshots() {
+        val store = PreparedSoundBankStore()
+        val reader = MapReader(
+            mutableMapOf(
+                key(SoundBank.ACOUSTIC, SoundFile.CLICK_HI) to wav(shortArrayOf(10)),
+                key(SoundBank.SYNTH, SoundFile.CLICK_HI) to wav(shortArrayOf(20))
+            )
+        )
+        val preparer = preparer(reader, MemoryCache(), store)
+
+        val acoustic = success(preparer.prepare(SoundBank.ACOUSTIC, listOf(SoundFile.CLICK_HI)))
+        val synth = success(preparer.prepare(SoundBank.SYNTH, listOf(SoundFile.CLICK_HI)))
+
+        assertSame(acoustic, store.current(SoundBank.ACOUSTIC))
+        assertSame(synth, store.current(SoundBank.SYNTH))
+        assertArrayEquals(shortArrayOf(10), acoustic.waveform(SoundFile.CLICK_HI)!!.copySamples())
+        assertArrayEquals(shortArrayOf(20), synth.waveform(SoundFile.CLICK_HI)!!.copySamples())
+    }
+
+    @Test
+    fun selectionControllerPublishesFullBankAfterBankAndSoundChanges() {
+        val calls = mutableListOf<Pair<SoundBank, Set<SoundFile>>>()
+        val selection = PreparedSoundSelection(
+            SoundBank.ACOUSTIC,
+            SoundFile.CLICK_HI,
+            SoundFile.CLICK_LO
+        ) { bank, sounds ->
+            calls += bank to sounds.toSet()
+            SoundPreparationResult.Success(
+                PreparedSoundBank.create(
+                    bank,
+                    48_000,
+                    sounds.associateWith { shortArrayOf(it.ordinal.toShort()) }
+                )
+            )
+        }
+
+        selection.includeAndPrepare(SoundFile.entries)
+        selection.selectSounds(SoundFile.KICK, SoundFile.SNARE)
+        selection.selectBank(SoundBank.SYNTH)
+
+        assertEquals(SoundFile.entries.toSet(), calls.last().second)
+        assertEquals(SoundBank.SYNTH, calls.last().first)
+        assertEquals(SoundBank.SYNTH, selection.active?.bank)
+        assertEquals(SoundFile.KICK, selection.active?.beatSound)
+        assertEquals(SoundFile.SNARE, selection.active?.rhythmSound)
+    }
+
+    @Test
+    fun failedBankSwitchPreservesTruthfulLastGoodSnapshot() {
+        val selection = PreparedSoundSelection(
+            SoundBank.ACOUSTIC,
+            SoundFile.CLICK_HI,
+            SoundFile.CLICK_LO
+        ) { bank, sounds ->
+            if (bank == SoundBank.SYNTH) {
+                SoundPreparationResult.Failure(
+                    SoundPreparationFailure(
+                        bank,
+                        SoundFile.CLICK_HI,
+                        SoundPreparationFailureCode.MISSING
+                    )
+                )
+            } else {
+                SoundPreparationResult.Success(
+                    PreparedSoundBank.create(
+                        bank,
+                        48_000,
+                        sounds.associateWith { shortArrayOf(1) }
+                    )
+                )
+            }
+        }
+        selection.includeAndPrepare(SoundFile.entries)
+
+        selection.selectBank(SoundBank.SYNTH)
+
+        assertEquals(SoundBank.SYNTH, selection.requestedBank)
+        assertEquals(SoundBank.ACOUSTIC, selection.active?.bank)
+        assertEquals(SoundBank.SYNTH, selection.failure?.bank)
+    }
+
+    @Test
+    fun staleCacheVersionIsRebuiltFromResource() {
+        val store = PreparedSoundBankStore()
+        val cache = MemoryCache()
+        val reader = MapReader(
+            mutableMapOf(
+                key(SoundBank.ACOUSTIC, SoundFile.CLICK_HI) to wav(shortArrayOf(7, 8))
+            )
+        )
+        val cacheKey = PreparedWaveformCacheKey(
+            SoundBankPreparer.CACHE_VERSION,
+            SoundBank.ACOUSTIC,
+            SoundFile.CLICK_HI,
+            48_000
+        )
+        cache.values[cacheKey] = CachedPreparedWaveform(
+            version = SoundBankPreparer.CACHE_VERSION - 1,
+            sampleRate = 48_000,
+            samples = shortArrayOf()
+        )
+
+        val bank = success(preparer(reader, cache, store).prepare(
+            SoundBank.ACOUSTIC,
+            listOf(SoundFile.CLICK_HI)
+        ))
+
+        assertEquals(1, cache.removes)
+        assertEquals(1, cache.writes)
+        assertArrayEquals(shortArrayOf(7, 8), bank.waveform(SoundFile.CLICK_HI)!!.copySamples())
+    }
+
+    @Test
+    fun corruptCacheReadIsRebuiltFromResource() {
+        val cache = MemoryCache().apply { corruptReads = true }
+        val reader = MapReader(
+            mutableMapOf(
+                key(SoundBank.ACOUSTIC, SoundFile.CLICK_HI) to wav(shortArrayOf(5, 6))
+            )
+        )
+
+        val bank = success(
+            preparer(reader, cache, PreparedSoundBankStore()).prepare(
+                SoundBank.ACOUSTIC,
+                listOf(SoundFile.CLICK_HI)
+            )
+        )
+
+        assertEquals(1, cache.removes)
+        assertEquals(1, cache.writes)
+        assertArrayEquals(shortArrayOf(5, 6), bank.waveform(SoundFile.CLICK_HI)!!.copySamples())
+    }
+
+    @Test
+    fun corruptEmptyAndIncompatibleRequiredSoundsReturnTypedFailures() {
+        val cases = listOf(
+            byteArrayOf(1) to SoundPreparationFailureCode.CORRUPT,
+            WavPcmDecoderTest.wav(1, 48_000, shortArrayOf()) to SoundPreparationFailureCode.EMPTY,
+            WavPcmDecoderTest.wav(1, 48_000, shortArrayOf(1), audioFormat = 3) to
+                SoundPreparationFailureCode.INCOMPATIBLE
+        )
+        cases.forEach { (bytes, expected) ->
+            val preparer = preparer(
+                MapReader(mutableMapOf(key(SoundBank.ACOUSTIC, SoundFile.CLICK_HI) to bytes)),
+                MemoryCache(),
+                PreparedSoundBankStore()
+            )
+
+            val failure = preparer.prepare(
+                SoundBank.ACOUSTIC,
+                listOf(SoundFile.CLICK_HI)
+            ) as SoundPreparationResult.Failure
+
+            assertEquals(expected, failure.failure.code)
+        }
+    }
+
+    @Test
+    fun concurrentPreparationDecodesRequiredResourceOnce() {
+        val store = PreparedSoundBankStore()
+        val cache = MemoryCache()
+        val reader = MapReader(
+            mutableMapOf(
+                key(SoundBank.ACOUSTIC, SoundFile.CLICK_HI) to wav(shortArrayOf(1))
+            )
+        )
+        val preparer = preparer(reader, cache, store)
+        val start = CountDownLatch(1)
+        val executor = Executors.newFixedThreadPool(4)
+        val futures = List(4) {
+            executor.submit<SoundPreparationResult<PreparedSoundBank>> {
+                start.await()
+                preparer.prepare(SoundBank.ACOUSTIC, listOf(SoundFile.CLICK_HI))
+            }
+        }
+
+        start.countDown()
+        futures.forEach { success(it.get()) }
+        executor.shutdown()
+
+        assertEquals(1, reader.reads)
+        assertEquals(1, cache.writes)
+    }
+
+    @Test
+    fun noBankIsPublishedBeforeSuccessfulPreparation() {
+        val store = PreparedSoundBankStore()
+        val preparer = preparer(MapReader(mutableMapOf()), MemoryCache(), store)
+
+        preparer.prepare(SoundBank.SYNTH, listOf(SoundFile.CLICK_HI))
+
+        assertNull(store.current(SoundBank.SYNTH))
+    }
+
+    @Test
+    fun cacheMaintenanceRemovesOldVersionsAndOrphanedTemporaryFiles() {
+        val root = Files.createTempDirectory("beatclikr-cache-test").toFile()
+        val current = root.resolve("audio_track_pcm_v4").apply { mkdirs() }
+        val old = root.resolve("audio_track_pcm_v3").apply { mkdirs() }
+        val orphan = current.resolve("waveform123.tmp").apply { writeText("partial") }
+        val stable = current.resolve("waveform.pcm").apply { writeText("complete") }
+        old.resolve("old.pcm").writeText("old")
+
+        try {
+            GeneratedPcmCacheMaintenance.cleanup(
+                root,
+                "audio_track_pcm_",
+                "audio_track_pcm_v4"
+            )
+
+            assertFalse(old.exists())
+            assertFalse(orphan.exists())
+            assertTrue(stable.exists())
+        } finally {
+            root.deleteRecursively()
+        }
+    }
+
+    private fun preparer(
+        reader: SoundResourceReader,
+        cache: PreparedWaveformCache,
+        store: PreparedSoundBankStore
+    ) = SoundBankPreparer(48_000, reader, cache, store)
+
+    private fun success(
+        result: SoundPreparationResult<PreparedSoundBank>
+    ): PreparedSoundBank = (result as SoundPreparationResult.Success).value
+
+    private fun key(bank: SoundBank, sound: SoundFile) = bank to sound
+
+    private fun wav(samples: ShortArray) = WavPcmDecoderTest.wav(1, 48_000, samples)
+
+    private class MapReader(
+        private val values: MutableMap<Pair<SoundBank, SoundFile>, ByteArray>
+    ) : SoundResourceReader {
+        var reads = 0
+
+        override fun read(bank: SoundBank, sound: SoundFile): ByteArray? {
+            reads++
+            return values[bank to sound]
+        }
+    }
+
+    private class MemoryCache : PreparedWaveformCache {
+        val values = mutableMapOf<PreparedWaveformCacheKey, CachedPreparedWaveform>()
+        var writes = 0
+        var removes = 0
+        var corruptReads = false
+
+        override fun read(key: PreparedWaveformCacheKey): PreparedWaveformCacheRead {
+            if (corruptReads) return PreparedWaveformCacheRead.Corrupt
+            val waveform = values[key] ?: return PreparedWaveformCacheRead.Missing
+            return PreparedWaveformCacheRead.Hit(waveform)
+        }
+
+        override fun write(
+            key: PreparedWaveformCacheKey,
+            waveform: CachedPreparedWaveform
+        ) {
+            writes++
+            values[key] = waveform
+        }
+
+        override fun remove(key: PreparedWaveformCacheKey) {
+            removes++
+            values.remove(key)
+        }
+    }
+}

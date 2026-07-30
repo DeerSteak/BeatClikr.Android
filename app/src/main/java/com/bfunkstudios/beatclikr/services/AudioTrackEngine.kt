@@ -45,18 +45,31 @@ class AudioTrackEngine(
     private var bufferSizeInBytes = 0
     private var renderChunkFrames = defaultRenderChunkFrames()
     private var renderBuffer = ShortArray(renderChunkFrames)
-    private val waveforms = mutableMapOf<SoundFile, ShortArray>()
-    private val waveformLock = Any()
-    private var beatSound: SoundFile = SoundFile.CLICK_HI
-    private var rhythmSound: SoundFile = SoundFile.CLICK_LO
+    private val soundSelection = PreparedSoundSelection(
+        initialBank = SoundBank.ACOUSTIC,
+        initialBeatSound = SoundFile.CLICK_HI,
+        initialRhythmSound = SoundFile.CLICK_LO,
+        provider = PreparedBankProvider { bank, sounds ->
+            pcmFileCache.prepare(sounds, bank)
+        }
+    )
+
     private var renderRunning = false
 
-    @Volatile
-    var soundBank: SoundBank = SoundBank.ACOUSTIC
+    var soundBank: SoundBank
+        get() = soundSelection.requestedBank
         set(value) {
-            field = value
-            synchronized(waveformLock) { waveforms.clear() }
+            soundSelection.selectBank(value)
         }
+
+    val lastSoundPreparationFailure: SoundPreparationFailure?
+        get() = soundSelection.failure
+
+    val activeSoundBank: SoundBank?
+        get() = soundSelection.active?.bank
+
+    val activeSoundConfiguration: ActiveSoundConfiguration?
+        get() = soundSelection.active?.configuration
 
     @Volatile
     private var queuedClicks = 0L
@@ -96,19 +109,13 @@ class AudioTrackEngine(
     )
 
     fun setSounds(beatResourceId: Int, rhythmResourceId: Int) {
-        beatSound = SoundFile.fromResourceId(beatResourceId) ?: SoundFile.CLICK_HI
-        rhythmSound = SoundFile.fromResourceId(rhythmResourceId) ?: SoundFile.CLICK_LO
-        ensureWaveform(beatSound)
-        ensureWaveform(rhythmSound)
+        val beatSound = SoundFile.fromResourceId(beatResourceId) ?: SoundFile.CLICK_HI
+        val rhythmSound = SoundFile.fromResourceId(rhythmResourceId) ?: SoundFile.CLICK_LO
+        soundSelection.selectSounds(beatSound, rhythmSound)
     }
 
     fun prepareSounds(soundFiles: Collection<SoundFile>) {
-        renderHandler.post {
-            pcmFileCache.prepare(soundFiles, soundBank)
-            synchronized(waveformLock) {
-                soundFiles.forEach { waveforms.remove(it) }
-            }
-        }
+        soundSelection.includeAndPrepare(soundFiles)
     }
 
     fun start() {
@@ -132,19 +139,18 @@ class AudioTrackEngine(
     }
 
     fun playBeat() {
-        enqueueWaveform(ensureWaveform(beatSound), isBeat = true)
+        soundSelection.active?.beat?.let { enqueueWaveform(it, isBeat = true) }
     }
 
     fun playRhythm() {
-        enqueueWaveform(ensureWaveform(rhythmSound), isBeat = false)
+        soundSelection.active?.rhythm?.let { enqueueWaveform(it, isBeat = false) }
     }
 
     fun playBeatAndRhythm() {
-        val beatWaveform = ensureWaveform(beatSound)
-        val rhythmWaveform = ensureWaveform(rhythmSound)
+        val selected = soundSelection.active ?: return
         synchronized(pendingClicksLock) {
-            pendingClicks.addLast(beatWaveform)
-            pendingClicks.addLast(rhythmWaveform)
+            pendingClicks.addLast(selected.beat)
+            pendingClicks.addLast(selected.rhythm)
             queuedClicks += 2L
             queuedBeatClicks++
             queuedRhythmClicks++
@@ -178,8 +184,6 @@ class AudioTrackEngine(
         }
         latch.await(1, TimeUnit.SECONDS)
         renderThread.quitSafely()
-        // Release is called during MetronomeAudioEngine shutdown, after audio callbacks are stopped.
-        synchronized(waveformLock) { waveforms.clear() }
     }
 
     private fun enqueueWaveform(waveform: ShortArray, isBeat: Boolean) {
@@ -272,22 +276,6 @@ class AudioTrackEngine(
             builder.setPerformanceMode(AudioTrack.PERFORMANCE_MODE_LOW_LATENCY)
         }
         return builder.build().also { audioTrack = it }
-    }
-
-    private fun ensureWaveform(soundFile: SoundFile): ShortArray {
-        synchronized(waveformLock) {
-            waveforms[soundFile]?.let { return it }
-        }
-
-        val bank = soundBank
-        val waveform = pcmFileCache.load(soundFile, bank) ?: ShortArray(0)
-
-        synchronized(waveformLock) {
-            waveforms[soundFile]?.let { return it }
-            if (soundBank != bank) return ensureWaveform(soundFile)
-            waveforms[soundFile] = waveform
-            return waveform
-        }
     }
 
     private class ActiveClick(

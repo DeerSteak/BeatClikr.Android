@@ -20,6 +20,8 @@ The Android-free `AbsoluteAudioTimeline` derives every frame independently from 
 
 WAV files are decoded to PCM and cached in persistent internal storage. This avoids cache eviction causing an unexpected decode spike during playback. The mixer selects samples, combines coincident events, clips safely, and streams fixed-size chunks to `AudioTrack`.
 
+Sample-rate conversion currently uses linear interpolation on the off-render preparation path. Phase 8 acoustic qualification must measure transient onset behavior for converted 44.1/48 kHz assets before timing claims are accepted; a higher-quality offline resampler or per-rate assets remain options if that evidence misses the approved budgets.
+
 `AudioTrack` underruns and playback timestamps are diagnostic signals. The engine's latency estimate is only a lower bound because device DSP, hardware, speaker, and acoustic delay are outside its measurement.
 
 The first and later beat callbacks use the same scheduled clock as audio. ViewModels convert timestamps between engine and UI clock domains only at explicit boundaries.
