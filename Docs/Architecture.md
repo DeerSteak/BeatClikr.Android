@@ -1,6 +1,6 @@
 # Current Architecture
 
-This document describes the implementation as it exists today. Deficiencies and planned changes live in [the architectural review](../ADVERSARIAL_PROJECT_REVIEW.md) and [the remediation plan](../BEATCLIKR_ACTION_PLAN.md).
+This document describes the implementation as it exists today.
 
 ## Application structure
 

@@ -12,7 +12,7 @@ Current features include:
 - optional visual, haptic, flashlight, mute, dark-theme, and keep-awake behavior;
 - adaptive phone and tablet navigation.
 
-The current architecture and its known deficiencies are documented in [ADVERSARIAL_PROJECT_REVIEW.md](ADVERSARIAL_PROJECT_REVIEW.md). The dependency-ordered improvement backlog is in [BEATCLIKR_ACTION_PLAN.md](BEATCLIKR_ACTION_PLAN.md). Timing claims should be based on the device measurements required by those documents, not inferred from timer implementation alone.
+Timing claims must be based on physical-device measurements, not inferred from timer implementation alone.
 
 ## Requirements
 
@@ -113,7 +113,7 @@ The public workflow does not:
 - build or sign a production release;
 - prove audio latency, jitter, or drift.
 
-An authorized local release environment must provision and validate the private audio resources before running `bundleRelease`. Access-controlled production-audio provisioning in GitHub CI is not required for now. See `BEATCLIKR_ACTION_PLAN.md` for the required private asset manifest and physical-device timing gates.
+An authorized local release environment must provision and validate the private audio resources before running `bundleRelease`. Access-controlled production-audio provisioning in GitHub CI is not required for now. See [Playback Performance](Docs/PlaybackPerformance.md) and [Validation](Docs/Validation.md) for the asset contract and physical-device gates.
 
 ## Architecture
 

@@ -59,4 +59,3 @@ The original start-latency proposal was internally impossible because it allowed
 - [x] Timing, alignment, CPU, memory, thermal, and battery gates express the desired release quality.
 - [x] Product-owner clarifications are incorporated into the accepted clauses.
 - [x] Mark each ADR and the timing budgets `Accepted`.
-- [x] Update the Phase 1 exit criterion in the action plan.
