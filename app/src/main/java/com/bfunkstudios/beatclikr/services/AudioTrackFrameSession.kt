@@ -3,16 +3,20 @@ package com.bfunkstudios.beatclikr.services
 import android.media.AudioManager
 import android.os.Handler
 import android.os.HandlerThread
+import com.bfunkstudios.beatclikr.music.PolyrhythmConfiguration
+import com.bfunkstudios.beatclikr.music.StandardMetronomeConfiguration
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 
 data class AudioTrackFrameSessionSnapshot(
     val properties: AudioBackendStreamProperties?,
+    val firstOutputFrame: Long,
     val nextFrame: Long,
     val renderedBlocks: Long,
     val renderedBeatEvents: Long,
     val renderedRhythmEvents: Long,
+    val underrunCount: Int,
     val failures: List<AudioBackendFailure>
 )
 
@@ -30,6 +34,7 @@ class AudioTrackFrameSession(
     private val handler = Handler(thread.looper)
     private val owner = FrameAudioStreamOwner(AudioTrackRenderBackend(audioManager))
     private val preferredBufferFrames = Math.multiplyExact(preferredBurstFrames, 2)
+    @Volatile
     private var renderRunning = false
 
     @Volatile
@@ -45,10 +50,16 @@ class AudioTrackFrameSession(
     private var writtenFrame = 0L
 
     @Volatile
+    private var firstOutputFrame = 0L
+
+    @Volatile
     private var renderedBeatEvents = 0L
 
     @Volatile
     private var renderedRhythmEvents = 0L
+
+    @Volatile
+    private var underrunCount = 0
 
     private val failureRing = AudioBackendFailureRing(FAILURE_CAPACITY)
 
@@ -83,22 +94,23 @@ class AudioTrackFrameSession(
                     ) ?: return@post
                     publishProperties(properties)
                     if (cancelled.get()) {
+                        captureUnderruns()
                         owner.stop()
-                        publishProperties(null)
                         return@post
                     }
                     val firstOutputFrame = owner.publicationFirstOutputFrame
                     if (!owner.start(firstOutputFrame)) {
+                        captureUnderruns()
                         owner.stop()
-                        publishProperties(null)
                         return@post
                     }
                     if (cancelled.get()) {
+                        captureUnderruns()
                         owner.stop()
-                        publishProperties(null)
                         return@post
                     }
                     snapshotSequence++
+                    this.firstOutputFrame = firstOutputFrame
                     writtenFrame = firstOutputFrame
                     snapshotSequence++
                     renderRunning = true
@@ -116,8 +128,8 @@ class AudioTrackFrameSession(
             handler.post {
                 renderRunning = false
                 handler.removeCallbacks(renderRunnable)
+                captureUnderruns()
                 owner.stop()
-                publishProperties(null)
             }
             return false
         }
@@ -132,8 +144,8 @@ class AudioTrackFrameSession(
                 try {
                     renderRunning = false
                     handler.removeCallbacks(renderRunnable)
+                    captureUnderruns()
                     stopped = owner.stop()
-                    publishProperties(null)
                 } finally {
                     latch.countDown()
                 }
@@ -142,6 +154,38 @@ class AudioTrackFrameSession(
             return false
         }
         return latch.await(STOP_TIMEOUT_SECONDS, TimeUnit.SECONDS) && stopped
+    }
+
+    fun setMuted(muted: Boolean) {
+        if (!released) handler.post { owner.setMuted(muted) }
+    }
+
+    fun updateStandard(configuration: StandardMetronomeConfiguration): Boolean {
+        if (released || !renderRunning) return false
+        return handler.post {
+            if (renderRunning && !owner.updateStandard(configuration)) {
+                recordFailure(
+                    AudioBackendFailure(
+                        AudioBackendOperation.RENDER,
+                        AudioBackendFailureCode.INVALID_CONFIGURATION
+                    )
+                )
+            }
+        }
+    }
+
+    fun updatePolyrhythm(configuration: PolyrhythmConfiguration): Boolean {
+        if (released || !renderRunning) return false
+        return handler.post {
+            if (renderRunning && !owner.updatePolyrhythm(configuration)) {
+                recordFailure(
+                    AudioBackendFailure(
+                        AudioBackendOperation.RENDER,
+                        AudioBackendFailureCode.INVALID_CONFIGURATION
+                    )
+                )
+            }
+        }
     }
 
     @Synchronized
@@ -157,27 +201,33 @@ class AudioTrackFrameSession(
         var before: Int
         var after: Int
         var properties: AudioBackendStreamProperties?
+        var firstFrame: Long
         var nextFrame: Long
         var blocks: Long
         var beatEvents: Long
         var rhythmEvents: Long
+        var underruns: Int
         var recordedFailures: List<AudioBackendFailure>
         do {
             before = snapshotSequence
             properties = obtainedProperties
+            firstFrame = firstOutputFrame
             nextFrame = writtenFrame
             blocks = renderedBlocks
             beatEvents = renderedBeatEvents
             rhythmEvents = renderedRhythmEvents
+            underruns = underrunCount
             recordedFailures = failureRing.snapshot()
             after = snapshotSequence
         } while (before != after || before and 1 != 0)
         return AudioTrackFrameSessionSnapshot(
             properties,
+            firstFrame,
             nextFrame,
             blocks,
             beatEvents,
             rhythmEvents,
+            underruns,
             recordedFailures
         )
     }
@@ -191,6 +241,7 @@ class AudioTrackFrameSession(
             if (result == FrameStreamRenderResult.COMPLETE) {
                 renderedBeatEvents = owner.renderedBeatEvents
                 renderedRhythmEvents = owner.renderedRhythmEvents
+                underrunCount = owner.underrunCount
                 renderedBlocks++
             }
             snapshotSequence++
@@ -198,8 +249,8 @@ class AudioTrackFrameSession(
                 FrameStreamRenderResult.COMPLETE -> handler.post(this)
                 else -> {
                     renderRunning = false
+                    captureUnderruns()
                     owner.stop()
-                    publishProperties(null)
                 }
             }
         }
@@ -211,6 +262,12 @@ class AudioTrackFrameSession(
         snapshotSequence++
     }
 
+    private fun captureUnderruns() {
+        snapshotSequence++
+        underrunCount = owner.underrunCount
+        snapshotSequence++
+    }
+
     private fun recordFailure(failure: AudioBackendFailure) {
         snapshotSequence++
         failureRing.record(failure)
@@ -219,10 +276,13 @@ class AudioTrackFrameSession(
 
     private fun resetSessionMetrics() {
         snapshotSequence++
+        obtainedProperties = null
         renderedBlocks = 0
+        firstOutputFrame = 0
         writtenFrame = 0
         renderedBeatEvents = 0
         renderedRhythmEvents = 0
+        underrunCount = 0
         failureRing.reset()
         snapshotSequence++
     }

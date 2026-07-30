@@ -26,6 +26,23 @@ enum class FramePublicationFailureCode {
 }
 
 object FramePlaybackPublicationBoundary {
+    fun standardConfiguration(
+        bpm: Float,
+        subdivisions: Int,
+        accentPattern: List<Boolean>?,
+        alternateSixteenth: Boolean,
+        muted: Boolean
+    ): PlaybackInputResult<StandardMetronomeConfiguration> =
+        PlaybackInputBoundary.translate {
+            createStandardConfiguration(
+                bpm,
+                subdivisions,
+                accentPattern,
+                alternateSixteenth,
+                muted
+            )
+        }
+
     fun standard(
         bpm: Float,
         subdivisions: Int,
@@ -33,8 +50,30 @@ object FramePlaybackPublicationBoundary {
         alternateSixteenth: Boolean,
         muted: Boolean,
         origin: SessionOrigin,
-        sounds: ActivePreparedSounds?
+        sounds: ActivePreparedSounds?,
+        startDelayMillis: Long = 0
     ): FramePublicationResult = translate(sounds) { preparedSounds ->
+        StandardPreparedFrameRendererFactory(
+            createStandardConfiguration(
+                bpm,
+                subdivisions,
+                accentPattern,
+                alternateSixteenth,
+                muted
+            ),
+            origin = origin,
+            sounds = preparedSounds,
+            startDelayMillis = startDelayMillis
+        )
+    }
+
+    private fun createStandardConfiguration(
+        bpm: Float,
+        subdivisions: Int,
+        accentPattern: List<Boolean>?,
+        alternateSixteenth: Boolean,
+        muted: Boolean
+    ): StandardMetronomeConfiguration {
         val timing = if (accentPattern == null) {
             val subdivision = StandardSubdivision.entries
                 .firstOrNull { it.subdivisions == subdivisions }
@@ -46,15 +85,11 @@ object FramePlaybackPublicationBoundary {
                 ?: throw IllegalArgumentException("Unsupported additive step")
             StandardTiming.Additive(stepUnit, AccentPattern.of(accentPattern))
         }
-        StandardPreparedFrameRendererFactory(
-            StandardMetronomeConfiguration(
-                bpm = ExactTempo.fromFloat(bpm),
-                timing = timing,
-                alternateSixteenth = alternateSixteenth,
-                muteMetronome = muted
-            ),
-            origin = origin,
-            sounds = preparedSounds
+        return StandardMetronomeConfiguration(
+            bpm = ExactTempo.fromFloat(bpm),
+            timing = timing,
+            alternateSixteenth = alternateSixteenth,
+            muteMetronome = muted
         )
     }
 
@@ -64,19 +99,39 @@ object FramePlaybackPublicationBoundary {
         against: Int,
         muted: Boolean,
         origin: SessionOrigin,
-        sounds: ActivePreparedSounds?
+        sounds: ActivePreparedSounds?,
+        startDelayMillis: Long = 0
     ): FramePublicationResult = translate(sounds) { preparedSounds ->
         PolyrhythmPreparedFrameRendererFactory(
-            PolyrhythmConfiguration(
-                bpm = ExactTempo.fromFloat(bpm),
-                beats = beats,
-                against = against,
-                muteMetronome = muted
-            ),
+            createPolyrhythmConfiguration(bpm, beats, against, muted),
             origin = origin,
-            sounds = preparedSounds
+            sounds = preparedSounds,
+            startDelayMillis = startDelayMillis
         )
     }
+
+    fun polyrhythmConfiguration(
+        bpm: Float,
+        beats: Int,
+        against: Int,
+        muted: Boolean
+    ): PlaybackInputResult<PolyrhythmConfiguration> =
+        PlaybackInputBoundary.translate {
+            createPolyrhythmConfiguration(bpm, beats, against, muted)
+        }
+
+    private fun createPolyrhythmConfiguration(
+        bpm: Float,
+        beats: Int,
+        against: Int,
+        muted: Boolean
+    ): PolyrhythmConfiguration =
+        PolyrhythmConfiguration(
+            bpm = ExactTempo.fromFloat(bpm),
+            beats = beats,
+            against = against,
+            muteMetronome = muted
+        )
 
     private fun translate(
         sounds: ActivePreparedSounds?,

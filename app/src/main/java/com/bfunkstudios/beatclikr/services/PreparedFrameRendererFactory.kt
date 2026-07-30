@@ -11,45 +11,103 @@ class StandardPreparedFrameRendererFactory(
     private val configuration: StandardMetronomeConfiguration,
     private val origin: SessionOrigin,
     private val sounds: ActivePreparedSounds,
+    private val startDelayMillis: Long = 0,
     private val maximumActiveVoices: Int = DEFAULT_MAXIMUM_ACTIVE_VOICES
 ) : PcmFrameRendererFactory {
+    init {
+        require(startDelayMillis >= 0) { "Start delay must not be negative" }
+    }
+
     override fun create(
         properties: AudioBackendStreamProperties
-    ): PublishedPcmFrameRenderer = publish(
-        StandardMetronomeTimeline(
+    ): PublishedPcmFrameRenderer {
+        var activeTimeline = StandardMetronomeTimeline(
             configuration,
             properties.sampleRate,
-            origin
+            delayedEventOrigin(properties)
         )
-    )
+        return preparedPublication(
+            activeTimeline,
+            sounds,
+            maximumActiveVoices,
+            firstOutputFrame = origin.originFrame,
+            standardUpdater = StandardFrameStreamUpdater { replacement, firstUnprocessedFrame ->
+                val continuation = activeTimeline.continuationAtOrAfter(firstUnprocessedFrame)
+                StandardMetronomeTimeline(
+                    replacement,
+                    properties.sampleRate,
+                    origin.copy(originFrame = continuation.frame),
+                    initialEventIndex = continuation.eventIndex
+                ).also { activeTimeline = it }
+            }
+        )
+    }
 
-    private fun publish(timeline: FrameEventTimeline): PublishedPcmFrameRenderer =
-        preparedPublication(timeline, sounds, maximumActiveVoices)
+    private fun delayedEventOrigin(properties: AudioBackendStreamProperties): SessionOrigin =
+        origin.copy(
+            originFrame = delayedEventOriginFrame(
+                origin.originFrame,
+                startDelayMillis,
+                properties.sampleRate
+            )
+        )
 }
 
 class PolyrhythmPreparedFrameRendererFactory(
     private val configuration: PolyrhythmConfiguration,
     private val origin: SessionOrigin,
     private val sounds: ActivePreparedSounds,
+    private val startDelayMillis: Long = 0,
     private val maximumActiveVoices: Int = DEFAULT_MAXIMUM_ACTIVE_VOICES
 ) : PcmFrameRendererFactory {
+    init {
+        require(startDelayMillis >= 0) { "Start delay must not be negative" }
+    }
+
     override fun create(
         properties: AudioBackendStreamProperties
-    ): PublishedPcmFrameRenderer = preparedPublication(
-        PolyrhythmTimeline(
+    ): PublishedPcmFrameRenderer {
+        var activeTimeline = PolyrhythmTimeline(
             configuration,
             properties.sampleRate,
-            origin
-        ),
-        sounds,
-        maximumActiveVoices
-    )
+            origin.copy(
+                originFrame = delayedEventOriginFrame(
+                    origin.originFrame,
+                    startDelayMillis,
+                    properties.sampleRate
+                )
+            )
+        )
+        return preparedPublication(
+            activeTimeline,
+            sounds,
+            maximumActiveVoices,
+            firstOutputFrame = origin.originFrame,
+            polyrhythmUpdater = PolyrhythmFrameStreamUpdater {
+                    replacement,
+                    firstUnprocessedFrame ->
+                val continuation = activeTimeline.nextCycleBoundaryAtOrAfter(
+                    firstUnprocessedFrame
+                )
+                PolyrhythmTimeline(
+                    replacement,
+                    properties.sampleRate,
+                    origin.copy(originFrame = continuation.frame),
+                    initialEventIndex = continuation.eventIndex,
+                    initialCycleIndex = continuation.cycleIndex
+                ).also { activeTimeline = it }
+            }
+        )
+    }
 }
 
 private fun preparedPublication(
     timeline: FrameEventTimeline,
     sounds: ActivePreparedSounds,
-    maximumActiveVoices: Int
+    maximumActiveVoices: Int,
+    firstOutputFrame: Long,
+    standardUpdater: StandardFrameStreamUpdater? = null,
+    polyrhythmUpdater: PolyrhythmFrameStreamUpdater? = null
 ): PublishedPcmFrameRenderer {
     val renderer = FramePcmRenderer(
         timeline,
@@ -59,8 +117,19 @@ private fun preparedPublication(
     return PublishedPcmFrameRenderer(
         renderer,
         TimelineFrameStreamRecovery(timeline),
-        firstOutputFrame = timeline.origin.originFrame
+        firstOutputFrame = firstOutputFrame,
+        standardUpdater = standardUpdater,
+        polyrhythmUpdater = polyrhythmUpdater
     )
 }
+
+private fun delayedEventOriginFrame(
+    firstOutputFrame: Long,
+    startDelayMillis: Long,
+    obtainedSampleRate: Int
+): Long = Math.addExact(
+    firstOutputFrame,
+    Math.multiplyExact(startDelayMillis, obtainedSampleRate.toLong()) / 1_000
+)
 
 private const val DEFAULT_MAXIMUM_ACTIVE_VOICES = 16

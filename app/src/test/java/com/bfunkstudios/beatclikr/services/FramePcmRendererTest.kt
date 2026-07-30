@@ -94,6 +94,29 @@ class FramePcmRendererTest {
     }
 
     @Test
+    fun liveMuteOverrideAppliesWithoutRepublishingRenderer() {
+        val renderer = renderer(
+            RecordingEventSource(
+                Event(0, SoundRole.BEAT),
+                Event(1, SoundRole.BEAT)
+            ),
+            beat = shortArrayOf(100),
+            rhythm = shortArrayOf(50)
+        )
+        val muted = ShortArray(1)
+        val audible = ShortArray(1)
+
+        renderer.setMuted(true)
+        renderer.render(0, muted, 1)
+        renderer.setMuted(false)
+        renderer.render(1, audible, 1)
+
+        assertArrayEquals(shortArrayOf(0), muted)
+        assertArrayEquals(shortArrayOf(100), audible)
+        assertEquals(1, renderer.renderedBeatEvents)
+    }
+
+    @Test
     fun countsAudibleRolesOnlyAfterSuccessfulBlock() {
         val renderer = renderer(
             RecordingEventSource(

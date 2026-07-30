@@ -132,6 +132,8 @@ class AudioTrackRenderBackend(
         }
     }
 
+    override fun underrunCount(): Int = track?.underrunCount ?: 0
+
     @Suppress("DEPRECATION")
     private fun buildTrack(request: AudioBackendOpenRequest): AudioTrack {
         val channelMask = when (request.preferredChannelCount) {

@@ -29,11 +29,12 @@ interface PcmFrameRenderer {
         get() = 0
     fun prepare(maximumBlockFrames: Int)
     fun reset()
+    fun setMuted(muted: Boolean) {}
     fun render(startFrame: Long, output: ShortArray, frameCount: Int): FrameRenderResult
 }
 
 class FramePcmRenderer(
-    private val eventSource: FrameRangeEventSource,
+    private var eventSource: FrameRangeEventSource,
     private val waveforms: RenderWaveforms,
     maximumActiveVoices: Int
 ) : FrameRangeEventConsumer, PcmFrameRenderer {
@@ -47,6 +48,7 @@ class FramePcmRenderer(
     private var nextExpectedFrame = 0L
     private var blockBeatEvents = 0L
     private var blockRhythmEvents = 0L
+    private var liveMuted: Boolean? = null
 
     override var renderedBeatEvents = 0L
         private set
@@ -60,7 +62,7 @@ class FramePcmRenderer(
         secondarySound: SoundRole?,
         muted: Boolean
     ): Boolean {
-        if (!muted) {
+        if (!(liveMuted ?: muted)) {
             if (addVoice(primarySound, intendedFrame)) countBlockEvent(primarySound)
             if (result == FrameRenderResult.COMPLETE && secondarySound != null) {
                 if (addVoice(secondarySound, intendedFrame)) countBlockEvent(secondarySound)
@@ -89,6 +91,14 @@ class FramePcmRenderer(
         }
         hasExpectedFrame = false
         nextExpectedFrame = 0
+    }
+
+    override fun setMuted(muted: Boolean) {
+        liveMuted = muted
+    }
+
+    fun replaceEventSource(replacement: FrameRangeEventSource) {
+        eventSource = replacement
     }
 
     override fun render(startFrame: Long, output: ShortArray, frameCount: Int): FrameRenderResult {

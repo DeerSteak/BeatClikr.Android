@@ -3,7 +3,9 @@ package com.bfunkstudios.beatclikr.music
 class PolyrhythmTimeline(
     val configuration: PolyrhythmConfiguration,
     val sampleRate: Int,
-    override val origin: SessionOrigin
+    override val origin: SessionOrigin,
+    private val initialEventIndex: Long = 0,
+    private val initialCycleIndex: Long = 0
 ) : FrameEventTimeline {
     override val mode = TimelineMode.POLYRHYTHM
     private val slotsPerCycle = leastCommonMultiple(configuration.beats, configuration.against)
@@ -16,6 +18,32 @@ class PolyrhythmTimeline(
             ExactFraction.of(slotsPerCycle.toLong()) /
             ExactFraction.of(configuration.against.toLong())
     )
+
+    init {
+        require(initialEventIndex >= 0) { "Initial event index must not be negative" }
+        require(initialCycleIndex >= 0) { "Initial cycle index must not be negative" }
+    }
+
+    fun nextCycleBoundaryAtOrAfter(frame: Long): PolyrhythmTimelineContinuation {
+        if (frame <= origin.originFrame) {
+            return PolyrhythmTimelineContinuation(
+                origin.originFrame,
+                initialEventIndex,
+                initialCycleIndex
+            )
+        }
+        val firstSlot = timeline.firstIntervalAtOrAfter(frame - origin.originFrame)
+        val cycleSlot = if (firstSlot % slotsPerCycle == 0L) {
+            firstSlot
+        } else {
+            Math.multiplyExact(firstSlot / slotsPerCycle + 1, slotsPerCycle.toLong())
+        }
+        return PolyrhythmTimelineContinuation(
+            frame = Math.addExact(origin.originFrame, timeline.framePosition(cycleSlot)),
+            eventIndex = Math.addExact(initialEventIndex, eventCountBefore(cycleSlot)),
+            cycleIndex = Math.addExact(initialCycleIndex, cycleSlot / slotsPerCycle)
+        )
+    }
 
     override fun eventsIn(range: FrameRange): Sequence<FrameEvent> = sequence {
         if (range.endFrameExclusive <= origin.originFrame) return@sequence
@@ -72,7 +100,8 @@ class PolyrhythmTimeline(
     }
 
     private fun eventAt(slotIndex: Long, slot: Int, intendedFrame: Long): FrameEvent {
-        val cycleIndex = slotIndex / slotsPerCycle
+        val localCycleIndex = slotIndex / slotsPerCycle
+        val cycleIndex = Math.addExact(initialCycleIndex, localCycleIndex)
         val beatFired = beatFiresAt(slot)
         val rhythmFired = rhythmFiresAt(slot)
         val beatVoice = if (beatFired) {
@@ -95,10 +124,11 @@ class PolyrhythmTimeline(
         } else {
             null
         }
-        val eventIndex = Math.addExact(
-            Math.multiplyExact(cycleIndex, eventSlots.size.toLong()),
+        val localEventIndex = Math.addExact(
+            Math.multiplyExact(localCycleIndex, eventSlots.size.toLong()),
             eventSlots.binarySearch(slot).toLong()
         )
+        val eventIndex = Math.addExact(initialEventIndex, localEventIndex)
         return FrameEvent(
             sequence = EventSequence(origin.sessionID, eventIndex),
             intendedFrame = intendedFrame,
@@ -138,3 +168,9 @@ class PolyrhythmTimeline(
     private tailrec fun greatestCommonDivisor(first: Int, second: Int): Int =
         if (second == 0) first else greatestCommonDivisor(second, first % second)
 }
+
+data class PolyrhythmTimelineContinuation(
+    val frame: Long,
+    val eventIndex: Long,
+    val cycleIndex: Long
+)

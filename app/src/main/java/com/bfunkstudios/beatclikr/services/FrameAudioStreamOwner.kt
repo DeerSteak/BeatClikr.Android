@@ -3,6 +3,8 @@ package com.bfunkstudios.beatclikr.services
 import com.bfunkstudios.beatclikr.music.DeadlineRecovery
 import com.bfunkstudios.beatclikr.music.DeadlineRecoveryState
 import com.bfunkstudios.beatclikr.music.FrameEventTimeline
+import com.bfunkstudios.beatclikr.music.PolyrhythmConfiguration
+import com.bfunkstudios.beatclikr.music.StandardMetronomeConfiguration
 
 fun interface PcmFrameRendererFactory {
     fun create(properties: AudioBackendStreamProperties): PublishedPcmFrameRenderer?
@@ -11,8 +13,24 @@ fun interface PcmFrameRendererFactory {
 class PublishedPcmFrameRenderer(
     val renderer: PcmFrameRenderer,
     val recovery: FrameStreamRecovery? = null,
-    val firstOutputFrame: Long = 0
+    val firstOutputFrame: Long = 0,
+    val standardUpdater: StandardFrameStreamUpdater? = null,
+    val polyrhythmUpdater: PolyrhythmFrameStreamUpdater? = null
 )
+
+fun interface StandardFrameStreamUpdater {
+    fun update(
+        configuration: StandardMetronomeConfiguration,
+        firstUnprocessedFrame: Long
+    ): FrameEventTimeline?
+}
+
+fun interface PolyrhythmFrameStreamUpdater {
+    fun update(
+        configuration: PolyrhythmConfiguration,
+        firstUnprocessedFrame: Long
+    ): FrameEventTimeline?
+}
 
 interface FrameStreamRecovery {
     fun start(firstOutputFrame: Long): Boolean
@@ -20,7 +38,7 @@ interface FrameStreamRecovery {
 }
 
 class TimelineFrameStreamRecovery(
-    private val timeline: FrameEventTimeline
+    private var timeline: FrameEventTimeline
 ) : FrameStreamRecovery {
     private var state = DeadlineRecoveryState.atOrigin(timeline)
 
@@ -28,19 +46,36 @@ class TimelineFrameStreamRecovery(
         get() = state
 
     override fun start(firstOutputFrame: Long): Boolean =
-        firstOutputFrame == timeline.origin.originFrame
+        firstOutputFrame <= timeline.origin.originFrame
 
     override fun recover(
         firstUnprocessedFrame: Long,
         nextRenderFrame: Long
     ): Boolean {
         return try {
-            val synchronized = state.synchronizedTo(firstUnprocessedFrame)
-            state = DeadlineRecovery.recoverTo(timeline, synchronized, nextRenderFrame)
+            val firstEventFrame = timeline.origin.originFrame
+            val synchronized = state.synchronizedTo(
+                maxOf(firstUnprocessedFrame, firstEventFrame)
+            )
+            state = DeadlineRecovery.recoverTo(
+                timeline,
+                synchronized,
+                maxOf(nextRenderFrame, firstEventFrame)
+            )
             true
         } catch (_: IllegalArgumentException) {
             false
         } catch (_: ArithmeticException) {
+            false
+        }
+    }
+
+    fun replaceTimeline(replacement: FrameEventTimeline, firstUnprocessedFrame: Long): Boolean {
+        return try {
+            state = state.synchronizedTo(firstUnprocessedFrame)
+            timeline = replacement
+            true
+        } catch (_: IllegalArgumentException) {
             false
         }
     }
@@ -60,6 +95,8 @@ class FrameAudioStreamOwner(
     private var failureSink = AudioBackendFailureSink {}
     private var renderer: PcmFrameRenderer? = null
     private var recovery: FrameStreamRecovery? = null
+    private var standardUpdater: StandardFrameStreamUpdater? = null
+    private var polyrhythmUpdater: PolyrhythmFrameStreamUpdater? = null
     private var renderBuffer = ShortArray(0)
     private var backendStarted = false
     private var running = false
@@ -78,6 +115,9 @@ class FrameAudioStreamOwner(
 
     val renderedRhythmEvents: Long
         get() = renderer?.renderedRhythmEvents ?: 0
+
+    val underrunCount: Int
+        get() = backend.underrunCount()
 
     fun open(
         request: AudioBackendOpenRequest,
@@ -136,6 +176,8 @@ class FrameAudioStreamOwner(
         renderBuffer = ShortArray(blockFrames)
         renderer = publishedRenderer
         recovery = publication.recovery
+        standardUpdater = publication.standardUpdater
+        polyrhythmUpdater = publication.polyrhythmUpdater
         publicationFirstOutputFrame = publication.firstOutputFrame
         properties = obtained
         return obtained
@@ -181,6 +223,33 @@ class FrameAudioStreamOwner(
         nextFrame = firstOutputFrame
         running = true
         return true
+    }
+
+    fun setMuted(muted: Boolean) {
+        renderer?.setMuted(muted)
+    }
+
+    fun updateStandard(configuration: StandardMetronomeConfiguration): Boolean {
+        return updateTimeline { standardUpdater?.update(configuration, nextFrame) }
+    }
+
+    fun updatePolyrhythm(configuration: PolyrhythmConfiguration): Boolean {
+        return updateTimeline { polyrhythmUpdater?.update(configuration, nextFrame) }
+    }
+
+    private inline fun updateTimeline(replacement: () -> FrameEventTimeline?): Boolean {
+        return try {
+            val frameRenderer = renderer as? FramePcmRenderer ?: return false
+            val timelineRecovery = recovery as? TimelineFrameStreamRecovery ?: return false
+            val publishedReplacement = replacement() ?: return false
+            if (!timelineRecovery.replaceTimeline(publishedReplacement, nextFrame)) return false
+            frameRenderer.replaceEventSource(publishedReplacement)
+            true
+        } catch (_: IllegalArgumentException) {
+            false
+        } catch (_: ArithmeticException) {
+            false
+        }
     }
 
     fun renderNextBlock(): FrameStreamRenderResult {
@@ -237,6 +306,8 @@ class FrameAudioStreamOwner(
         backendStarted = false
         renderer = null
         recovery = null
+        standardUpdater = null
+        polyrhythmUpdater = null
         publicationFirstOutputFrame = 0
         properties = null
         renderBuffer = ShortArray(0)

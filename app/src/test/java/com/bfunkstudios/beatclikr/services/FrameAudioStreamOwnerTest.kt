@@ -263,6 +263,23 @@ class FrameAudioStreamOwnerTest {
     }
 
     @Test
+    fun deadlineRecoveryAcceptsResyncBeforeDelayedTimelineOrigin() {
+        val timeline = StandardMetronomeTimeline(
+            StandardMetronomeConfiguration(
+                ExactTempo.of(120),
+                StandardTiming.Regular(StandardSubdivision.EIGHTH)
+            ),
+            48_000,
+            SessionOrigin(SessionID(3), 480)
+        )
+        val recovery = TimelineFrameStreamRecovery(timeline)
+
+        assertTrue(recovery.start(0))
+        assertTrue(recovery.recover(firstUnprocessedFrame = 4, nextRenderFrame = 8))
+        assertEquals(480, recovery.snapshot.nextUnprocessedFrame)
+    }
+
+    @Test
     fun preparedOwnerRenderAllocatesNoMemory() {
         val owner = FrameAudioStreamOwner(AllocationFreeBackend)
         owner.open(

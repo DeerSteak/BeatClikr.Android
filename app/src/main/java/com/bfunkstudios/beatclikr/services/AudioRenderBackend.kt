@@ -121,6 +121,8 @@ interface AudioRenderBackend {
     fun stop(): Boolean
 
     fun timestamp(destination: AudioFrameTimestamp): Boolean
+
+    fun underrunCount(): Int = 0
 }
 
 /** Expands mono renderer frames into an obtained interleaved output layout. */

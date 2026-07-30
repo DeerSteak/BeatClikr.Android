@@ -80,6 +80,16 @@ The renderer suite verifies muted events do not increment role counters and fail
 
 The publication-boundary suite accepts regular, additive, and polyrhythm requests, retains domain rejection causes, and translates missing sounds or invalid legacy inputs into typed failures. A ramp-derived fractional tempo verifies float-to-exact conversion at its expected output frame. Session architecture checks also require late-start cancellation and idempotent release so a rejected selection cannot leave a hidden render loop.
 
+The production-selection tripwire requires standard and polyrhythm starts to select frame audio first and prohibits Handler-driven sound triggers while that selection is active. Existing instrumentation metrics are backed by frame-rendered role counters, written-frame ownership, obtained stream facts, and the real `AudioTrack` underrun count.
+
+Renderer regressions also cover live mute changes and a delayed first event derived from the obtained sample rate. Recovery before that delayed timeline origin remains valid and clamps its event cursor without changing output-frame ownership.
+
+The standard-update regression changes tempo after rendering has begun and requires the replacement's first event to remain on the next old-tempo boundary. It also requires the pattern role and `EventSequence` index to continue across that boundary, proving that ramps do not restart the stream or reset musical phase.
+
+The polyrhythm-update regression changes tempo and ratio mid-cycle, then requires the replacement to begin at the next old shared-cycle boundary with both roles coincident and event/cycle identity preserved. A production-selection tripwire requires this retune branch to return before either frame start or legacy fallback.
+
+These deterministic tests prove phase rules in each clock domain, not physical audio/visual coincidence. Phase 8 must measure retunes because audio selects a boundary from buffer-ahead `nextFrame`, while visual timing reaches its boundary on the monotonic wall clock; the resulting skew must be recorded rather than inferred from the configured buffer size.
+
 The Phase 2.5 recovery suite verifies multi-event stalls, direct future-event selection, constant-time range counts, exact deadline and drop counts, coincident polyrhythm drops, repeated recovery windows, overlapping render windows, immutable origins, and stale session or mode rejection. Expired events are counted but never enumerated or returned to the renderer, preventing recovery work and catch-up output from scaling with the duration of a stall.
 
 `PureCoreQualificationTest` is the permanent Phase 2 regression gate. It checks the twelve-hour fractional endpoint across every integer sample rate accepted by `AudioTrack`, streams twelve-hour minimum, fractional typical, maximum-density, and dense polyrhythm timelines at 44.1 and 48 kHz, injects stalls at every event position, and runs reproducible randomized standard and polyrhythm command batches. Together with the focused music-model tests, the suite contains executable coverage for MT-001 through MT-032 and TB-001 through TB-003, TB-009, and TB-010.

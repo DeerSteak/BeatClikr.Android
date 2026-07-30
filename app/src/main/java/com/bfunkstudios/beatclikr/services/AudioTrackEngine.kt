@@ -9,6 +9,9 @@ import android.os.Handler
 import android.os.HandlerThread
 import com.bfunkstudios.beatclikr.data.SoundBank
 import com.bfunkstudios.beatclikr.data.SoundFile
+import com.bfunkstudios.beatclikr.music.PlaybackInputResult
+import com.bfunkstudios.beatclikr.music.SessionID
+import com.bfunkstudios.beatclikr.music.SessionOrigin
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import kotlin.collections.ArrayDeque
@@ -55,6 +58,8 @@ class AudioTrackEngine(
     )
 
     private var renderRunning = false
+    private var frameSession: AudioTrackFrameSession? = null
+    private var nextSessionID = 1L
 
     var soundBank: SoundBank
         get() = soundSelection.requestedBank
@@ -93,20 +98,44 @@ class AudioTrackEngine(
     var estimatedOutputLatencyNanos: Long = 0L
         private set
 
-    fun metricsSnapshot(): AudioTrackMetricsSnapshot = AudioTrackMetricsSnapshot(
-        sampleRate = sampleRate,
-        outputFramesPerBuffer = outputFramesPerBuffer,
-        bufferSizeInBytes = bufferSizeInBytes,
-        renderChunkFrames = renderChunkFrames,
-        estimatedOutputLatencyNanos = estimatedOutputLatencyNanos,
-        queuedClicks = queuedClicks,
-        queuedBeatClicks = queuedBeatClicks,
-        queuedRhythmClicks = queuedRhythmClicks,
-        renderedChunks = renderedChunks,
-        writtenFrames = writtenFrames,
-        maxActiveClicks = maxActiveClicks,
-        underrunCount = audioTrack?.underrunCount ?: 0
-    )
+    fun metricsSnapshot(): AudioTrackMetricsSnapshot {
+        val frame = frameSession?.snapshot()
+        if (frame != null && (frame.properties != null || frame.renderedBlocks > 0)) {
+            val properties = frame.properties
+            val rate = properties?.sampleRate ?: sampleRate
+            val burst = properties?.burstFrames ?: outputFramesPerBuffer
+            val bufferFrames = properties?.bufferFrames ?: 0
+            return AudioTrackMetricsSnapshot(
+                sampleRate = rate,
+                outputFramesPerBuffer = burst,
+                bufferSizeInBytes = bufferFrames * 2 * (properties?.channelCount ?: 1),
+                renderChunkFrames = burst,
+                estimatedOutputLatencyNanos =
+                    (bufferFrames + burst).toLong() * NANOS_PER_SECOND / rate,
+                queuedClicks = frame.renderedBeatEvents + frame.renderedRhythmEvents,
+                queuedBeatClicks = frame.renderedBeatEvents,
+                queuedRhythmClicks = frame.renderedRhythmEvents,
+                renderedChunks = frame.renderedBlocks,
+                writtenFrames = frame.nextFrame - frame.firstOutputFrame,
+                maxActiveClicks = 0,
+                underrunCount = frame.underrunCount
+            )
+        }
+        return AudioTrackMetricsSnapshot(
+            sampleRate = sampleRate,
+            outputFramesPerBuffer = outputFramesPerBuffer,
+            bufferSizeInBytes = bufferSizeInBytes,
+            renderChunkFrames = renderChunkFrames,
+            estimatedOutputLatencyNanos = estimatedOutputLatencyNanos,
+            queuedClicks = queuedClicks,
+            queuedBeatClicks = queuedBeatClicks,
+            queuedRhythmClicks = queuedRhythmClicks,
+            renderedChunks = renderedChunks,
+            writtenFrames = writtenFrames,
+            maxActiveClicks = maxActiveClicks,
+            underrunCount = audioTrack?.underrunCount ?: 0
+        )
+    }
 
     fun setSounds(beatResourceId: Int, rhythmResourceId: Int) {
         val beatSound = SoundFile.fromResourceId(beatResourceId) ?: SoundFile.CLICK_HI
@@ -116,6 +145,52 @@ class AudioTrackEngine(
 
     fun prepareSounds(soundFiles: Collection<SoundFile>) {
         soundSelection.includeAndPrepare(soundFiles)
+    }
+
+    fun setFrameMuted(muted: Boolean) {
+        frameSession?.setMuted(muted)
+    }
+
+    fun updateStandard(
+        bpm: Float,
+        subdivisions: Int,
+        accentPattern: List<Boolean>?,
+        alternateSixteenth: Boolean,
+        muted: Boolean
+    ): Boolean {
+        val configuration = when (
+            val result = FramePlaybackPublicationBoundary.standardConfiguration(
+                bpm = bpm,
+                subdivisions = subdivisions,
+                accentPattern = accentPattern,
+                alternateSixteenth = alternateSixteenth,
+                muted = muted
+            )
+        ) {
+            is PlaybackInputResult.Accepted -> result.value
+            is PlaybackInputResult.Rejected -> return false
+        }
+        return frameSession?.updateStandard(configuration) == true
+    }
+
+    fun updatePolyrhythm(
+        bpm: Float,
+        beats: Int,
+        against: Int,
+        muted: Boolean
+    ): Boolean {
+        val configuration = when (
+            val result = FramePlaybackPublicationBoundary.polyrhythmConfiguration(
+                bpm = bpm,
+                beats = beats,
+                against = against,
+                muted = muted
+            )
+        ) {
+            is PlaybackInputResult.Accepted -> result.value
+            is PlaybackInputResult.Rejected -> return false
+        }
+        return frameSession?.updatePolyrhythm(configuration) == true
     }
 
     fun start() {
@@ -131,6 +206,44 @@ class AudioTrackEngine(
             renderHandler.post(renderRunnable)
         }
     }
+
+    fun startStandard(
+        bpm: Float,
+        subdivisions: Int,
+        accentPattern: List<Boolean>?,
+        alternateSixteenth: Boolean,
+        muted: Boolean,
+        startDelayMillis: Long
+    ): Boolean = startFramePublication(
+        FramePlaybackPublicationBoundary.standard(
+            bpm = bpm,
+            subdivisions = subdivisions,
+            accentPattern = accentPattern,
+            alternateSixteenth = alternateSixteenth,
+            muted = muted,
+            origin = nextOrigin(),
+            sounds = soundSelection.active,
+            startDelayMillis = startDelayMillis
+        )
+    )
+
+    fun startPolyrhythm(
+        bpm: Float,
+        beats: Int,
+        against: Int,
+        muted: Boolean,
+        startDelayMillis: Long
+    ): Boolean = startFramePublication(
+        FramePlaybackPublicationBoundary.polyrhythm(
+            bpm = bpm,
+            beats = beats,
+            against = against,
+            muted = muted,
+            origin = nextOrigin(),
+            sounds = soundSelection.active,
+            startDelayMillis = startDelayMillis
+        )
+    )
 
     fun prewarm() {
         renderHandler.post {
@@ -158,6 +271,7 @@ class AudioTrackEngine(
     }
 
     fun stop() {
+        frameSession?.stop()
         renderHandler.post {
             renderRunning = false
             renderHandler.removeCallbacks(renderRunnable)
@@ -172,6 +286,8 @@ class AudioTrackEngine(
     }
 
     fun release() {
+        frameSession?.release()
+        frameSession = null
         val latch = CountDownLatch(1)
         renderHandler.post {
             renderRunning = false
@@ -192,6 +308,34 @@ class AudioTrackEngine(
             queuedClicks += 1L
             if (isBeat) queuedBeatClicks++ else queuedRhythmClicks++
         }
+    }
+
+    private fun startFramePublication(result: FramePublicationResult): Boolean {
+        val ready = result as? FramePublicationResult.Ready ?: return false
+        val session = frameSession ?: AudioTrackFrameSession(
+            audioManager,
+            preferredSampleRate = sampleRate,
+            preferredBurstFrames = outputFramesPerBuffer
+        ).also { frameSession = it }
+        val started = session.start(ready.factory)
+        if (started) {
+            estimatedOutputLatencyNanos = session.snapshot().let { snapshot ->
+                val properties = snapshot.properties
+                if (properties == null) {
+                    0
+                } else {
+                    (properties.bufferFrames + properties.burstFrames).toLong() *
+                        NANOS_PER_SECOND / properties.sampleRate
+                }
+            }
+        }
+        return started
+    }
+
+    private fun nextOrigin(): SessionOrigin {
+        val origin = SessionOrigin(SessionID(nextSessionID), 0)
+        nextSessionID = Math.incrementExact(nextSessionID)
+        return origin
     }
 
     private val renderRunnable = object : Runnable {

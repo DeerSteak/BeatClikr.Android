@@ -31,16 +31,29 @@ internal class PolyrhythmTimingEngine(
     private var stepDurationNanos = 0L
     private var stepIndex = 0
     private var nextStepTimeNanos = 0L
+    private var pendingBpm = 0f
+    private var pendingBeats = 0
+    private var pendingAgainst = 0
+    private var hasPendingUpdate = false
 
     fun start(bpm: Float, beats: Int, against: Int) {
         handler.removeCallbacks(runnable)
         doStart(bpm, beats, against)
     }
 
+    fun updateAtCycleBoundary(bpm: Float, beats: Int, against: Int) {
+        pendingBpm = bpm
+        pendingBeats = beats
+        pendingAgainst = against
+        hasPendingUpdate = true
+        if (stepIndex == 0) applyPendingUpdate()
+    }
+
     fun stop() {
         isPlaying = false
         handler.removeCallbacks(runnable)
         stepIndex = 0
+        hasPendingUpdate = false
     }
 
     private fun doStart(bpm: Float, beats: Int, against: Int) {
@@ -83,7 +96,19 @@ internal class PolyrhythmTimingEngine(
             // Increment from the scheduled time (not nowNanos) so late callbacks self-correct
             nextStepTimeNanos += stepDurationNanos
             stepIndex = (stepIndex + 1) % grid.lcm
+            if (stepIndex == 0) applyPendingUpdate()
         }
+    }
+
+    private fun applyPendingUpdate() {
+        if (!hasPendingUpdate) return
+        bpm = pendingBpm
+        beats = pendingBeats.coerceIn(1, 15)
+        against = pendingAgainst.coerceIn(1, 15)
+        grid = PolyrhythmGrid.create(beats = beats, against = against)
+        val nanosPerBeat = 60_000_000_000.0 / bpm
+        stepDurationNanos = (against * nanosPerBeat / grid.lcm).toLong()
+        hasPendingUpdate = false
     }
 
     private fun playCurrentStep(scheduledTimeNanos: Long) {
