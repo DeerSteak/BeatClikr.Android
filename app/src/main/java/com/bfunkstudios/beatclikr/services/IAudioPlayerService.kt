@@ -2,6 +2,13 @@ package com.bfunkstudios.beatclikr.services
 
 import com.bfunkstudios.beatclikr.data.SoundBank
 import com.bfunkstudios.beatclikr.data.SoundFile
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.StateFlow
+
+interface PlaybackObservation {
+    val transportState: StateFlow<PlaybackTransportState>
+    val committedEvents: SharedFlow<PlaybackCommittedEvent>
+}
 
 interface IAudioPlayerService {
     var delegate: MetronomeAudioEngineDelegate?

@@ -278,16 +278,8 @@ class FramePcmRendererTest {
 
     @Test
     fun preparedRenderWithEventCaptureAllocatesNoMemory() {
-        val timeline = StandardMetronomeTimeline(
-            configuration = StandardMetronomeConfiguration(
-                bpm = ExactTempo.of(240),
-                timing = StandardTiming.Regular(StandardSubdivision.SIXTEENTH)
-            ),
-            sampleRate = 48_000,
-            origin = SessionOrigin(SessionID(3), 0)
-        )
         val renderer = FramePcmRenderer(
-            timeline,
+            EveryBlockEventSource,
             RenderWaveforms(shortArrayOf(1), shortArrayOf(1)),
             maximumActiveVoices = 8,
             eventCapture = RenderedEventRing(512)
@@ -427,5 +419,22 @@ class FramePcmRendererTest {
             visitCount++
             return true
         }
+    }
+
+    private object EveryBlockEventSource : FrameRangeEventSource {
+        override fun visitEvents(
+            startFrame: Long,
+            endFrameExclusive: Long,
+            consumer: FrameRangeEventConsumer
+        ): Boolean = consumer.accept(
+            1,
+            startFrame,
+            startFrame,
+            MusicalEventRole.STANDARD,
+            SoundRole.BEAT,
+            null,
+            null,
+            false
+        )
     }
 }

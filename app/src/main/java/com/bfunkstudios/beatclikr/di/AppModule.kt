@@ -16,6 +16,7 @@ import com.bfunkstudios.beatclikr.services.FlashlightService
 import com.bfunkstudios.beatclikr.services.HapticFeedbackService
 import com.bfunkstudios.beatclikr.services.IAudioPlayerService
 import com.bfunkstudios.beatclikr.services.PlaybackCoordinator
+import com.bfunkstudios.beatclikr.services.PlaybackObservation
 import com.bfunkstudios.beatclikr.services.PlaybackEnginePort
 import com.bfunkstudios.beatclikr.services.IFlashlightService
 import com.bfunkstudios.beatclikr.services.IHapticFeedbackService
@@ -60,6 +61,10 @@ abstract class AppModule {
 
         @Provides @Singleton
         fun provideAudioPlayerService(coordinator: PlaybackCoordinator): IAudioPlayerService =
+            coordinator
+
+        @Provides @Singleton
+        fun providePlaybackObservation(coordinator: PlaybackCoordinator): PlaybackObservation =
             coordinator
 
         @Provides @Singleton

@@ -261,7 +261,7 @@ class PlaybackCoordinator(
             Thread(runnable, "PlaybackCoordinatorEvents")
         }
 ) : IAudioPlayerService, MetronomeAudioEngineDelegate, PolyrhythmAudioEngineDelegate,
-    PlaybackEngineTransportObserver {
+    PlaybackEngineTransportObserver, PlaybackObservation {
     private val mutableOwnership = MutableStateFlow(PlaybackOwnershipSnapshot())
     private val mutableTimingEvents = MutableSharedFlow<PlaybackTimingEvent>(
         extraBufferCapacity = TIMING_EVENT_CAPACITY,
@@ -299,9 +299,9 @@ class PlaybackCoordinator(
     val ownership: StateFlow<PlaybackOwnershipSnapshot> = mutableOwnership
     val timingEvents: SharedFlow<PlaybackTimingEvent> = mutableTimingEvents
     val controlEvents: SharedFlow<PlaybackControlEvent> = mutableControlEvents
-    val transportState: StateFlow<PlaybackTransportState> = mutableTransportState
+    override val transportState: StateFlow<PlaybackTransportState> = mutableTransportState
     val stateTransitions: SharedFlow<PlaybackStateTransition> = mutableStateTransitions
-    val committedEvents: SharedFlow<PlaybackCommittedEvent> = mutableCommittedEvents
+    override val committedEvents: SharedFlow<PlaybackCommittedEvent> = mutableCommittedEvents
 
     @Volatile
     override var delegate: MetronomeAudioEngineDelegate? = null

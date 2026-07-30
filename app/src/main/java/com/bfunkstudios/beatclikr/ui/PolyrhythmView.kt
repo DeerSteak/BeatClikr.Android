@@ -85,6 +85,7 @@ fun PolyrhythmView(
                         value = viewModel.beats,
                         onDecrease = { viewModel.updateBeats(viewModel.beats - 1) },
                         onIncrease = { viewModel.updateBeats(viewModel.beats + 1) },
+                        enabled = viewModel.controlsEnabled,
                         modifier = Modifier.weight(1f)
                     )
                     Text(
@@ -100,6 +101,7 @@ fun PolyrhythmView(
                         value = viewModel.against,
                         onDecrease = { viewModel.updateAgainst(viewModel.against - 1) },
                         onIncrease = { viewModel.updateAgainst(viewModel.against + 1) },
+                        enabled = viewModel.controlsEnabled,
                         modifier = Modifier.weight(1f)
                     )
                 }
@@ -160,7 +162,8 @@ fun PolyrhythmView(
                 BpmSliderControl(
                     value = viewModel.bpm,
                     onValueChange = { viewModel.updateBpm(it) },
-                    valueRange = MetronomeConstants.MIN_BPM..MetronomeConstants.MAX_BPM
+                    valueRange = MetronomeConstants.MIN_BPM..MetronomeConstants.MAX_BPM,
+                    enabled = viewModel.controlsEnabled
                 )
             }
         }
@@ -192,6 +195,7 @@ private fun CountSelector(
     value: Int,
     onDecrease: () -> Unit,
     onIncrease: () -> Unit,
+    enabled: Boolean,
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -210,7 +214,7 @@ private fun CountSelector(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            IconButton(onClick = onDecrease, enabled = value > 1) {
+            IconButton(onClick = onDecrease, enabled = enabled && value > 1) {
                 Icon(imageVector = Icons.Default.Remove, contentDescription = null)
             }
             Text(
@@ -220,7 +224,7 @@ private fun CountSelector(
                 textAlign = TextAlign.Center,
                 modifier = Modifier.width(44.dp)
             )
-            IconButton(onClick = onIncrease, enabled = value < 15) {
+            IconButton(onClick = onIncrease, enabled = enabled && value < 15) {
                 Icon(imageVector = Icons.Default.Add, contentDescription = null)
             }
         }

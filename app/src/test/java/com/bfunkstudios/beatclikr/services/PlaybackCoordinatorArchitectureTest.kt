@@ -85,6 +85,25 @@ class PlaybackCoordinatorArchitectureTest {
         assertTrue(transition.contains("activeMode = (next as? PlaybackTransportState.Playing)"))
     }
 
+    @Test
+    fun playbackViewModelsProjectCoordinatorStateWithoutEngineDelegates() {
+        val metronome = locateMainSource("ui/MetronomeViewModel.kt").readText()
+        val polyrhythm = locateMainSource("ui/PolyrhythmViewModel.kt").readText()
+        val module = locateMainSource("di/AppModule.kt").readText()
+
+        listOf(metronome, polyrhythm).forEach { source ->
+            assertTrue(source.contains("private val playback: PlaybackObservation"))
+            assertTrue(source.contains("playback.transportState.collect"))
+            assertTrue(source.contains("playback.committedEvents.collect"))
+            assertFalse(source.contains("audio.delegate ="))
+            assertFalse(source.contains("audio.polyrhythmDelegate ="))
+            assertFalse(source.contains("recordMetronomePractice"))
+            assertFalse(source.contains("recordPolyrhythmPractice"))
+            assertFalse(source.contains("recordSongPlayed"))
+        }
+        assertTrue(module.contains("providePlaybackObservation"))
+    }
+
     private fun locateMainSource(relative: String): Path {
         val source = Path.of(
             "src/main/java/com/bfunkstudios/beatclikr"

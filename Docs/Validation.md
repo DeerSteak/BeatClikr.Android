@@ -96,6 +96,8 @@ Coordinator submission returns a command sequence without waiting for engine wor
 
 The Phase 4.2 transport suite verifies immutable lifecycle transitions, same-session configuration amendments, prerequisite denial, tagged interruption and failure inputs, idempotent stop, and replacement without observable `Idle`. Engine start and stop acknowledgements, sound preparation publications, and renderer records carry stale guards. Renderer records drain independently of legacy timing callbacks, flush at session teardown, and report both ring overwrite and block-buffer overflow. `Playing` requires prepared sounds plus opened route and backend evidence, while slow-tempo startup does not wait for rendering.
 
+Phase 4.3 projects metronome and polyrhythm UI state from the coordinator. ViewModel tests cover mode-specific playing state, transition-state control enablement, renderer-committed pulse and feedback events, and rapid start/stop/start submission without installing engine delegates or recording practice from start requests.
+
 Renderer records cross a fixed primitive ring without render-path allocation and are materialized on the coordinator control context with session, event sequence, musical role, intended frame, mute state, and explicit correlated or unavailable presentation time. Ring overwrite is observable, runtime terminal backend failures enter authoritative `Failed`, and audio-focus loss reports a tagged interruption instead of letting the engine independently authorize teardown.
 
 Renderer regressions also cover live mute changes and a delayed first event derived from the obtained sample rate. Recovery before that delayed timeline origin remains valid and clamps its event cursor without changing output-frame ownership.
