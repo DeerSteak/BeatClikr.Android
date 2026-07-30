@@ -188,6 +188,7 @@ class AudioTrackFrameSession(
                     snapshotSequence++
                     this.firstOutputFrame = firstOutputFrame
                     writtenFrame = firstOutputFrame
+                    currentRoute = owner.route
                     snapshotSequence++
                     renderRunning = true
                     started = true

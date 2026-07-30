@@ -27,7 +27,6 @@ class PlaybackCoordinatorTest {
 
             assertEquals(
                 listOf(
-                    "stopPolyrhythm",
                     "startStandard",
                     "stopStandard",
                     "startPolyrhythm"
@@ -327,6 +326,133 @@ class PlaybackCoordinatorTest {
         }
     }
 
+    @Test
+    fun startPublishesAuthoritativeLifecycleInOrder() {
+        val engine = FakePlaybackEngine()
+        val coordinator = PlaybackCoordinator(engine)
+        try {
+            coordinator.submit(PlaybackIntent.StartStandard(120f, 4, null, false))
+            assertTrue(coordinator.awaitControlIdle())
+
+            assertEquals(
+                listOf("Preparing", "Preparing", "Starting", "Playing"),
+                coordinator.stateTransitions.replayCache.map {
+                    it.to::class.simpleName
+                }
+            )
+            val playing = coordinator.transportState.value as PlaybackTransportState.Playing
+            assertEquals(PlaybackMode.STANDARD, playing.context.mode)
+            assertEquals(AudioBackendType.AUDIO_TRACK, playing.context.backend)
+            val committed = coordinator.committedEvents.replayCache
+            val scheduledIndex = committed.indexOfFirst {
+                it is PlaybackCommittedEvent.FirstEventScheduled
+            }
+            val playingIndex = committed.indexOfFirst {
+                it is PlaybackCommittedEvent.StateChanged &&
+                    it.transition.to is PlaybackTransportState.Playing
+            }
+            assertTrue(scheduledIndex >= 0)
+            assertTrue(scheduledIndex < playingIndex)
+            assertEquals(
+                3_216L,
+                (committed[scheduledIndex] as PlaybackCommittedEvent.FirstEventScheduled)
+                    .intendedFrame
+            )
+        } finally {
+            coordinator.release()
+        }
+    }
+
+    @Test
+    fun inPlaceUpdateAmendsPlayingWithoutChangingSession() {
+        val engine = FakePlaybackEngine()
+        val coordinator = PlaybackCoordinator(engine)
+        try {
+            coordinator.submit(PlaybackIntent.StartStandard(120f, 4, null, false))
+            assertTrue(coordinator.awaitControlIdle())
+            val original = coordinator.transportState.value as PlaybackTransportState.Playing
+
+            coordinator.submit(PlaybackIntent.UpdateStandard(121f, 2, null, true))
+            coordinator.submit(PlaybackIntent.SetMuted(true))
+            assertTrue(coordinator.awaitControlIdle())
+
+            val amended = coordinator.transportState.value as PlaybackTransportState.Playing
+            val configuration =
+                amended.context.configuration as CommittedPlaybackConfiguration.Standard
+            assertEquals(original.context.sessionId, amended.context.sessionId)
+            assertEquals(121f, configuration.bpm)
+            assertEquals(2, configuration.subdivisions)
+            assertTrue(configuration.alternateSixteenth)
+            assertTrue(configuration.muted)
+        } finally {
+            coordinator.release()
+        }
+    }
+
+    @Test
+    fun replacementAndRepeatedStopHaveNoIdleFlickerOrDuplicateTeardown() {
+        val engine = FakePlaybackEngine()
+        val coordinator = PlaybackCoordinator(engine)
+        try {
+            coordinator.submit(PlaybackIntent.StartStandard(120f, 4, null, false))
+            assertTrue(coordinator.awaitControlIdle())
+            val beforeReplacement = coordinator.stateTransitions.replayCache.size
+
+            coordinator.submit(PlaybackIntent.StartPolyrhythm(120f, 3, 2))
+            assertTrue(coordinator.awaitControlIdle())
+            val replacementStates = coordinator.stateTransitions.replayCache
+                .drop(beforeReplacement)
+                .map { it.to::class.simpleName }
+            assertEquals(
+                listOf("Stopping", "Preparing", "Preparing", "Starting", "Playing"),
+                replacementStates
+            )
+            assertFalse(replacementStates.contains("Idle"))
+
+            coordinator.submit(PlaybackIntent.Stop)
+            coordinator.submit(PlaybackIntent.Stop)
+            assertTrue(coordinator.awaitControlIdle())
+            assertTrue(coordinator.transportState.value is PlaybackTransportState.Idle)
+            assertEquals(2, engine.operations.count { it.startsWith("stop") })
+        } finally {
+            coordinator.release()
+        }
+    }
+
+    @Test
+    fun staleEngineCallbacksCannotChangeCurrentSession() {
+        val engine = FakePlaybackEngine().apply {
+            autoStartAcknowledgement = false
+        }
+        val coordinator = PlaybackCoordinator(engine)
+        try {
+            coordinator.submit(PlaybackIntent.StartStandard(120f, 4, null, false))
+            assertTrue(coordinator.awaitControlIdle())
+            val first = (coordinator.transportState.value as PlaybackTransportState.Starting)
+                .context.sessionId
+
+            coordinator.submit(PlaybackIntent.StartPolyrhythm(120f, 3, 2))
+            assertTrue(coordinator.awaitControlIdle())
+            val second = (coordinator.transportState.value as PlaybackTransportState.Starting)
+                .context.sessionId
+
+            engine.publishStarted(first)
+            engine.transportObserver?.engineStartFailed(first, "stale")
+            assertTrue(coordinator.awaitControlIdle())
+            assertEquals(
+                second,
+                (coordinator.transportState.value as PlaybackTransportState.Starting)
+                    .context.sessionId
+            )
+
+            engine.publishStarted(second)
+            assertTrue(coordinator.awaitControlIdle())
+            assertTrue(coordinator.transportState.value is PlaybackTransportState.Playing)
+        } finally {
+            coordinator.release()
+        }
+    }
+
     private class FakePlaybackEngine : PlaybackEnginePort {
         val operations = Collections.synchronizedList(mutableListOf<String>())
         val callingThreads = Collections.synchronizedSet(mutableSetOf<String>())
@@ -334,13 +460,19 @@ class PlaybackCoordinatorTest {
         private val activeCalls = AtomicInteger()
         var throwOnStart = false
         var blockStart = false
+        var autoStartAcknowledgement = true
         val startEntered = CountDownLatch(1)
         val allowStart = CountDownLatch(1)
-        var activeSounds: ActiveSoundConfiguration? = null
+        var activeSounds: ActiveSoundConfiguration? = ActiveSoundConfiguration(
+            SoundBank.ACOUSTIC,
+            SoundFile.CLICK_HI,
+            SoundFile.CLICK_LO
+        )
         var preparationFailure: SoundPreparationFailure? = null
 
         override var soundPreparationObserver:
             ((ActiveSoundConfiguration?, SoundPreparationFailure?) -> Unit)? = null
+        override var transportObserver: PlaybackEngineTransportObserver? = null
         override var delegate: MetronomeAudioEngineDelegate? = null
         override var polyrhythmDelegate: PolyrhythmAudioEngineDelegate? = null
         override var isMuted: Boolean = false
@@ -383,7 +515,48 @@ class PlaybackCoordinatorTest {
         override fun getFrameAudioMetricsSnapshot(): FrameAudioMetricsSnapshot? = null
         override fun activeSoundConfiguration(): ActiveSoundConfiguration? = activeSounds
         override fun soundPreparationFailure(): SoundPreparationFailure? = preparationFailure
+        override fun beginStandardSession(
+            sessionId: PlaybackSessionId,
+            bpm: Float,
+            subdivisions: Int,
+            accentPattern: List<Boolean>?,
+            alternateSixteenth: Boolean
+        ) {
+            startMetronome(bpm, subdivisions, accentPattern, alternateSixteenth)
+            if (!throwOnStart && autoStartAcknowledgement) publishStarted(sessionId)
+        }
+
+        override fun beginPolyrhythmSession(
+            sessionId: PlaybackSessionId,
+            bpm: Float,
+            beats: Int,
+            against: Int
+        ) {
+            startPolyrhythm(bpm, beats, against)
+            if (!throwOnStart && autoStartAcknowledgement) publishStarted(sessionId)
+        }
+
+        override fun stopSession(sessionId: PlaybackSessionId, mode: PlaybackMode) {
+            when (mode) {
+                PlaybackMode.STANDARD -> stopMetronome()
+                PlaybackMode.POLYRHYTHM -> stopPolyrhythm()
+                PlaybackMode.NONE -> Unit
+            }
+            transportObserver?.engineStopped(sessionId)
+        }
         override fun release() = call("release")
+
+        fun publishStarted(sessionId: PlaybackSessionId) {
+            transportObserver?.engineStarted(
+                PlaybackEngineStartEvidence(
+                    sessionId,
+                    requireNotNull(activeSounds),
+                    AudioOutputRoute.UNKNOWN,
+                    AudioBackendType.AUDIO_TRACK,
+                    3_216
+                )
+            )
+        }
 
         fun publish(
             active: ActiveSoundConfiguration?,

@@ -44,6 +44,12 @@ data class FrameAudioMetricsSnapshot(
     val frameCorrelation: AudioFrameCorrelation?
 )
 
+data class FrameAudioStartEvidence(
+    val route: AudioOutputRoute,
+    val backend: AudioBackendType,
+    val firstEventFrame: Long
+)
+
 class FrameAudioEngine(
     private val audioManager: AudioManager? = null,
     private val pcmFileCache: PcmFileCache
@@ -267,6 +273,20 @@ class FrameAudioEngine(
 
     fun stop() {
         frameSession?.stop()
+    }
+
+    fun startEvidence(startDelayMillis: Long): FrameAudioStartEvidence? {
+        val snapshot = frameSession?.snapshot() ?: return null
+        val properties = snapshot.properties ?: return null
+        return FrameAudioStartEvidence(
+            route = snapshot.route,
+            backend = properties.backend,
+            firstEventFrame = delayedEventOriginFrame(
+                snapshot.firstOutputFrame,
+                startDelayMillis,
+                properties.sampleRate
+            )
+        )
     }
 
     fun release() {

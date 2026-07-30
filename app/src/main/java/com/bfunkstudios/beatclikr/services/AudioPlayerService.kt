@@ -14,6 +14,7 @@ internal class AudioPlayerService(context: Context) : PlaybackEnginePort, Metron
         set(value) {
             audioEngine.soundPreparationObserver = value
         }
+    override var transportObserver: PlaybackEngineTransportObserver? = null
 
     override var delegate: MetronomeAudioEngineDelegate? = null
     override var polyrhythmDelegate: PolyrhythmAudioEngineDelegate?
@@ -80,9 +81,43 @@ internal class AudioPlayerService(context: Context) : PlaybackEnginePort, Metron
     override fun soundPreparationFailure(): SoundPreparationFailure? =
         audioEngine.getSoundPreparationFailure()
 
+    override fun beginStandardSession(
+        sessionId: PlaybackSessionId,
+        bpm: Float,
+        subdivisions: Int,
+        accentPattern: List<Boolean>?,
+        alternateSixteenth: Boolean
+    ) {
+        audioEngine.startMetronome(
+            bpm,
+            subdivisions,
+            accentPattern,
+            alternateSixteenth,
+            this,
+            sessionId,
+            ::publishStartResult
+        )
+    }
+
+    override fun beginPolyrhythmSession(
+        sessionId: PlaybackSessionId,
+        bpm: Float,
+        beats: Int,
+        against: Int
+    ) {
+        audioEngine.startPolyrhythm(sessionId, bpm, beats, against, ::publishStartResult)
+    }
+
+    override fun stopSession(sessionId: PlaybackSessionId, mode: PlaybackMode) {
+        audioEngine.stopSession(mode) {
+            transportObserver?.engineStopped(sessionId)
+        }
+    }
+
     override fun release() {
         audioEngine.release()
         delegate = null
+        transportObserver = null
     }
 
     override fun metronomeBeatFired(isBeat: Boolean, beatInterval: Float, beatTimeNanos: Long) {
@@ -93,4 +128,30 @@ internal class AudioPlayerService(context: Context) : PlaybackEnginePort, Metron
         delegate?.metronomeStartFailed()
     }
 
+    private fun publishStartResult(
+        sessionId: PlaybackSessionId,
+        evidence: FrameAudioStartEvidence?
+    ) {
+        if (evidence == null) {
+            transportObserver?.engineStartFailed(sessionId, "Audio stream failed to start")
+            return
+        }
+        val sounds = activeSoundConfiguration()
+        if (sounds == null) {
+            transportObserver?.engineStartFailed(
+                sessionId,
+                "Audio stream started without prepared sounds"
+            )
+            return
+        }
+        transportObserver?.engineStarted(
+            PlaybackEngineStartEvidence(
+                sessionId,
+                sounds,
+                evidence.route,
+                evidence.backend,
+                evidence.firstEventFrame
+            )
+        )
+    }
 }

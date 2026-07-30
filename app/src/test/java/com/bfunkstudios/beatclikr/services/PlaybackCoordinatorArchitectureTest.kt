@@ -44,11 +44,12 @@ class PlaybackCoordinatorArchitectureTest {
     fun coordinatorSeparatesModeReplacementFromInPlaceUpdates() {
         val source = locateMainSource("services/PlaybackCoordinator.kt").readText()
 
-        assertTrue(source.contains("is PlaybackIntent.UpdateStandard -> engine.updateTempo"))
+        assertTrue(source.contains("is PlaybackIntent.UpdateStandard -> {"))
         assertTrue(source.contains("is PlaybackIntent.UpdatePolyrhythm ->"))
         assertTrue(source.contains("is PlaybackIntent.SetMuted ->"))
-        assertTrue(source.contains("engine.stopPolyrhythm()"))
-        assertTrue(source.contains("engine.stopMetronome()"))
+        assertTrue(source.contains("engine.stopSession("))
+        assertTrue(source.contains("pendingReplacement = start"))
+        assertTrue(source.contains("amendTransportConfiguration"))
     }
 
     @Test

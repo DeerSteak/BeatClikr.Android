@@ -123,7 +123,7 @@ private fun preparedPublication(
     )
 }
 
-private fun delayedEventOriginFrame(
+internal fun delayedEventOriginFrame(
     firstOutputFrame: Long,
     startDelayMillis: Long,
     obtainedSampleRate: Int
