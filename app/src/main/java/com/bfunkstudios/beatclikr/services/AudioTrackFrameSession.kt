@@ -63,7 +63,7 @@ class AudioTrackFrameSession(
     audioManager: AudioManager?,
     private val preferredSampleRate: Int,
     preferredBurstFrames: Int,
-    routeChangeObserver: (AudioOutputRoute, AudioOutputRoute) -> Unit = { _, _ -> }
+    routeChangeObserver: (AudioOutputRoute) -> Unit = {}
 ) {
     init {
         require(preferredSampleRate > 0) { "Preferred sample rate must be positive" }
@@ -73,7 +73,7 @@ class AudioTrackFrameSession(
     private val thread = HandlerThread("AudioTrackFrameRenderThread").also { it.start() }
     private val handler = Handler(thread.looper)
     private val owner = FrameAudioStreamOwner(
-        AudioTrackRenderBackend(audioManager, routeChangeObserver)
+        AudioTrackRenderBackend(audioManager) { _, current -> routeChangeObserver(current) }
     )
     private val preferredBufferFrames = Math.multiplyExact(preferredBurstFrames, 2)
     @Volatile

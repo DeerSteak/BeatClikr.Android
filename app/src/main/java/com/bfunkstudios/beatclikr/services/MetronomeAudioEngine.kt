@@ -587,10 +587,7 @@ class MetronomeAudioEngine(private val context: Context) {
         }
     }
 
-    private fun onOutputRouteChanged(
-        previous: AudioOutputRoute,
-        current: AudioOutputRoute
-    ) {
+    private fun onOutputRouteChanged(current: AudioOutputRoute) {
         handler.post { applyObservedRoute(current) }
     }
 

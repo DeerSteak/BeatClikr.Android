@@ -29,6 +29,21 @@ class ActiveOutputRouteTrackerTest {
     }
 
     @Test
+    fun transientUnknownDoesNotHideTheNextRealRouteChange() {
+        val tracker = ActiveOutputRouteTracker()
+        tracker.begin(AudioOutputRoute.BUILT_IN)
+
+        assertNull(tracker.observe(AudioOutputRoute.UNKNOWN))
+        assertEquals(
+            PlaybackInterruptionReason.RouteChanged(
+                AudioOutputRoute.BUILT_IN,
+                AudioOutputRoute.WIRED
+            ),
+            tracker.observe(AudioOutputRoute.WIRED)
+        )
+    }
+
+    @Test
     fun clearPreventsStoppedSessionFromEmitting() {
         val tracker = ActiveOutputRouteTracker()
         tracker.begin(AudioOutputRoute.BUILT_IN)

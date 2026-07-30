@@ -12,6 +12,7 @@ internal class ActiveOutputRouteTracker {
     }
 
     fun observe(current: AudioOutputRoute): PlaybackInterruptionReason.RouteChanged? {
+        if (current == AudioOutputRoute.UNKNOWN) return null
         val previous = route
         route = current
         if (previous == AudioOutputRoute.UNKNOWN || current == previous) return null

@@ -60,10 +60,7 @@ data class FrameAudioRenderedEventBatch(
 class FrameAudioEngine(
     private val audioManager: AudioManager? = null,
     private val pcmFileCache: PcmFileCache,
-    private val routeChangeObserver: (
-        previous: AudioOutputRoute,
-        current: AudioOutputRoute
-    ) -> Unit = { _, _ -> }
+    private val routeChangeObserver: (AudioOutputRoute) -> Unit = {}
 ) {
     private val sampleRate = pcmFileCache.sampleRate
     private val outputFramesPerBuffer = resolveOutputFramesPerBuffer()
