@@ -281,6 +281,8 @@ class AudioTrackFrameSession(
         return stopped
     }
 
+    fun currentRoute(): AudioOutputRoute = owner.route
+
     fun snapshot(): AudioTrackFrameSessionSnapshot {
         var before: Int
         var after: Int

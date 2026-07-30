@@ -303,6 +303,9 @@ class FrameAudioEngine(
         )
     }
 
+    fun currentRoute(): AudioOutputRoute =
+        frameSession?.currentRoute() ?: AudioOutputRoute.UNKNOWN
+
     fun drainRenderedEvents(afterCaptureSequence: Long): FrameAudioRenderedEventBatch {
         val metrics = metricsSnapshot()
         return FrameAudioRenderedEventBatch(

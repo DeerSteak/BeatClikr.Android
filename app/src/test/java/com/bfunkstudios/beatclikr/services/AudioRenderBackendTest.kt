@@ -1,5 +1,6 @@
 package com.bfunkstudios.beatclikr.services
 
+import android.media.AudioTrack
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertSame
@@ -7,6 +8,40 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class AudioRenderBackendTest {
+    @Test
+    fun deadAudioTrackWriteIsADeviceDisconnection() {
+        assertEquals(
+            AudioBackendFailureCode.DEVICE_DISCONNECTED,
+            audioTrackWriteFailureCode(AudioTrack.ERROR_DEAD_OBJECT)
+        )
+        assertEquals(
+            AudioBackendFailureCode.WRITE_FAILED,
+            audioTrackWriteFailureCode(AudioTrack.ERROR_INVALID_OPERATION)
+        )
+    }
+
+    @Test
+    fun routingListenerSuppressesInitialResolutionAndDuplicateRoute() {
+        assertFalse(
+            shouldReportRouteChange(
+                AudioOutputRoute.UNKNOWN,
+                AudioOutputRoute.BUILT_IN
+            )
+        )
+        assertFalse(
+            shouldReportRouteChange(
+                AudioOutputRoute.BUILT_IN,
+                AudioOutputRoute.BUILT_IN
+            )
+        )
+        assertTrue(
+            shouldReportRouteChange(
+                AudioOutputRoute.BUILT_IN,
+                AudioOutputRoute.USB
+            )
+        )
+    }
+
     @Test
     fun contractCarriesLifecycleRenderRangeAndTimestamp() {
         val backend = RecordingBackend()
