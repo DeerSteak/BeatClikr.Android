@@ -8,8 +8,13 @@ import com.bfunkstudios.beatclikr.data.SoundFile
 internal class AudioPlayerService(context: Context) : PlaybackEnginePort, MetronomeAudioEngineDelegate {
     private val audioEngine = MetronomeAudioEngine(context.applicationContext)
 
-    override var soundPreparationObserver:
-        ((ActiveSoundConfiguration?, SoundPreparationFailure?) -> Unit)?
+    init {
+        audioEngine.playbackInterruptionObserver = { sessionId, reason ->
+            transportObserver?.engineInterrupted(sessionId, reason)
+        }
+    }
+
+    override var soundPreparationObserver: ((SoundPreparationPublication) -> Unit)?
         get() = audioEngine.soundPreparationObserver
         set(value) {
             audioEngine.soundPreparationObserver = value
@@ -31,6 +36,22 @@ internal class AudioPlayerService(context: Context) : PlaybackEnginePort, Metron
 
     override fun setupAudioPlayer(beatResourceId: Int, rhythmResourceId: Int) {
         audioEngine.loadSounds(beatResourceId, rhythmResourceId)
+    }
+
+    override fun selectSounds(
+        requestSequence: Long,
+        beatResourceId: Int,
+        rhythmResourceId: Int
+    ) {
+        audioEngine.loadSounds(beatResourceId, rhythmResourceId, requestSequence)
+    }
+
+    override fun selectSoundBank(requestSequence: Long, bank: SoundBank) {
+        audioEngine.selectSoundBank(bank, requestSequence)
+    }
+
+    override fun prepareSounds(requestSequence: Long, sounds: Collection<SoundFile>) {
+        audioEngine.prepareAudioTrackSounds(sounds, requestSequence)
     }
 
     override fun startMetronome(
@@ -81,6 +102,11 @@ internal class AudioPlayerService(context: Context) : PlaybackEnginePort, Metron
     override fun soundPreparationFailure(): SoundPreparationFailure? =
         audioEngine.getSoundPreparationFailure()
 
+    override fun drainRenderedEvents(
+        afterCaptureSequence: Long
+    ): FrameAudioRenderedEventBatch? =
+        audioEngine.drainRenderedEvents(afterCaptureSequence)
+
     override fun beginStandardSession(
         sessionId: PlaybackSessionId,
         bpm: Float,
@@ -115,6 +141,7 @@ internal class AudioPlayerService(context: Context) : PlaybackEnginePort, Metron
     }
 
     override fun release() {
+        audioEngine.playbackInterruptionObserver = null
         audioEngine.release()
         delegate = null
         transportObserver = null

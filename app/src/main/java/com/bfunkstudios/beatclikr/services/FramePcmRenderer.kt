@@ -2,6 +2,7 @@ package com.bfunkstudios.beatclikr.services
 
 import com.bfunkstudios.beatclikr.music.FrameRangeEventConsumer
 import com.bfunkstudios.beatclikr.music.FrameRangeEventSource
+import com.bfunkstudios.beatclikr.music.MusicalEventRole
 import com.bfunkstudios.beatclikr.music.SoundRole
 
 /** Stable waveform references prepared and published before rendering begins. */
@@ -36,7 +37,9 @@ interface PcmFrameRenderer {
 class FramePcmRenderer(
     private var eventSource: FrameRangeEventSource,
     private val waveforms: RenderWaveforms,
-    maximumActiveVoices: Int
+    maximumActiveVoices: Int,
+    private val eventCapture: RenderedEventRing? = null,
+    maximumBlockEvents: Int = DEFAULT_MAXIMUM_BLOCK_EVENTS
 ) : FrameRangeEventConsumer, PcmFrameRenderer {
     private val activeRoles = ByteArray(maximumActiveVoices)
     private val activePositions = IntArray(maximumActiveVoices)
@@ -49,6 +52,12 @@ class FramePcmRenderer(
     private var blockBeatEvents = 0L
     private var blockRhythmEvents = 0L
     private var liveMuted: Boolean? = null
+    private val blockSessionIds = LongArray(maximumBlockEvents)
+    private val blockEventSequences = LongArray(maximumBlockEvents)
+    private val blockIntendedFrames = LongArray(maximumBlockEvents)
+    private val blockRoles = arrayOfNulls<MusicalEventRole>(maximumBlockEvents)
+    private val blockMuted = BooleanArray(maximumBlockEvents)
+    private var blockCapturedEvents = 0
 
     override var renderedBeatEvents = 0L
         private set
@@ -57,11 +66,21 @@ class FramePcmRenderer(
         private set
 
     override fun accept(
+        sessionId: Long,
+        eventSequence: Long,
         intendedFrame: Long,
+        primaryRole: MusicalEventRole,
         primarySound: SoundRole,
+        secondaryRole: MusicalEventRole?,
         secondarySound: SoundRole?,
         muted: Boolean
     ): Boolean {
+        if (eventCapture != null) {
+            captureBlockEvent(sessionId, eventSequence, intendedFrame, primaryRole, muted)
+            if (secondaryRole != null) {
+                captureBlockEvent(sessionId, eventSequence, intendedFrame, secondaryRole, muted)
+            }
+        }
         if (!(liveMuted ?: muted)) {
             if (addVoice(primarySound, intendedFrame)) countBlockEvent(primarySound)
             if (result == FrameRenderResult.COMPLETE && secondarySound != null) {
@@ -118,6 +137,7 @@ class FramePcmRenderer(
         result = FrameRenderResult.COMPLETE
         blockBeatEvents = 0
         blockRhythmEvents = 0
+        blockCapturedEvents = 0
         accumulator.fill(0, 0, frameCount)
 
         mixExistingVoices()
@@ -132,6 +152,7 @@ class FramePcmRenderer(
         writeSaturatedOutput(output, frameCount)
         renderedBeatEvents = Math.addExact(renderedBeatEvents, blockBeatEvents)
         renderedRhythmEvents = Math.addExact(renderedRhythmEvents, blockRhythmEvents)
+        commitBlockEvents()
         hasExpectedFrame = true
         nextExpectedFrame = endFrame
         return result
@@ -157,6 +178,37 @@ class FramePcmRenderer(
 
     private fun countBlockEvent(role: SoundRole) {
         if (role == SoundRole.BEAT) blockBeatEvents++ else blockRhythmEvents++
+    }
+
+    private fun captureBlockEvent(
+        sessionId: Long,
+        eventSequence: Long,
+        intendedFrame: Long,
+        role: MusicalEventRole,
+        muted: Boolean
+    ) {
+        if (blockCapturedEvents >= blockSessionIds.size) return
+        val index = blockCapturedEvents++
+        blockSessionIds[index] = sessionId
+        blockEventSequences[index] = eventSequence
+        blockIntendedFrames[index] = intendedFrame
+        blockRoles[index] = role
+        blockMuted[index] = liveMuted ?: muted
+    }
+
+    private fun commitBlockEvents() {
+        val capture = eventCapture ?: return
+        var index = 0
+        while (index < blockCapturedEvents) {
+            capture.record(
+                blockSessionIds[index],
+                blockEventSequences[index],
+                checkNotNull(blockRoles[index]),
+                blockIntendedFrames[index],
+                blockMuted[index]
+            )
+            index++
+        }
     }
 
     private fun mixExistingVoices() {
@@ -202,5 +254,6 @@ class FramePcmRenderer(
         const val NO_VOICE: Byte = 0
         const val BEAT_VOICE: Byte = 1
         const val RHYTHM_VOICE: Byte = 2
+        const val DEFAULT_MAXIMUM_BLOCK_EVENTS = 64
     }
 }

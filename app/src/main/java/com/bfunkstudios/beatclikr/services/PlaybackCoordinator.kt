@@ -2,6 +2,7 @@ package com.bfunkstudios.beatclikr.services
 
 import com.bfunkstudios.beatclikr.data.SoundBank
 import com.bfunkstudios.beatclikr.data.SoundFile
+import com.bfunkstudios.beatclikr.music.MusicalEventRole
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
@@ -161,11 +162,34 @@ sealed interface PlaybackCommittedEvent {
         val sessionId: PlaybackSessionId,
         val intendedFrame: Long
     ) : PlaybackCommittedEvent
+
+    data class Rendered(
+        override val sequence: Long,
+        val sessionId: PlaybackSessionId,
+        val eventSequence: Long,
+        val role: MusicalEventRole,
+        val intendedFrame: Long,
+        val muted: Boolean,
+        val presentation: EventPresentation
+    ) : PlaybackCommittedEvent
+
+    data class RecordsDropped(
+        override val sequence: Long,
+        val count: Long
+    ) : PlaybackCommittedEvent
+}
+
+sealed interface EventPresentation {
+    data object Unavailable : EventPresentation
+
+    data class Correlated(
+        val presentationNanoTime: Long,
+        val correlation: AudioFrameCorrelation
+    ) : EventPresentation
 }
 
 interface PlaybackEnginePort : IAudioPlayerService {
-    var soundPreparationObserver:
-        ((ActiveSoundConfiguration?, SoundPreparationFailure?) -> Unit)?
+    var soundPreparationObserver: ((SoundPreparationPublication) -> Unit)?
     var transportObserver: PlaybackEngineTransportObserver?
 
     fun activeSoundConfiguration(): ActiveSoundConfiguration?
@@ -184,7 +208,21 @@ interface PlaybackEnginePort : IAudioPlayerService {
         against: Int
     )
     fun stopSession(sessionId: PlaybackSessionId, mode: PlaybackMode)
+    fun drainRenderedEvents(afterCaptureSequence: Long): FrameAudioRenderedEventBatch?
+    fun selectSounds(
+        requestSequence: Long,
+        beatResourceId: Int,
+        rhythmResourceId: Int
+    )
+    fun selectSoundBank(requestSequence: Long, bank: SoundBank)
+    fun prepareSounds(requestSequence: Long, sounds: Collection<SoundFile>)
 }
+
+data class SoundPreparationPublication(
+    val requestSequence: Long?,
+    val active: ActiveSoundConfiguration?,
+    val failure: SoundPreparationFailure?
+)
 
 data class PlaybackEngineStartEvidence(
     val sessionId: PlaybackSessionId,
@@ -198,6 +236,10 @@ interface PlaybackEngineTransportObserver {
     fun engineStarted(evidence: PlaybackEngineStartEvidence)
     fun engineStartFailed(sessionId: PlaybackSessionId, diagnostic: String)
     fun engineStopped(sessionId: PlaybackSessionId)
+    fun engineInterrupted(
+        sessionId: PlaybackSessionId,
+        reason: PlaybackInterruptionReason
+    )
 }
 
 class PlaybackCoordinator(
@@ -230,8 +272,11 @@ class PlaybackCoordinator(
     private var nextSessionId = 1L
     private var nextTransitionSequence = 1L
     private var nextCommittedEventSequence = 1L
+    private var nextEngineCaptureSequence = 0L
+    private var lastBackendFailure: AudioBackendFailure? = null
     private var pendingReplacement: PendingStart? = null
     private var prerequisites = PlaybackPrerequisites.READY
+    private var latestSoundRequestSequence = 0L
     @Volatile
     private var controlThread: Thread? = null
     @Volatile
@@ -396,6 +441,7 @@ class PlaybackCoordinator(
         beatInterval: Float,
         beatTimeNanos: Long
     ) {
+        onControlContext(::publishRenderedEvents)
         mutableTimingEvents.tryEmit(
             PlaybackTimingEvent.StandardTiming(isBeat, beatInterval, beatTimeNanos)
         )
@@ -411,6 +457,7 @@ class PlaybackCoordinator(
         beatDurationNanos: Long,
         rhythmDurationNanos: Long
     ) {
+        onControlContext(::publishRenderedEvents)
         mutableTimingEvents.tryEmit(
             PlaybackTimingEvent.PolyrhythmTiming(
                 beatFired,
@@ -451,6 +498,15 @@ class PlaybackCoordinator(
 
     override fun engineStopped(sessionId: PlaybackSessionId) {
         onControlContext { applyEngineStopped(sessionId) }
+    }
+
+    override fun engineInterrupted(
+        sessionId: PlaybackSessionId,
+        reason: PlaybackInterruptionReason
+    ) {
+        onControlContext {
+            applySystemInput(PlaybackSystemInput.Interrupted(sessionId, reason))
+        }
     }
 
     internal fun awaitControlIdle(timeoutSeconds: Long = 5): Boolean {
@@ -495,15 +551,18 @@ class PlaybackCoordinator(
             when (intent) {
                 is PlaybackIntent.Invalid -> error("Invalid intent passed validation")
                 is PlaybackIntent.SelectSounds -> {
+                    latestSoundRequestSequence = sequence
                     updateRequestedSounds(beat = intent.beat, rhythm = intent.rhythm)
-                    engine.setupAudioPlayer(
+                    engine.selectSounds(
+                        sequence,
                         requireNotNull(intent.beat.resourceId),
                         requireNotNull(intent.rhythm.resourceId)
                     )
                 }
                 is PlaybackIntent.SelectSoundBank -> {
+                    latestSoundRequestSequence = sequence
                     updateRequestedSounds(bank = intent.bank)
-                    engine.soundBank = intent.bank
+                    engine.selectSoundBank(sequence, intent.bank)
                 }
                 is PlaybackIntent.SetMuted -> {
                     engine.isMuted = intent.muted
@@ -597,8 +656,10 @@ class PlaybackCoordinator(
                     applyStop(sequence)
                 }
                 PlaybackIntent.Prewarm -> engine.prewarmAudioTrack()
-                is PlaybackIntent.PrepareSounds ->
-                    engine.prepareAudioTrackSounds(intent.sounds)
+                is PlaybackIntent.PrepareSounds -> {
+                    latestSoundRequestSequence = sequence
+                    engine.prepareSounds(sequence, intent.sounds)
+                }
             }
             PlaybackIntentOutcome.Accepted(sequence)
         } catch (failure: RuntimeException) {
@@ -910,6 +971,7 @@ class PlaybackCoordinator(
             route = evidence.route,
             backend = evidence.backend
         )
+        lastBackendFailure = null
         mutableCommittedEvents.tryEmit(
             PlaybackCommittedEvent.FirstEventScheduled(
                 nextCommittedEventSequence++,
@@ -918,7 +980,78 @@ class PlaybackCoordinator(
             )
         )
         transitionTo(PlaybackTransportState.Playing(committed))
+        publishRenderedEvents()
         mutateOwnership { it.copy(activeMode = committed.mode) }
+    }
+
+    private fun publishRenderedEvents() {
+        val current = transportState.value as? PlaybackTransportState.Playing ?: return
+        val batch = engine.drainRenderedEvents(nextEngineCaptureSequence) ?: return
+        nextEngineCaptureSequence = batch.events.nextCaptureSequence
+        if (batch.events.droppedRecords > 0) {
+            mutableCommittedEvents.tryEmit(
+                PlaybackCommittedEvent.RecordsDropped(
+                    nextCommittedEventSequence++,
+                    batch.events.droppedRecords
+                )
+            )
+        }
+        batch.events.records.forEach { record ->
+            if (record.sessionId != current.context.sessionId.value) return@forEach
+            mutableCommittedEvents.tryEmit(
+                PlaybackCommittedEvent.Rendered(
+                    nextCommittedEventSequence++,
+                    current.context.sessionId,
+                    record.eventSequence,
+                    record.role,
+                    record.intendedFrame,
+                    record.muted,
+                    presentationFor(record.intendedFrame, batch)
+                )
+            )
+        }
+        publishRuntimeFailure(current)
+    }
+
+    private fun publishRuntimeFailure(current: PlaybackTransportState.Playing) {
+        val failure = engine.getFrameAudioMetricsSnapshot()
+            ?.latestBackendFailure
+            ?.takeIf {
+                it.code == AudioBackendFailureCode.WRITE_FAILED ||
+                    it.code == AudioBackendFailureCode.DEVICE_DISCONNECTED ||
+                    it.code == AudioBackendFailureCode.INTERNAL_ERROR
+            }
+            ?: return
+        if (failure == lastBackendFailure) return
+        lastBackendFailure = failure
+        applySystemInput(
+            PlaybackSystemInput.EngineFailed(
+                current.context.sessionId,
+                "${failure.operation}: ${failure.code}"
+            )
+        )
+    }
+
+    private fun presentationFor(
+        intendedFrame: Long,
+        batch: FrameAudioRenderedEventBatch
+    ): EventPresentation {
+        val correlation = batch.correlation ?: return EventPresentation.Unavailable
+        return try {
+            val frameDelta = Math.subtractExact(intendedFrame, correlation.presentedFrame)
+            val wholeSeconds = Math.floorDiv(frameDelta, batch.sampleRate.toLong())
+            val remainderFrames = Math.floorMod(frameDelta, batch.sampleRate.toLong())
+            val deltaNanos = Math.addExact(
+                Math.multiplyExact(wholeSeconds, NANOS_PER_SECOND),
+                Math.multiplyExact(remainderFrames, NANOS_PER_SECOND) / batch.sampleRate
+            )
+            EventPresentation.Correlated(
+                Math.addExact(correlation.presentationNanoTime, deltaNanos),
+                correlation
+            )
+        } catch (_: ArithmeticException) {
+            EventPresentation.Unavailable
+        }
     }
 
     private fun applyEngineStartFailed(
@@ -987,6 +1120,14 @@ class PlaybackCoordinator(
         }
         PlaybackTransportTransitions.requireLegal(previous, next)
         mutableTransportState.value = next
+        mutateOwnership {
+            it.copy(
+                activeMode = (next as? PlaybackTransportState.Playing)
+                    ?.context
+                    ?.mode
+                    ?: PlaybackMode.NONE
+            )
+        }
         val transition = PlaybackStateTransition(nextTransitionSequence++, previous, next)
         mutableCommittedEvents.tryEmit(
             PlaybackCommittedEvent.StateChanged(
@@ -1100,12 +1241,15 @@ class PlaybackCoordinator(
     }
 
     @Synchronized
-    private fun onSoundPreparation(
-        active: ActiveSoundConfiguration?,
-        failure: SoundPreparationFailure?
-    ) {
+    private fun onSoundPreparation(publication: SoundPreparationPublication) {
         if (released) return
         executeControl("Sound preparation callback failed") {
+            if (publication.requestSequence != null &&
+                publication.requestSequence < latestSoundRequestSequence) {
+                return@executeControl
+            }
+            val active = publication.active
+            val failure = publication.failure
             val requested = ownership.value.requestedSounds
             val matches = active != null &&
                 active.bank == requested.bank &&
@@ -1130,8 +1274,11 @@ class PlaybackCoordinator(
 
     private fun refreshAudibleSounds() {
         onSoundPreparation(
-            engine.activeSoundConfiguration(),
-            engine.soundPreparationFailure()
+            SoundPreparationPublication(
+                null,
+                engine.activeSoundConfiguration(),
+                engine.soundPreparationFailure()
+            )
         )
     }
 
@@ -1152,5 +1299,6 @@ class PlaybackCoordinator(
         const val TIMING_EVENT_CAPACITY = 64
         const val CONTROL_EVENT_CAPACITY = 64
         const val TRANSPORT_EVENT_CAPACITY = 64
+        const val NANOS_PER_SECOND = 1_000_000_000L
     }
 }

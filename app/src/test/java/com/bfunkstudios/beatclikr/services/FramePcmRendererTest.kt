@@ -4,6 +4,7 @@ import com.bfunkstudios.beatclikr.music.ExactTempo
 import com.bfunkstudios.beatclikr.music.SoundRole
 import com.bfunkstudios.beatclikr.music.FrameRangeEventConsumer
 import com.bfunkstudios.beatclikr.music.FrameRangeEventSource
+import com.bfunkstudios.beatclikr.music.MusicalEventRole
 import com.bfunkstudios.beatclikr.music.PolyrhythmConfiguration
 import com.bfunkstudios.beatclikr.music.PolyrhythmTimeline
 import com.bfunkstudios.beatclikr.music.SessionID
@@ -149,6 +150,33 @@ class FramePcmRendererTest {
     }
 
     @Test
+    fun successfulBlockPublishesFullEventMetadataToBoundedCapture() {
+        val capture = RenderedEventRing(4)
+        val renderer = FramePcmRenderer(
+            StandardMetronomeTimeline(
+                StandardMetronomeConfiguration(
+                    bpm = ExactTempo.of(120),
+                    timing = StandardTiming.Regular(StandardSubdivision.QUARTER)
+                ),
+                48_000,
+                SessionOrigin(SessionID(9), 0)
+            ),
+            RenderWaveforms(shortArrayOf(1), shortArrayOf(1)),
+            maximumActiveVoices = 4,
+            eventCapture = capture
+        )
+        renderer.prepare(64)
+
+        assertEquals(FrameRenderResult.COMPLETE, renderer.render(0, ShortArray(64), 64))
+        val record = capture.drain(0).records.single()
+
+        assertEquals(9L, record.sessionId)
+        assertEquals(0L, record.eventSequence)
+        assertEquals(MusicalEventRole.STANDARD, record.role)
+        assertEquals(0L, record.intendedFrame)
+    }
+
+    @Test
     fun reportsCapacityAndSourceFailuresWithoutThrowing() {
         val full = renderer(
             RecordingEventSource(Event(0, SoundRole.BEAT, SoundRole.RHYTHM)),
@@ -248,10 +276,30 @@ class FramePcmRendererTest {
         assertPreparedRenderAllocatesNoMemory(renderer)
     }
 
+    @Test
+    fun preparedRenderWithEventCaptureAllocatesNoMemory() {
+        val timeline = StandardMetronomeTimeline(
+            configuration = StandardMetronomeConfiguration(
+                bpm = ExactTempo.of(240),
+                timing = StandardTiming.Regular(StandardSubdivision.SIXTEENTH)
+            ),
+            sampleRate = 48_000,
+            origin = SessionOrigin(SessionID(3), 0)
+        )
+        val renderer = FramePcmRenderer(
+            timeline,
+            RenderWaveforms(shortArrayOf(1), shortArrayOf(1)),
+            maximumActiveVoices = 8,
+            eventCapture = RenderedEventRing(512)
+        ).also { it.prepare(64) }
+
+        assertPreparedRenderAllocatesNoMemory(renderer)
+    }
+
     private fun assertPreparedRenderAllocatesNoMemory(renderer: FramePcmRenderer) {
         val output = ShortArray(64)
         var startFrame = 0L
-        repeat(100_000) {
+        repeat(500_000) {
             renderer.render(startFrame, output, output.size)
             startFrame += output.size
         }
@@ -305,9 +353,19 @@ class FramePcmRendererTest {
         ): Boolean {
             lastStartFrame = startFrame
             lastEndFrame = endFrameExclusive
-            events.forEach { event ->
+            events.forEachIndexed { index, event ->
                 if (event.frame in startFrame until endFrameExclusive) {
-                    if (!consumer.accept(event.frame, event.primary, event.secondary, event.muted)) {
+                    if (!consumer.accept(
+                            1,
+                            index.toLong(),
+                            event.frame,
+                            MusicalEventRole.STANDARD,
+                            event.primary,
+                            event.secondary?.let { MusicalEventRole.POLYRHYTHM_RHYTHM },
+                            event.secondary,
+                            event.muted
+                        )
+                    ) {
                         return true
                     }
                 }
@@ -322,7 +380,16 @@ class FramePcmRendererTest {
             endFrameExclusive: Long,
             consumer: FrameRangeEventConsumer
         ): Boolean {
-            consumer.accept(startFrame, SoundRole.BEAT, null, false)
+            consumer.accept(
+                1,
+                0,
+                startFrame,
+                MusicalEventRole.STANDARD,
+                SoundRole.BEAT,
+                null,
+                null,
+                false
+            )
             return false
         }
     }

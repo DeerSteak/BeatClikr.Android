@@ -7,8 +7,12 @@ enum class TimelineMode {
 
 fun interface FrameRangeEventConsumer {
     fun accept(
+        sessionId: Long,
+        eventSequence: Long,
         intendedFrame: Long,
+        primaryRole: MusicalEventRole,
         primarySound: SoundRole,
+        secondaryRole: MusicalEventRole?,
         secondarySound: SoundRole?,
         muted: Boolean
     ): Boolean

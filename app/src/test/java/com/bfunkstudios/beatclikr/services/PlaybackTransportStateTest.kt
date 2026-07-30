@@ -2,6 +2,7 @@ package com.bfunkstudios.beatclikr.services
 
 import com.bfunkstudios.beatclikr.data.SoundBank
 import com.bfunkstudios.beatclikr.data.SoundFile
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
@@ -193,6 +194,73 @@ class PlaybackTransportStateTest {
             PlaybackTransportState.Idle,
             PlaybackTransportState.Playing(first)
         )
+    }
+
+    @Test
+    fun transitionMatrixCoversEveryLifecycleEdge() {
+        val idle = PlaybackTransportState.Idle
+        val preparing = PlaybackTransportState.Preparing(
+            first,
+            PlaybackPrerequisites.READY
+        )
+        val starting = PlaybackTransportState.Starting(first)
+        val playing = PlaybackTransportState.Playing(first)
+        val stopping = PlaybackTransportState.Stopping(first)
+        val interrupted = PlaybackTransportState.Interrupted(
+            first,
+            PlaybackInterruptionReason.RouteLost
+        )
+        val failed = PlaybackTransportState.Failed(
+            first,
+            PlaybackFailureReason.Engine("failed")
+        )
+        val replacement = PlaybackTransportState.Preparing(
+            second,
+            PlaybackPrerequisites.READY
+        )
+        val states = listOf(
+            idle,
+            preparing,
+            starting,
+            playing,
+            stopping,
+            interrupted,
+            failed,
+            replacement
+        )
+        val legal = setOf(
+            idle to idle,
+            idle to preparing,
+            idle to replacement,
+            preparing to preparing,
+            preparing to starting,
+            preparing to stopping,
+            preparing to failed,
+            starting to starting,
+            starting to playing,
+            starting to stopping,
+            starting to failed,
+            playing to playing,
+            playing to stopping,
+            playing to interrupted,
+            playing to failed,
+            stopping to stopping,
+            stopping to idle,
+            stopping to replacement,
+            interrupted to idle,
+            failed to idle,
+            replacement to replacement
+        )
+
+        states.forEach { from ->
+            states.forEach { to ->
+                assertEquals(
+                    "${from::class.simpleName} -> ${to::class.simpleName}",
+                    from to to in legal,
+                    PlaybackTransportTransitions.isLegal(from, to)
+                )
+            }
+        }
     }
 
     private fun requestedContext(id: Long) = PlaybackSessionContext(

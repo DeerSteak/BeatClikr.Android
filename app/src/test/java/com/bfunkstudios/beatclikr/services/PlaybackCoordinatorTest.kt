@@ -300,6 +300,31 @@ class PlaybackCoordinatorTest {
     }
 
     @Test
+    fun taggedStaleSoundFailureCannotOverwriteNewerRequest() {
+        val engine = FakePlaybackEngine()
+        val coordinator = PlaybackCoordinator(engine)
+        try {
+            val staleSequence = coordinator.submit(
+                PlaybackIntent.SelectSoundBank(SoundBank.SYNTH)
+            )
+            coordinator.submit(PlaybackIntent.SelectSoundBank(SoundBank.ACOUSTIC))
+            assertTrue(coordinator.awaitControlIdle())
+            val failure = SoundPreparationFailure(
+                SoundBank.SYNTH,
+                SoundFile.CLICK_HI,
+                SoundPreparationFailureCode.CORRUPT
+            )
+
+            engine.publish(engine.activeSounds, failure, staleSequence)
+            assertTrue(coordinator.awaitControlIdle())
+
+            assertNull(coordinator.ownership.value.soundPreparationFailure)
+        } finally {
+            coordinator.release()
+        }
+    }
+
+    @Test
     fun preparationFailurePreservesLastGoodAudibleSnapshot() {
         val engine = FakePlaybackEngine()
         val original = ActiveSoundConfiguration(
@@ -618,6 +643,119 @@ class PlaybackCoordinatorTest {
         }
     }
 
+    @Test
+    fun rendererRecordsPublishWithFrameCorrelatedPresentationTime() {
+        val engine = FakePlaybackEngine()
+        val coordinator = PlaybackCoordinator(engine)
+        try {
+            coordinator.submit(PlaybackIntent.StartStandard(120f, 4, null, false))
+            assertTrue(coordinator.awaitControlIdle())
+            val sessionId =
+                (coordinator.transportState.value as PlaybackTransportState.Playing)
+                    .context.sessionId
+            engine.renderedBatch = FrameAudioRenderedEventBatch(
+                RenderedEventBatch(
+                    listOf(
+                        RenderedFrameEvent(
+                            0,
+                            sessionId.value,
+                            12,
+                            com.bfunkstudios.beatclikr.music.MusicalEventRole.STANDARD,
+                            48_480,
+                            false
+                        )
+                    ),
+                    nextCaptureSequence = 1,
+                    droppedRecords = 0
+                ),
+                sampleRate = 48_000,
+                correlation = AudioFrameCorrelation(
+                    writtenFrame = 48_000,
+                    presentedFrame = 48_000,
+                    presentationNanoTime = 2_000_000_000
+                )
+            )
+
+            coordinator.metronomeBeatFired(true, 0.5f, 2_010_000_000)
+            assertTrue(coordinator.awaitControlIdle())
+
+            val rendered = coordinator.committedEvents.replayCache
+                .filterIsInstance<PlaybackCommittedEvent.Rendered>()
+                .single()
+            assertEquals(12L, rendered.eventSequence)
+            assertEquals(48_480L, rendered.intendedFrame)
+            assertEquals(
+                2_010_000_000L,
+                (rendered.presentation as EventPresentation.Correlated)
+                    .presentationNanoTime
+            )
+        } finally {
+            coordinator.release()
+        }
+    }
+
+    @Test
+    fun slowTempoPlayingDoesNotWaitForFirstRenderedRecord() {
+        val engine = FakePlaybackEngine()
+        val coordinator = PlaybackCoordinator(engine)
+        try {
+            coordinator.submit(PlaybackIntent.StartStandard(30f, 1, null, false))
+            assertTrue(coordinator.awaitControlIdle())
+
+            assertTrue(coordinator.transportState.value is PlaybackTransportState.Playing)
+            assertTrue(
+                coordinator.committedEvents.replayCache.none {
+                    it is PlaybackCommittedEvent.Rendered
+                }
+            )
+        } finally {
+            coordinator.release()
+        }
+    }
+
+    @Test
+    fun renderedRecordExplicitlyReportsUnavailablePresentationCorrelation() {
+        val engine = FakePlaybackEngine()
+        val coordinator = PlaybackCoordinator(engine)
+        try {
+            coordinator.submit(PlaybackIntent.StartStandard(120f, 4, null, false))
+            assertTrue(coordinator.awaitControlIdle())
+            val sessionId =
+                (coordinator.transportState.value as PlaybackTransportState.Playing)
+                    .context.sessionId
+            engine.renderedBatch = FrameAudioRenderedEventBatch(
+                RenderedEventBatch(
+                    listOf(
+                        RenderedFrameEvent(
+                            0,
+                            sessionId.value,
+                            0,
+                            com.bfunkstudios.beatclikr.music.MusicalEventRole.STANDARD,
+                            3_216,
+                            false
+                        )
+                    ),
+                    1,
+                    0
+                ),
+                48_000,
+                null
+            )
+
+            coordinator.metronomeBeatFired(true, 0.5f, 0)
+            assertTrue(coordinator.awaitControlIdle())
+
+            assertTrue(
+                coordinator.committedEvents.replayCache
+                    .filterIsInstance<PlaybackCommittedEvent.Rendered>()
+                    .single()
+                    .presentation is EventPresentation.Unavailable
+            )
+        } finally {
+            coordinator.release()
+        }
+    }
+
     private class FakePlaybackEngine : PlaybackEnginePort {
         val operations = Collections.synchronizedList(mutableListOf<String>())
         val callingThreads = Collections.synchronizedSet(mutableSetOf<String>())
@@ -635,9 +773,9 @@ class PlaybackCoordinatorTest {
             SoundFile.CLICK_LO
         )
         var preparationFailure: SoundPreparationFailure? = null
+        var renderedBatch: FrameAudioRenderedEventBatch? = null
 
-        override var soundPreparationObserver:
-            ((ActiveSoundConfiguration?, SoundPreparationFailure?) -> Unit)? = null
+        override var soundPreparationObserver: ((SoundPreparationPublication) -> Unit)? = null
         override var transportObserver: PlaybackEngineTransportObserver? = null
         override var delegate: MetronomeAudioEngineDelegate? = null
         override var polyrhythmDelegate: PolyrhythmAudioEngineDelegate? = null
@@ -681,6 +819,24 @@ class PlaybackCoordinatorTest {
         override fun getFrameAudioMetricsSnapshot(): FrameAudioMetricsSnapshot? = null
         override fun activeSoundConfiguration(): ActiveSoundConfiguration? = activeSounds
         override fun soundPreparationFailure(): SoundPreparationFailure? = preparationFailure
+        override fun drainRenderedEvents(
+            afterCaptureSequence: Long
+        ): FrameAudioRenderedEventBatch? =
+            renderedBatch?.also { renderedBatch = null }
+        override fun selectSounds(
+            requestSequence: Long,
+            beatResourceId: Int,
+            rhythmResourceId: Int
+        ) = setupAudioPlayer(beatResourceId, rhythmResourceId)
+
+        override fun selectSoundBank(requestSequence: Long, bank: SoundBank) {
+            soundBank = bank
+        }
+
+        override fun prepareSounds(
+            requestSequence: Long,
+            sounds: Collection<SoundFile>
+        ) = prepareAudioTrackSounds(sounds)
         override fun beginStandardSession(
             sessionId: PlaybackSessionId,
             bpm: Float,
@@ -727,11 +883,14 @@ class PlaybackCoordinatorTest {
 
         fun publish(
             active: ActiveSoundConfiguration?,
-            failure: SoundPreparationFailure?
+            failure: SoundPreparationFailure?,
+            requestSequence: Long? = null
         ) {
             activeSounds = active
             preparationFailure = failure
-            soundPreparationObserver?.invoke(active, failure)
+            soundPreparationObserver?.invoke(
+                SoundPreparationPublication(requestSequence, active, failure)
+            )
         }
 
         private fun call(name: String, operation: () -> Unit = {}) {

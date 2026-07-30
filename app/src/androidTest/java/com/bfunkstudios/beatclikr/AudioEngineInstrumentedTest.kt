@@ -78,6 +78,14 @@ class AudioEngineInstrumentedTest {
                 delegate = delegate
             )
             assertTrue("Timed out waiting for metronome callbacks", latch.await(10, TimeUnit.SECONDS))
+            val renderDeadline = SystemClock.elapsedRealtime() + 1_000
+            while (
+                (engine.getFrameAudioMetricsSnapshot()?.queuedClicks ?: 0) <
+                METRONOME_EVENT_COUNT &&
+                SystemClock.elapsedRealtime() < renderDeadline
+            ) {
+                SystemClock.sleep(5)
+            }
             engine.stopMetronome()
 
             val scheduled = synchronized(scheduledTimes) { scheduledTimes.toList() }

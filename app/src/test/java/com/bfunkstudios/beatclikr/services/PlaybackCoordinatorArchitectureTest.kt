@@ -76,6 +76,15 @@ class PlaybackCoordinatorArchitectureTest {
         assertFalse(source.contains("SharedFlow<PlaybackCoordinatorEvent>"))
     }
 
+    @Test
+    fun legacyOwnershipModeIsProjectedOnlyFromTransportTransitions() {
+        val source = locateMainSource("services/PlaybackCoordinator.kt").readText()
+        val transition = source.substringAfter("private fun transitionTo(")
+            .substringBefore("private fun newSessionId")
+
+        assertTrue(transition.contains("activeMode = (next as? PlaybackTransportState.Playing)"))
+    }
+
     private fun locateMainSource(relative: String): Path {
         val source = Path.of(
             "src/main/java/com/bfunkstudios/beatclikr"

@@ -152,7 +152,17 @@ class StandardMetronomeTimeline(
                 val index = patternIndex(intervalIndex)
                 val isBeat = isBeat(index)
                 val role = if (usesBeatSound(index, isBeat)) SoundRole.BEAT else SoundRole.RHYTHM
-                if (!consumer.accept(intendedFrame, role, null, configuration.muteMetronome)) {
+                if (!consumer.accept(
+                        origin.sessionID.value,
+                        eventIndex(intervalIndex),
+                        intendedFrame,
+                        MusicalEventRole.STANDARD,
+                        role,
+                        null,
+                        null,
+                        configuration.muteMetronome
+                    )
+                ) {
                     return true
                 }
             }
