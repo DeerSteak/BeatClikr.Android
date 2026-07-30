@@ -221,6 +221,7 @@ class MetronomeAudioEngine(private val context: Context) {
                 }
                 return@post
             }
+            activeCoordinatorSessionId = sessionId
             if (frameAudioActive) engine.stop()
             frameAudioActive = engine.startPolyrhythm(
                 bpm,
@@ -239,16 +240,22 @@ class MetronomeAudioEngine(private val context: Context) {
                 }
                 return@post
             }
-            activeCoordinatorSessionId = sessionId
+            val evidence = engine.startEvidence()
+            if (evidence == null) {
+                engine.stop()
+                frameAudioActive = false
+                framePolyrhythmActive = false
+                activeCoordinatorSessionId = null
+                abandonAudioFocus()
+                sessionId?.let {
+                    completion?.invoke(it, AudioEngineStartResult.StreamFailed)
+                }
+                return@post
+            }
             polyrhythmEngine.start(bpm, beats, against)
             polyrhythmPlaying = true
             sessionId?.let {
-                completion?.invoke(
-                    it,
-                    engine.startEvidence()
-                        ?.let(AudioEngineStartResult::Started)
-                        ?: AudioEngineStartResult.StreamFailed
-                )
+                completion?.invoke(it, AudioEngineStartResult.Started(evidence))
             }
         }
     }
@@ -369,15 +376,14 @@ class MetronomeAudioEngine(private val context: Context) {
             polyrhythmEngine.stop()
             polyrhythmEngine.delegate = null
             delegate = null
+            abandonAudioFocus()
             latch.countDown()
         }
         latch.await(1, TimeUnit.SECONDS)
-        abandonAudioFocus()
         handlerThread.quitSafely()
     }
 
     private fun requestAudioFocus(): Boolean {
-        if (audioFocusHeld) return true
         val result = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             audioManager.requestAudioFocus(audioFocusRequest!!)
         } else {
@@ -418,6 +424,7 @@ class MetronomeAudioEngine(private val context: Context) {
             }
             return
         }
+        activeCoordinatorSessionId = sessionId
 
         polyrhythmPlaying = false
         this.delegate = delegate
@@ -451,16 +458,22 @@ class MetronomeAudioEngine(private val context: Context) {
             }
             return
         }
+        val evidence = engine.startEvidence()
+        if (evidence == null) {
+            engine.stop()
+            frameAudioActive = false
+            this.delegate = null
+            activeCoordinatorSessionId = null
+            abandonAudioFocus()
+            sessionId?.let {
+                completion?.invoke(it, AudioEngineStartResult.StreamFailed)
+            }
+            return
+        }
         this.isPlaying = true
-        activeCoordinatorSessionId = sessionId
         startTimer()
         sessionId?.let {
-            completion?.invoke(
-                it,
-                engine.startEvidence()
-                    ?.let(AudioEngineStartResult::Started)
-                    ?: AudioEngineStartResult.StreamFailed
-            )
+            completion?.invoke(it, AudioEngineStartResult.Started(evidence))
         }
     }
 
