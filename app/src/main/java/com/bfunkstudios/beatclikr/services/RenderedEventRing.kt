@@ -70,14 +70,14 @@ class RenderedEventRing(private val capacity: Int) {
     ) {
         val sequence = producerSequence
         val index = (sequence % capacity).toInt()
-        slotSequences.lazySet(index, UNPUBLISHED)
+        slotSequences.set(index, UNPUBLISHED)
         sessionIds[index] = sessionId
         eventSequences[index] = eventSequence
         intendedFrames[index] = intendedFrame
         roles[index] = roleOrdinal.toByte()
         roleIndices[index] = roleIndex
         muted[index] = isMuted
-        slotSequences.lazySet(index, sequence)
+        slotSequences.set(index, sequence)
         producerSequence = sequence + 1
         publishedSequence = producerSequence
     }

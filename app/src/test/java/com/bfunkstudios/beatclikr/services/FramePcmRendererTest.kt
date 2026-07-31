@@ -15,6 +15,7 @@ import com.bfunkstudios.beatclikr.music.StandardSubdivision
 import com.bfunkstudios.beatclikr.music.StandardTiming
 import com.sun.management.ThreadMXBean
 import java.lang.management.ManagementFactory
+import java.util.concurrent.atomic.AtomicLong
 import org.junit.Assume.assumeTrue
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
@@ -343,30 +344,45 @@ class FramePcmRendererTest {
 
     private fun assertPreparedRenderAllocatesNoMemory(renderer: FramePcmRenderer) {
         val output = ShortArray(64)
-        var startFrame = 0L
-        repeat(500_000) {
-            renderer.render(startFrame, output, output.size)
-            startFrame += output.size
-        }
         val bean = ManagementFactory.getThreadMXBean() as ThreadMXBean
         assumeTrue(bean.isThreadAllocatedMemorySupported)
         bean.isThreadAllocatedMemoryEnabled = true
-        var minimumAllocatedBytes = Long.MAX_VALUE
-        var attempts = 0
-        while (attempts < 100 && minimumAllocatedBytes != 0L) {
-            val before = bean.currentThreadAllocatedBytes
-            repeat(10_000) {
-                renderer.render(startFrame, output, output.size)
-                startFrame += output.size
+        val measuredBytes = AtomicLong(Long.MAX_VALUE)
+        val measurementThread = Thread {
+            var startFrame = renderBlocks(renderer, output, 0, 500_000)
+            var minimumAllocatedBytes = Long.MAX_VALUE
+            var attempts = 0
+            while (attempts < 100 && minimumAllocatedBytes != 0L) {
+                val before = bean.currentThreadAllocatedBytes
+                startFrame = renderBlocks(renderer, output, startFrame, 10_000)
+                minimumAllocatedBytes = minOf(
+                    minimumAllocatedBytes,
+                    bean.currentThreadAllocatedBytes - before
+                )
+                attempts++
             }
-            minimumAllocatedBytes = minOf(
-                minimumAllocatedBytes,
-                bean.currentThreadAllocatedBytes - before
-            )
-            attempts++
+            measuredBytes.set(minimumAllocatedBytes)
         }
+        measurementThread.start()
+        measurementThread.join()
 
-        assertEquals(0, minimumAllocatedBytes)
+        assertEquals("Prepared render allocated bytes", 0, measuredBytes.get())
+    }
+
+    private fun renderBlocks(
+        renderer: FramePcmRenderer,
+        output: ShortArray,
+        initialStartFrame: Long,
+        blockCount: Int
+    ): Long {
+        var startFrame = initialStartFrame
+        var remaining = blockCount
+        while (remaining > 0) {
+            renderer.render(startFrame, output, output.size)
+            startFrame += output.size
+            remaining--
+        }
+        return startFrame
     }
 
     private fun renderer(
