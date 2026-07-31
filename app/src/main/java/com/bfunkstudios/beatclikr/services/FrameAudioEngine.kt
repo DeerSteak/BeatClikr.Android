@@ -1,6 +1,7 @@
 package com.bfunkstudios.beatclikr.services
 
 import android.media.AudioManager
+import androidx.annotation.VisibleForTesting
 import com.bfunkstudios.beatclikr.data.SoundBank
 import com.bfunkstudios.beatclikr.data.SoundFile
 import com.bfunkstudios.beatclikr.music.PlaybackInputResult
@@ -307,6 +308,14 @@ class FrameAudioEngine(
 
     fun currentRoute(): AudioOutputRoute =
         frameSession?.currentRoute() ?: AudioOutputRoute.UNKNOWN
+
+    @VisibleForTesting
+    internal fun reportRouteChangeForTesting(
+        previous: AudioOutputRoute,
+        current: AudioOutputRoute
+    ) {
+        frameSession().reportRouteChangeForTesting(previous, current)
+    }
 
     fun drainRenderedEvents(afterCaptureSequence: Long): FrameAudioRenderedEventBatch {
         val metrics = metricsSnapshot()

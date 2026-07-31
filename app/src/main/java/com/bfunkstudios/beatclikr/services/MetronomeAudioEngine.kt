@@ -2,14 +2,13 @@ package com.bfunkstudios.beatclikr.services
 
 import android.content.Context
 import android.media.AudioAttributes
-import android.media.AudioDeviceCallback
-import android.media.AudioDeviceInfo
 import android.media.AudioFocusRequest
 import android.media.AudioManager
 import android.os.Build
 import android.os.Handler
 import android.os.HandlerThread
 import android.os.SystemClock
+import androidx.annotation.VisibleForTesting
 import com.bfunkstudios.beatclikr.constants.MetronomeConstants
 import com.bfunkstudios.beatclikr.data.SoundBank
 import com.bfunkstudios.beatclikr.data.SoundFile
@@ -125,15 +124,11 @@ class MetronomeAudioEngine(private val context: Context) {
                 .build()
         } else null
 
-    private val audioDeviceCallback = object : AudioDeviceCallback() {
-        override fun onAudioDevicesAdded(addedDevices: Array<out AudioDeviceInfo>) {
-            checkRouteAfterDeviceTopologyChange()
-        }
-
-        override fun onAudioDevicesRemoved(removedDevices: Array<out AudioDeviceInfo>) {
-            checkRouteAfterDeviceTopologyChange()
-        }
-    }
+    private val audioDeviceTopologyMonitor = AudioDeviceTopologyMonitor(
+        register = { audioManager.registerAudioDeviceCallback(it, handler) },
+        unregister = audioManager::unregisterAudioDeviceCallback,
+        onTopologyChanged = ::checkRouteAfterDeviceTopologyChange
+    )
 
     private val polyrhythmEngine = PolyrhythmTimingEngine(
         handler = handler,
@@ -141,10 +136,6 @@ class MetronomeAudioEngine(private val context: Context) {
         firstBeatDelayMs = firstBeatDelayMs,
         lookaheadToleranceMs = lookaheadToleranceMs
     )
-
-    init {
-        audioManager.registerAudioDeviceCallback(audioDeviceCallback, handler)
-    }
 
     fun loadSounds(
         beatResourceId: Int,
@@ -544,7 +535,7 @@ class MetronomeAudioEngine(private val context: Context) {
             polyrhythmEngine.stop()
             polyrhythmEngine.delegate = null
             delegate = null
-            audioManager.unregisterAudioDeviceCallback(audioDeviceCallback)
+            audioDeviceTopologyMonitor.release()
             abandonAudioFocus()
             latch.countDown()
         }
@@ -734,6 +725,39 @@ class MetronomeAudioEngine(private val context: Context) {
 
     private fun onOutputRouteChanged(current: AudioOutputRoute) {
         handler.post { applyObservedRoute(current) }
+    }
+
+    @VisibleForTesting
+    internal fun audioDeviceCallbackForTesting() =
+        audioDeviceTopologyMonitor.callbackForTesting()
+
+    @VisibleForTesting
+    internal fun prepareRouteWiringForTesting() {
+        getOrCreateFrameAudioEngine()
+    }
+
+    @VisibleForTesting
+    internal fun awaitRouteWiringIdleForTesting(): Boolean {
+        val latch = CountDownLatch(1)
+        handler.post(latch::countDown)
+        return latch.await(1, TimeUnit.SECONDS)
+    }
+
+    @VisibleForTesting
+    internal fun reportRouteChangeForTesting(
+        previous: AudioOutputRoute,
+        current: AudioOutputRoute
+    ) {
+        getOrCreateFrameAudioEngine().reportRouteChangeForTesting(previous, current)
+    }
+
+    @VisibleForTesting
+    internal fun prepareActiveRouteForTesting(
+        sessionId: PlaybackSessionId,
+        route: AudioOutputRoute
+    ) {
+        activeCoordinatorSessionId = sessionId
+        activeOutputRoute.begin(route)
     }
 
     private fun checkRouteAfterDeviceTopologyChange() {

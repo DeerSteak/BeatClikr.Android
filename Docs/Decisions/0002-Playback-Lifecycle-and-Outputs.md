@@ -43,6 +43,9 @@ The clauses define the intended completed behavior, not equal delivery priority.
 
 - **PL-017:** Built-in speaker, analog or USB-C wired output, and USB audio interfaces are local routes eligible for the low-latency acceptance budgets when Android reports a stable output stream.
 - **PL-018:** A route change stops the current session, records the reason, releases the old stream, and requires explicit user restart after the new route is ready.
+- Focus and route readiness use one production model: session-tagged start results reject unavailable focus or output, and session-tagged interruptions stop an active session. There is no parallel prerequisite state channel.
+- `AudioOutputRoute.UNKNOWN` means that no usable routed device is available. A usable device whose Android type is not classified is `OTHER`, and may enter `Playing` without inheriting a named route's latency claim.
+- A known active route becoming `UNKNOWN` is `RouteUnavailable`; a transition between two usable routes is `RouteChanged(previous, current)`.
 - **PL-019:** Bluetooth playback is supported as a convenience route, but BeatClikr does not promise deterministic end-to-end Bluetooth latency.
 - **PL-020:** Bluetooth tests still require stable musical phase, no application-generated missing or doubled events, and no catch-up bursts.
 - **PL-021:** The UI identifies Bluetooth as latency-variable when it is the active route. It does not imply that speaker measurements apply to Bluetooth.

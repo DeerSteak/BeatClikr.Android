@@ -9,7 +9,6 @@ import com.bfunkstudios.beatclikr.services.CommittedPlaybackConfiguration
 import com.bfunkstudios.beatclikr.services.PlaybackCommittedEvent
 import com.bfunkstudios.beatclikr.services.PlaybackMode
 import com.bfunkstudios.beatclikr.services.PlaybackObservation
-import com.bfunkstudios.beatclikr.services.PlaybackPrerequisites
 import com.bfunkstudios.beatclikr.services.PlaybackSessionContext
 import com.bfunkstudios.beatclikr.services.PlaybackSessionId
 import com.bfunkstudios.beatclikr.services.PlaybackStartOrigin
@@ -101,7 +100,6 @@ class FakeAudioPlayerService : IAudioPlayerService, PlaybackObservation {
             mode,
             configuration,
             startOrigin = PlaybackStartOrigin.USER
-        ),
-        PlaybackPrerequisites.READY
+        )
     )
 }

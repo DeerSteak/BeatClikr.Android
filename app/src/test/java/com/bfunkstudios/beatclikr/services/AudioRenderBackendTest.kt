@@ -40,6 +40,12 @@ class AudioRenderBackendTest {
                 AudioOutputRoute.USB
             )
         )
+        assertTrue(
+            shouldReportRouteChange(
+                AudioOutputRoute.BUILT_IN,
+                AudioOutputRoute.UNKNOWN
+            )
+        )
     }
 
     @Test

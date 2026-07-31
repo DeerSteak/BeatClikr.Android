@@ -19,7 +19,6 @@ import com.bfunkstudios.beatclikr.services.IAudioPlayerService
 import com.bfunkstudios.beatclikr.services.PlaybackCommittedEvent
 import com.bfunkstudios.beatclikr.services.PlaybackMode
 import com.bfunkstudios.beatclikr.services.PlaybackObservation
-import com.bfunkstudios.beatclikr.services.PlaybackPrerequisites
 import com.bfunkstudios.beatclikr.services.PlaybackSessionContext
 import com.bfunkstudios.beatclikr.services.PlaybackSessionId
 import com.bfunkstudios.beatclikr.services.PlaybackStartOrigin
@@ -142,7 +141,6 @@ class MetronomeViewModelTest {
                 mode = PlaybackMode.POLYRHYTHM,
                 configuration = CommittedPlaybackConfiguration.Polyrhythm(120f, 3, 2, false)
             ),
-            PlaybackPrerequisites.READY
         )
 
         assertTrue(viewModel.controlsEnabled)
@@ -176,7 +174,6 @@ class MetronomeViewModelTest {
                 CommittedPlaybackConfiguration.Standard(120f, 4, null, false, false),
                 startOrigin = PlaybackStartOrigin.USER
             ),
-            PlaybackPrerequisites.READY
         )
 
     private fun standardPlaying(): PlaybackTransportState.Playing =
@@ -187,7 +184,7 @@ class MetronomeViewModelTest {
                     SoundFile.CLICK_HI,
                     SoundFile.CLICK_LO
                 ),
-                route = AudioOutputRoute.UNKNOWN,
+                route = AudioOutputRoute.BUILT_IN,
                 backend = AudioBackendType.AUDIO_TRACK
             )
         )

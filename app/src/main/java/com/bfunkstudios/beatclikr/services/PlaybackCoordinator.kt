@@ -81,11 +81,6 @@ sealed interface PlaybackIntent {
 }
 
 sealed interface PlaybackSystemInput {
-    data class PrerequisitesChanged(
-        val prerequisites: PlaybackPrerequisites,
-        val expectedSessionId: PlaybackSessionId? = null
-    ) : PlaybackSystemInput
-
     data class Interrupted(
         val sessionId: PlaybackSessionId,
         val reason: PlaybackInterruptionReason
@@ -341,7 +336,6 @@ class PlaybackCoordinator(
     private var pendingReplacement: PendingStart? = null
     private val pendingUpdates = ArrayDeque<PendingUpdate>()
     private var inFlightUpdate: PendingUpdate? = null
-    private var prerequisites = PlaybackPrerequisites.READY
     private var latestSoundRequestSequence = 0L
     @Volatile
     private var controlThread: Thread? = null
@@ -1069,52 +1063,6 @@ class PlaybackCoordinator(
 
     private fun applySystemInput(input: PlaybackSystemInput) {
         when (input) {
-            is PlaybackSystemInput.PrerequisitesChanged -> {
-                // Prerequisites are global facts; the session ID guards only transitions.
-                prerequisites = input.prerequisites
-                val current = transportState.value as? PlaybackTransportState.SessionState
-                if (input.expectedSessionId != null &&
-                    current?.context?.sessionId != input.expectedSessionId) {
-                    return
-                }
-                when (current) {
-                    is PlaybackTransportState.Preparing -> {
-                        transitionTo(current.copy(prerequisites = input.prerequisites))
-                        if (input.prerequisites.missing.isNotEmpty()) {
-                            transitionTo(
-                                PlaybackTransportState.Failed(
-                                    current.context,
-                                    PlaybackFailureReason.PrerequisiteUnavailable(
-                                        input.prerequisites.missing
-                                    )
-                                )
-                            )
-                        }
-                    }
-                    is PlaybackTransportState.Starting -> {
-                        if (input.prerequisites.missing.isNotEmpty()) {
-                            transitionTo(
-                                PlaybackTransportState.Failed(
-                                    current.context,
-                                    PlaybackFailureReason.PrerequisiteUnavailable(
-                                        input.prerequisites.missing
-                                    )
-                                )
-                            )
-                            engine.stopSession(
-                                current.context.sessionId,
-                                current.context.mode
-                            )
-                        }
-                    }
-                    is PlaybackTransportState.Playing -> {
-                        interruptionFor(input.prerequisites)?.let { reason ->
-                            interrupt(current, reason)
-                        }
-                    }
-                    else -> Unit
-                }
-            }
             is PlaybackSystemInput.Interrupted -> {
                 val current =
                     transportState.value as? PlaybackTransportState.SessionState ?: return
@@ -1166,19 +1114,13 @@ class PlaybackCoordinator(
         val failure = when (reason) {
             PlaybackInterruptionReason.AudioFocusLost ->
                 PlaybackFailureReason.AudioFocusUnavailable
+            is PlaybackInterruptionReason.RouteUnavailable ->
+                PlaybackFailureReason.RouteUnavailable
             else -> PlaybackFailureReason.Engine("Playback interrupted during startup: $reason")
         }
         transitionTo(PlaybackTransportState.Failed(current.context, failure))
         mutateOwnership { it.copy(activeMode = PlaybackMode.NONE) }
         engine.stopSession(current.context.sessionId, current.context.mode)
-    }
-
-    private fun interruptionFor(
-        current: PlaybackPrerequisites
-    ): PlaybackInterruptionReason? = when {
-        !current.audioFocusReady -> PlaybackInterruptionReason.AudioFocusLost
-        !current.routeReady -> PlaybackInterruptionReason.RouteLost
-        else -> null
     }
 
     private fun replaceOrStart(start: PendingStart) {
@@ -1208,22 +1150,8 @@ class PlaybackCoordinator(
     private fun beginStart(start: PendingStart) {
         val requested = start.context()
         transitionTo(
-            PlaybackTransportState.Preparing(
-                requested,
-                prerequisites
-            )
+            PlaybackTransportState.Preparing(requested)
         )
-        if (prerequisites.missing.isNotEmpty()) {
-            transitionTo(
-                PlaybackTransportState.Failed(
-                    requested,
-                    PlaybackFailureReason.PrerequisiteUnavailable(
-                        prerequisites.missing
-                    )
-                )
-            )
-            return
-        }
         val sounds = engine.activeSoundConfiguration()
         if (sounds == null) {
             transitionTo(
@@ -1237,10 +1165,7 @@ class PlaybackCoordinator(
         }
         val prepared = requested.copy(audibleSounds = sounds)
         transitionTo(
-            PlaybackTransportState.Preparing(
-                prepared,
-                prerequisites
-            )
+            PlaybackTransportState.Preparing(prepared)
         )
         transitionTo(PlaybackTransportState.Starting(prepared))
         when (start) {
@@ -1263,6 +1188,17 @@ class PlaybackCoordinator(
     private fun applyEngineStarted(evidence: PlaybackEngineStartEvidence) {
         val current = transportState.value as? PlaybackTransportState.Starting ?: return
         if (current.context.sessionId != evidence.sessionId) return
+        if (evidence.route == AudioOutputRoute.UNKNOWN) {
+            transitionTo(
+                PlaybackTransportState.Failed(
+                    current.context,
+                    PlaybackFailureReason.RouteUnavailable
+                )
+            )
+            mutateOwnership { it.copy(activeMode = PlaybackMode.NONE) }
+            engine.stopSession(current.context.sessionId, current.context.mode)
+            return
+        }
         val committed = current.context.copy(
             audibleSounds = evidence.audibleSounds,
             route = evidence.route,
