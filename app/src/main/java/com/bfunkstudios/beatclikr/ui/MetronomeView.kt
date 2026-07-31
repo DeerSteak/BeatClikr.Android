@@ -34,7 +34,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -60,15 +60,11 @@ fun MetronomeView(
     modifier: Modifier = Modifier,
     viewModel: MetronomeViewModel = hiltViewModel()
 ) {
-    DisposableEffect(Unit) {
+    LaunchedEffect(Unit) {
         val beatResId = viewModel.selectedBeatSound.resourceId
         val rhythmResId = viewModel.selectedRhythmSound.resourceId
         if (beatResId != null && rhythmResId != null) {
             viewModel.setupMetronome(beatResId, rhythmResId)
-        }
-
-        onDispose {
-            viewModel.stop()
         }
     }
 
