@@ -14,6 +14,7 @@ import com.bfunkstudios.beatclikr.services.CommittedPlaybackConfiguration
 import com.bfunkstudios.beatclikr.services.EventPresentation
 import com.bfunkstudios.beatclikr.services.PlaybackCommittedEvent
 import com.bfunkstudios.beatclikr.services.PlaybackMode
+import com.bfunkstudios.beatclikr.services.PlaybackFailureReason
 import com.bfunkstudios.beatclikr.services.PlaybackObservation
 import com.bfunkstudios.beatclikr.services.PlaybackSessionContext
 import com.bfunkstudios.beatclikr.services.PlaybackSessionId
@@ -21,6 +22,7 @@ import com.bfunkstudios.beatclikr.services.PlaybackStartOrigin
 import com.bfunkstudios.beatclikr.services.PlaybackTransportState
 import com.bfunkstudios.beatclikr.services.SecondaryOutputObservation
 import com.bfunkstudios.beatclikr.ui.PolyrhythmViewModel
+import com.bfunkstudios.beatclikr.ui.PlaybackUiDiagnostic
 import com.bfunkstudios.beatclikr.ui.polyrhythmBeatDurationNanos
 import com.bfunkstudios.beatclikr.ui.polyrhythmRhythmDurationNanos
 import io.mockk.every
@@ -129,6 +131,21 @@ class PolyrhythmViewModelTest {
         )
 
         assertTrue(viewModel.hasVariableOutputLatency)
+    }
+
+    @Test
+    fun `successful polyrhythm start clears retained failure`() {
+        transportState.value = PlaybackTransportState.Failed(
+            polyrhythmPreparing().context,
+            PlaybackFailureReason.RouteUnavailable
+        )
+        assertEquals(
+            PlaybackUiDiagnostic.Failure(PlaybackFailureReason.RouteUnavailable),
+            viewModel.lastPlaybackDiagnostic
+        )
+
+        transportState.value = polyrhythmPlaying()
+        assertEquals(null, viewModel.lastPlaybackDiagnostic)
     }
 
     @Test

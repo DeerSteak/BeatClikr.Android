@@ -1,0 +1,1 @@
+JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home" ANDROID_HOME="$HOME/Library/Android/sdk" ./gradlew --no-daemon :app:testDebugUnitTest --tests 'com.bfunkstudios.beatclikr.music.PureCoreQualificationTest'

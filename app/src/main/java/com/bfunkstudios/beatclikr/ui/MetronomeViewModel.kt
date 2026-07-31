@@ -61,7 +61,7 @@ class MetronomeViewModel @Inject constructor(
     val hasVariableOutputLatency: Boolean
         get() = transportState.hasVariableOutputLatency(PlaybackMode.STANDARD)
 
-    var lastPlaybackFailure by mutableStateOf<String?>(null)
+    var lastPlaybackDiagnostic by mutableStateOf<PlaybackUiDiagnostic?>(null)
         private set
 
     var lastSecondaryOutputFailure by mutableStateOf<String?>(null)
@@ -456,9 +456,7 @@ class MetronomeViewModel @Inject constructor(
                     replacedSessionId = null
                 }
         }
-        lastPlaybackFailure = (state as? PlaybackTransportState.Failed)
-            ?.reason
-            ?.toString()
+        lastPlaybackDiagnostic = state.updateDiagnostic(lastPlaybackDiagnostic)
         if (!state.isModeActive(PlaybackMode.STANDARD)) {
             stopChoreographerLoop()
             pendingBeatEvent.set(null)

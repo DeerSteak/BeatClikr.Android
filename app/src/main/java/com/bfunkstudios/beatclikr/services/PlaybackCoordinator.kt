@@ -1323,7 +1323,7 @@ class PlaybackCoordinator(
         transitionTo(
             PlaybackTransportState.Failed(
                 current.context,
-                PlaybackFailureReason.Engine(diagnostic)
+                PlaybackFailureReason.StreamStart(diagnostic)
             )
         )
         mutateOwnership { it.copy(activeMode = PlaybackMode.NONE) }

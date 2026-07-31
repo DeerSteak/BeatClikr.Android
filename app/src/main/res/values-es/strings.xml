@@ -128,6 +128,24 @@
     <string name="previous_month">Mes anterior</string>
     <string name="next_month">Mes siguiente</string>
     <string name="secondary_output_failure">Salida secundaria no disponible: %1$s</string>
+    <string name="bluetooth_latency_warning">La sincronización por Bluetooth varía según el dispositivo y puede no coincidir con la latencia del altavoz.</string>
+    <string name="playback_focus_unavailable">La reproducción no pudo comenzar porque el enfoque de audio no está disponible.</string>
+    <string name="playback_route_unavailable">La reproducción no pudo comenzar porque no hay una salida de audio disponible.</string>
+    <string name="playback_sound_unavailable">La reproducción no pudo comenzar porque los sonidos seleccionados no están disponibles.</string>
+    <string name="playback_stream_start_failed">La transmisión de audio no pudo comenzar. Comprueba la salida e inténtalo de nuevo.</string>
+    <string name="playback_engine_failed">La reproducción se detuvo por un error del motor de audio.</string>
+    <string name="playback_focus_lost">La reproducción se detuvo porque otra aplicación o un evento del sistema tomó el enfoque de audio.</string>
+    <string name="playback_route_lost">La reproducción se detuvo porque se desconectó la salida de audio.</string>
+    <string name="playback_route_changed">La reproducción se detuvo porque la salida de audio cambió de %1$s a %2$s.</string>
+    <string name="playback_engine_stopped">La reproducción se detuvo porque el motor de audio dejó de estar disponible.</string>
+    <string name="audio_route_built_in">altavoz integrado</string>
+    <string name="audio_route_wired">salida con cable</string>
+    <string name="audio_route_usb">salida USB</string>
+    <string name="audio_route_bluetooth">Bluetooth</string>
+    <string name="audio_route_hdmi">HDMI</string>
+    <string name="audio_route_remote">salida remota</string>
+    <string name="audio_route_other">otra salida de audio</string>
+    <string name="audio_route_unknown">salida no disponible</string>
 
     <plurals name="day_count">
         <item quantity="one">%1$d día</item>

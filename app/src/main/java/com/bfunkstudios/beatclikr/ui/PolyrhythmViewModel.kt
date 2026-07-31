@@ -59,7 +59,7 @@ class PolyrhythmViewModel @Inject constructor(
     val hasVariableOutputLatency: Boolean
         get() = transportState.hasVariableOutputLatency(PlaybackMode.POLYRHYTHM)
 
-    var lastPlaybackFailure by mutableStateOf<String?>(null)
+    var lastPlaybackDiagnostic by mutableStateOf<PlaybackUiDiagnostic?>(null)
         private set
 
     var lastSecondaryOutputFailure by mutableStateOf<String?>(null)
@@ -278,9 +278,7 @@ class PolyrhythmViewModel @Inject constructor(
                 awaitingOwnedSession = false
             }
         }
-        lastPlaybackFailure = (state as? PlaybackTransportState.Failed)
-            ?.reason
-            ?.toString()
+        lastPlaybackDiagnostic = state.updateDiagnostic(lastPlaybackDiagnostic)
         val session = (state as? PlaybackTransportState.SessionState)
             ?.takeIf { it.context.mode == PlaybackMode.POLYRHYTHM }
             ?.context

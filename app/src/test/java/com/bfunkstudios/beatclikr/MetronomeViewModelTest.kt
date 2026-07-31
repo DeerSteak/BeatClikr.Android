@@ -18,6 +18,8 @@ import com.bfunkstudios.beatclikr.services.EventPresentation
 import com.bfunkstudios.beatclikr.services.IAudioPlayerService
 import com.bfunkstudios.beatclikr.services.PlaybackCommittedEvent
 import com.bfunkstudios.beatclikr.services.PlaybackMode
+import com.bfunkstudios.beatclikr.services.PlaybackFailureReason
+import com.bfunkstudios.beatclikr.services.PlaybackInterruptionReason
 import com.bfunkstudios.beatclikr.services.PlaybackObservation
 import com.bfunkstudios.beatclikr.services.PlaybackSessionContext
 import com.bfunkstudios.beatclikr.services.PlaybackSessionId
@@ -25,6 +27,7 @@ import com.bfunkstudios.beatclikr.services.PlaybackStartOrigin
 import com.bfunkstudios.beatclikr.services.PlaybackTransportState
 import com.bfunkstudios.beatclikr.services.SecondaryOutputObservation
 import com.bfunkstudios.beatclikr.ui.MetronomeViewModel
+import com.bfunkstudios.beatclikr.ui.PlaybackUiDiagnostic
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
@@ -153,6 +156,40 @@ class MetronomeViewModelTest {
         )
 
         assertTrue(viewModel.hasVariableOutputLatency)
+    }
+
+    @Test
+    fun `diagnostic survives idle and clears after successful start`() {
+        val failed = PlaybackTransportState.Failed(
+            standardPreparing().context,
+            PlaybackFailureReason.AudioFocusUnavailable
+        )
+        transportState.value = failed
+        assertEquals(
+            PlaybackUiDiagnostic.Failure(PlaybackFailureReason.AudioFocusUnavailable),
+            viewModel.lastPlaybackDiagnostic
+        )
+
+        transportState.value = PlaybackTransportState.Idle
+        assertEquals(
+            PlaybackUiDiagnostic.Failure(PlaybackFailureReason.AudioFocusUnavailable),
+            viewModel.lastPlaybackDiagnostic
+        )
+
+        transportState.value = standardPlaying()
+        assertEquals(null, viewModel.lastPlaybackDiagnostic)
+    }
+
+    @Test
+    fun `route interruption remains visible after teardown`() {
+        val reason = PlaybackInterruptionReason.RouteUnavailable(AudioOutputRoute.BUILT_IN)
+        transportState.value = PlaybackTransportState.Interrupted(
+            standardPlaying().context,
+            reason
+        )
+        transportState.value = PlaybackTransportState.Idle
+
+        assertEquals(PlaybackUiDiagnostic.Interruption(reason), viewModel.lastPlaybackDiagnostic)
     }
 
     @Test
