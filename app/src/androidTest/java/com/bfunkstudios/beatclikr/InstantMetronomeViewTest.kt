@@ -42,6 +42,7 @@ import kotlinx.coroutines.SupervisorJob
 import org.junit.Before
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import javax.inject.Inject
@@ -137,6 +138,32 @@ class InstantMetronomeViewTest {
     @Test
     fun bpmDisplaysOnLaunch() {
         composeRule.onNodeWithText("60").assertIsDisplayed()
+    }
+
+    @Test
+    fun launchAndActivityRecreationDoNotStartPlayback() {
+        val fake = audio as FakeAudioPlayerService
+        assertEquals(0, fake.startCount)
+        assertEquals(0, fake.polyrhythmStartCount)
+
+        composeRule.activityRule.scenario.recreate()
+        composeRule.waitForIdle()
+
+        assertEquals(0, fake.startCount)
+        assertEquals(0, fake.polyrhythmStartCount)
+    }
+
+    @Test
+    fun activityRecreationExplicitlyStopsActivePlaybackWithoutRestart() {
+        val fake = audio as FakeAudioPlayerService
+        composeRule.onNodeWithText(activity.getString(R.string.play)).performClick()
+        assertEquals(1, fake.startCount)
+
+        composeRule.activityRule.scenario.recreate()
+        composeRule.waitForIdle()
+
+        assertTrue(fake.stopCount >= 1)
+        assertEquals(1, fake.startCount)
     }
 
     @Test
