@@ -582,6 +582,17 @@ class MetronomeViewModelTest {
         verify { audio.updateTempo(140f, 2) }
     }
 
+    @Test
+    fun `playing another song submits one replacement start at tick zero`() {
+        viewModel.start()
+        val song = Song(title = "Next", artist = "Artist", beatsPerMinute = 140f, beatsPerMeasure = 4, groove = Groove.Eighth, liveSequence = null, rehearsalSequence = null)
+
+        viewModel.playSong(song)
+
+        verify(exactly = 0) { audio.updateTempo(any(), any(), any(), any()) }
+        verify(exactly = 1) { audio.startMetronome(140f, 2, any(), any()) }
+    }
+
     // --- Beat fired ---
 
     @Test

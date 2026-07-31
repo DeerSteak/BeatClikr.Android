@@ -129,7 +129,7 @@ class MetronomeViewModel @Inject constructor(
     }
 
     fun playSong(song: Song) {
-        loadSong(song, ClickerType.PLAYLIST)
+        loadSong(song, ClickerType.PLAYLIST, updateActivePlayback = false)
         start()
     }
 
@@ -143,13 +143,17 @@ class MetronomeViewModel @Inject constructor(
         ))
     }
 
-    fun loadSong(song: Song, type: ClickerType = ClickerType.INSTANT) {
+    fun loadSong(
+        song: Song,
+        type: ClickerType = ClickerType.INSTANT,
+        updateActivePlayback: Boolean = true
+    ) {
         currentSong = song
         clickerType = type
         selectedBeatSound = if (type == ClickerType.INSTANT) prefs.instantBeatSound else prefs.playlistBeatSound
         selectedRhythmSound = if (type == ClickerType.INSTANT) prefs.instantRhythmSound else prefs.playlistRhythmSound
         setupMetronomeFromSelection()
-        if (isPlaying) {
+        if (isPlaying && updateActivePlayback) {
             audio.updateTempo(
                 currentSong.beatsPerMinute,
                 getSubdivisionValue(),
