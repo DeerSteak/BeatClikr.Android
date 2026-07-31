@@ -712,7 +712,7 @@ class PlaybackCoordinatorTest {
     }
 
     @Test
-    fun requestedSoundsDoNotReplaceAudibleSnapshotUntilMatchingPublication() {
+    fun stoppedSoundSelectionPreparesNextSessionWithoutClaimingAudibility() {
         val engine = FakePlaybackEngine()
         val original = ActiveSoundConfiguration(
             SoundBank.ACOUSTIC,
@@ -726,7 +726,7 @@ class PlaybackCoordinatorTest {
             assertTrue(coordinator.awaitControlIdle())
 
             assertEquals(SoundBank.SYNTH, coordinator.ownership.value.requestedSounds.bank)
-            assertSame(original, coordinator.ownership.value.audibleSounds)
+            assertNull(coordinator.ownership.value.audibleSounds)
 
             val synth = ActiveSoundConfiguration(
                 SoundBank.SYNTH,
@@ -736,8 +736,12 @@ class PlaybackCoordinatorTest {
             engine.publish(synth, null)
             assertTrue(coordinator.awaitControlIdle())
 
-            assertSame(synth, coordinator.ownership.value.audibleSounds)
+            assertNull(coordinator.ownership.value.audibleSounds)
             assertNull(coordinator.ownership.value.soundPreparationFailure)
+
+            coordinator.submit(PlaybackIntent.StartStandard(120f, 4, null, false))
+            assertTrue(coordinator.awaitControlIdle())
+            assertSame(synth, coordinator.ownership.value.audibleSounds)
         } finally {
             coordinator.release()
         }
@@ -760,7 +764,7 @@ class PlaybackCoordinatorTest {
             engine.publish(original, null)
             assertTrue(coordinator.awaitControlIdle())
 
-            assertSame(original, coordinator.ownership.value.audibleSounds)
+            assertNull(coordinator.ownership.value.audibleSounds)
             assertEquals(
                 SoundFile.KICK,
                 coordinator.ownership.value.requestedSounds.beatSound
@@ -806,6 +810,8 @@ class PlaybackCoordinatorTest {
         engine.activeSounds = original
         val coordinator = PlaybackCoordinator(engine)
         try {
+            coordinator.submit(PlaybackIntent.StartStandard(120f, 4, null, false))
+            assertTrue(coordinator.awaitControlIdle())
             coordinator.submit(PlaybackIntent.SelectSoundBank(SoundBank.SYNTH))
             val failure = SoundPreparationFailure(
                 SoundBank.SYNTH,
@@ -816,7 +822,136 @@ class PlaybackCoordinatorTest {
             assertTrue(coordinator.awaitControlIdle())
 
             assertSame(original, coordinator.ownership.value.audibleSounds)
+            val playing = coordinator.transportState.value as PlaybackTransportState.Playing
+            assertSame(original, playing.context.audibleSounds)
             assertSame(failure, coordinator.ownership.value.soundPreparationFailure)
+        } finally {
+            coordinator.release()
+        }
+    }
+
+    @Test
+    fun liveSoundAdoptionUpdatesOwnershipAndTransportTogether() {
+        val engine = FakePlaybackEngine()
+        val coordinator = PlaybackCoordinator(engine)
+        try {
+            coordinator.submit(PlaybackIntent.StartStandard(120f, 4, null, false))
+            assertTrue(coordinator.awaitControlIdle())
+            val sessionId = (coordinator.transportState.value as PlaybackTransportState.Playing)
+                .context.sessionId
+            val request = coordinator.submit(PlaybackIntent.SelectSoundBank(SoundBank.SYNTH))
+            assertTrue(coordinator.awaitControlIdle())
+            val synth = ActiveSoundConfiguration(
+                SoundBank.SYNTH,
+                SoundFile.CLICK_HI,
+                SoundFile.CLICK_LO
+            )
+
+            engine.publish(synth, null, request, sessionId)
+            assertTrue(coordinator.awaitControlIdle())
+
+            assertSame(synth, coordinator.ownership.value.audibleSounds)
+            val playing = coordinator.transportState.value as PlaybackTransportState.Playing
+            assertSame(synth, playing.context.audibleSounds)
+        } finally {
+            coordinator.release()
+        }
+    }
+
+    @Test
+    fun soundAdoptionForSupersededSessionCannotAmendReplacement() {
+        val engine = FakePlaybackEngine()
+        val coordinator = PlaybackCoordinator(engine)
+        try {
+            coordinator.submit(PlaybackIntent.StartStandard(120f, 4, null, false))
+            assertTrue(coordinator.awaitControlIdle())
+            val obsolete = (coordinator.transportState.value as PlaybackTransportState.Playing)
+                .context.sessionId
+            val request = coordinator.submit(PlaybackIntent.SelectSoundBank(SoundBank.SYNTH))
+            coordinator.submit(PlaybackIntent.StartPolyrhythm(120f, 3, 2))
+            assertTrue(coordinator.awaitControlIdle())
+            val replacement = coordinator.transportState.value as PlaybackTransportState.Playing
+            val replacementSounds = replacement.context.audibleSounds
+            val synth = ActiveSoundConfiguration(
+                SoundBank.SYNTH,
+                SoundFile.CLICK_HI,
+                SoundFile.CLICK_LO
+            )
+
+            engine.publish(synth, null, request, obsolete)
+            engine.publish(
+                synth,
+                SoundPreparationFailure(
+                    SoundBank.SYNTH,
+                    SoundFile.CLICK_HI,
+                    SoundPreparationFailureCode.RENDERER_REJECTED
+                ),
+                request,
+                obsolete,
+                adopted = false
+            )
+            assertTrue(coordinator.awaitControlIdle())
+
+            val current = coordinator.transportState.value as PlaybackTransportState.Playing
+            assertEquals(replacement.context.sessionId, current.context.sessionId)
+            assertSame(replacementSounds, current.context.audibleSounds)
+            assertNull(coordinator.ownership.value.soundPreparationFailure)
+        } finally {
+            coordinator.release()
+        }
+    }
+
+    @Test
+    fun staleSoundRequestCannotPublishEvenForCurrentSession() {
+        val engine = FakePlaybackEngine()
+        val coordinator = PlaybackCoordinator(engine)
+        try {
+            coordinator.submit(PlaybackIntent.StartStandard(120f, 4, null, false))
+            assertTrue(coordinator.awaitControlIdle())
+            val sessionId = (coordinator.transportState.value as PlaybackTransportState.Playing)
+                .context.sessionId
+            val stale = coordinator.submit(PlaybackIntent.SelectSoundBank(SoundBank.SYNTH))
+            coordinator.submit(PlaybackIntent.SelectSoundBank(SoundBank.ACOUSTIC))
+            assertTrue(coordinator.awaitControlIdle())
+            val original = coordinator.ownership.value.audibleSounds
+            val synth = ActiveSoundConfiguration(
+                SoundBank.SYNTH,
+                SoundFile.CLICK_HI,
+                SoundFile.CLICK_LO
+            )
+
+            engine.publish(synth, null, stale, sessionId)
+            assertTrue(coordinator.awaitControlIdle())
+
+            assertSame(original, coordinator.ownership.value.audibleSounds)
+            val playing = coordinator.transportState.value as PlaybackTransportState.Playing
+            assertSame(original, playing.context.audibleSounds)
+        } finally {
+            coordinator.release()
+        }
+    }
+
+    @Test
+    fun soundPreparationFailureUsesOriginatingRequestSequence() {
+        val engine = FakePlaybackEngine()
+        val coordinator = PlaybackCoordinator(engine)
+        try {
+            val request = coordinator.submit(PlaybackIntent.SelectSoundBank(SoundBank.SYNTH))
+            coordinator.submit(PlaybackIntent.SetMuted(true))
+            assertTrue(coordinator.awaitControlIdle())
+            val failure = SoundPreparationFailure(
+                SoundBank.SYNTH,
+                SoundFile.CLICK_HI,
+                SoundPreparationFailureCode.CORRUPT
+            )
+
+            engine.publish(engine.activeSounds, failure, request)
+            assertTrue(coordinator.awaitControlIdle())
+
+            val event = coordinator.controlEvents.replayCache
+                .filterIsInstance<PlaybackControlEvent.SoundPreparationFailed>()
+                .single()
+            assertEquals(request, event.commandSequence)
         } finally {
             coordinator.release()
         }
@@ -1760,12 +1895,20 @@ class PlaybackCoordinatorTest {
         fun publish(
             active: ActiveSoundConfiguration?,
             failure: SoundPreparationFailure?,
-            requestSequence: Long? = null
+            requestSequence: Long? = null,
+            adoptedSessionId: PlaybackSessionId? = null,
+            adopted: Boolean = adoptedSessionId != null
         ) {
             activeSounds = active
             preparationFailure = failure
             soundPreparationObserver?.invoke(
-                SoundPreparationPublication(requestSequence, active, failure)
+                SoundPreparationPublication(
+                    requestSequence,
+                    adoptedSessionId,
+                    adopted,
+                    active,
+                    failure
+                )
             )
         }
 

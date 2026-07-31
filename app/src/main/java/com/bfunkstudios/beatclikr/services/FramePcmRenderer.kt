@@ -6,6 +6,7 @@ import com.bfunkstudios.beatclikr.music.MusicalEventRole
 import com.bfunkstudios.beatclikr.music.ROLE_INDEX_BITS
 import com.bfunkstudios.beatclikr.music.ROLE_INDEX_MASK
 import com.bfunkstudios.beatclikr.music.SoundRole
+import java.util.concurrent.atomic.AtomicReference
 
 /** Stable waveform references prepared and published before rendering begins. */
 class RenderWaveforms(
@@ -38,13 +39,15 @@ interface PcmFrameRenderer {
 
 class FramePcmRenderer(
     private var eventSource: FrameRangeEventSource,
-    private val waveforms: RenderWaveforms,
+    waveforms: RenderWaveforms,
     maximumActiveVoices: Int,
     private val eventCapture: RenderedEventRing? = null,
     maximumBlockEvents: Int = DEFAULT_MAXIMUM_BLOCK_EVENTS
 ) : FrameRangeEventConsumer, PcmFrameRenderer {
     private val activeRoles = ByteArray(maximumActiveVoices)
     private val activePositions = IntArray(maximumActiveVoices)
+    private val activeVoiceWaveforms = arrayOfNulls<ShortArray>(maximumActiveVoices)
+    private val activeWaveforms = AtomicReference(waveforms)
     private var accumulator = IntArray(0)
     private var blockStartFrame = 0L
     private var blockFrameCount = 0
@@ -122,6 +125,7 @@ class FramePcmRenderer(
         while (slot < activeRoles.size) {
             activeRoles[slot] = NO_VOICE
             activePositions[slot] = 0
+            activeVoiceWaveforms[slot] = null
             slot++
         }
         hasExpectedFrame = false
@@ -134,6 +138,10 @@ class FramePcmRenderer(
 
     fun replaceEventSource(replacement: FrameRangeEventSource) {
         eventSource = replacement
+    }
+
+    fun replaceWaveforms(replacement: RenderWaveforms) {
+        activeWaveforms.set(replacement)
     }
 
     override fun render(startFrame: Long, output: ShortArray, frameCount: Int): FrameRenderResult {
@@ -188,6 +196,12 @@ class FramePcmRenderer(
         }
         activeRoles[slot] = if (role == SoundRole.BEAT) BEAT_VOICE else RHYTHM_VOICE
         activePositions[slot] = 0
+        val waveforms = activeWaveforms.get()
+        activeVoiceWaveforms[slot] = if (role == SoundRole.BEAT) {
+            waveforms.beat
+        } else {
+            waveforms.rhythm
+        }
         mixVoice(slot, offset.toInt())
         return true
     }
@@ -243,11 +257,7 @@ class FramePcmRenderer(
     }
 
     private fun mixVoice(slot: Int, outputOffset: Int) {
-        val waveform = when (activeRoles[slot]) {
-            BEAT_VOICE -> waveforms.beat
-            RHYTHM_VOICE -> waveforms.rhythm
-            else -> return
-        }
+        val waveform = activeVoiceWaveforms[slot] ?: return
         var sourceIndex = activePositions[slot]
         var outputIndex = outputOffset
         while (sourceIndex < waveform.size && outputIndex < blockFrameCount) {
@@ -258,6 +268,7 @@ class FramePcmRenderer(
         if (sourceIndex == waveform.size) {
             activeRoles[slot] = NO_VOICE
             activePositions[slot] = 0
+            activeVoiceWaveforms[slot] = null
         } else {
             activePositions[slot] = sourceIndex
         }

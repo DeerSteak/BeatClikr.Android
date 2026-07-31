@@ -12,7 +12,8 @@ enum class SoundPreparationFailureCode {
     MISSING,
     CORRUPT,
     EMPTY,
-    INCOMPATIBLE
+    INCOMPATIBLE,
+    RENDERER_REJECTED
 }
 
 data class SoundPreparationFailure(

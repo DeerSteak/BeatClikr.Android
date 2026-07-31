@@ -22,6 +22,30 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class FramePcmRendererTest {
+
+    @Test
+    fun waveformReplacementPreservesExistingTailAndUsesNewSoundForNewEvents() {
+        val renderer = renderer(
+            RecordingEventSource(
+                Event(0, SoundRole.BEAT),
+                Event(2, SoundRole.BEAT)
+            ),
+            beat = shortArrayOf(1, 2, 3),
+            rhythm = shortArrayOf(1)
+        )
+        val first = ShortArray(1)
+        val tail = ShortArray(1)
+        val boundary = ShortArray(1)
+
+        renderer.render(0, first, 1)
+        renderer.replaceWaveforms(RenderWaveforms(shortArrayOf(9), shortArrayOf(9)))
+        renderer.render(1, tail, 1)
+        renderer.render(2, boundary, 1)
+
+        assertEquals(1, first.single().toInt())
+        assertEquals(2, tail.single().toInt())
+        assertEquals(12, boundary.single().toInt())
+    }
     @Test
     fun requestsEveryOutputRangeAndMixesAtExactFrameOffsets() {
         val source = RecordingEventSource(

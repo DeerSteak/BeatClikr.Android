@@ -194,6 +194,11 @@ class FrameAudioEngine(
         soundSelection.includeAndPrepare(soundFiles)
     }
 
+    fun adoptPreparedSounds(completion: (Boolean) -> Unit): Boolean {
+        val sounds = soundSelection.active ?: return false
+        return frameSession?.updateSounds(sounds, completion) == true
+    }
+
     fun setFrameMuted(muted: Boolean) {
         frameSession?.setMuted(muted)
     }

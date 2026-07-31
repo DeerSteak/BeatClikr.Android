@@ -154,13 +154,13 @@ class MetronomeAudioEngine(private val context: Context) {
         handler.post {
             if (this.beatResourceId == beatResourceId &&
                 this.rhythmResourceId == rhythmResourceId) {
-                notifySoundPreparation(requestSequence)
+                publishSoundPreparation(requestSequence)
                 return@post
             }
             this.beatResourceId = beatResourceId
             this.rhythmResourceId = rhythmResourceId
             getOrCreateFrameAudioEngine().setSounds(beatResourceId, rhythmResourceId)
-            notifySoundPreparation(requestSequence)
+            publishSoundPreparation(requestSequence)
         }
     }
 
@@ -168,7 +168,7 @@ class MetronomeAudioEngine(private val context: Context) {
         requestedSoundBank = bank
         handler.post {
             frameAudioEngine?.soundBank = bank
-            notifySoundPreparation(requestSequence)
+            publishSoundPreparation(requestSequence)
         }
     }
 
@@ -324,7 +324,7 @@ class MetronomeAudioEngine(private val context: Context) {
     ) {
         handler.post {
             getOrCreateFrameAudioEngine().prepareSounds(soundFiles)
-            notifySoundPreparation(requestSequence)
+            publishSoundPreparation(requestSequence)
         }
     }
 
@@ -346,12 +346,57 @@ class MetronomeAudioEngine(private val context: Context) {
     fun getActiveSoundConfiguration(): ActiveSoundConfiguration? =
         frameAudioEngine?.activeSoundConfiguration
 
-    private fun notifySoundPreparation(requestSequence: Long? = null) {
+    private fun publishSoundPreparation(requestSequence: Long? = null) {
+        val engine = frameAudioEngine
+        val active = engine?.activeSoundConfiguration
+        val failure = engine?.lastSoundPreparationFailure
+        val sessionId = activeCoordinatorSessionId
+        if (sessionId != null && active != null && failure == null) {
+            val queued = engine.adoptPreparedSounds { accepted ->
+                val adoptionFailure = if (accepted) null else SoundPreparationFailure(
+                    active.bank,
+                    active.beatSound,
+                    SoundPreparationFailureCode.RENDERER_REJECTED
+                )
+                notifySoundPublication(
+                    requestSequence,
+                    sessionId,
+                    accepted,
+                    active,
+                    adoptionFailure
+                )
+            }
+            if (queued) return
+            notifySoundPublication(
+                requestSequence,
+                sessionId,
+                false,
+                active,
+                SoundPreparationFailure(
+                    active.bank,
+                    active.beatSound,
+                    SoundPreparationFailureCode.RENDERER_REJECTED
+                )
+            )
+            return
+        }
+        notifySoundPublication(requestSequence, sessionId, false, active, failure)
+    }
+
+    private fun notifySoundPublication(
+        requestSequence: Long?,
+        sessionId: PlaybackSessionId?,
+        adopted: Boolean,
+        active: ActiveSoundConfiguration?,
+        failure: SoundPreparationFailure?
+    ) {
         soundPreparationObserver?.invoke(
             SoundPreparationPublication(
                 requestSequence,
-                getActiveSoundConfiguration(),
-                getSoundPreparationFailure()
+                sessionId,
+                adopted,
+                active,
+                failure
             )
         )
     }

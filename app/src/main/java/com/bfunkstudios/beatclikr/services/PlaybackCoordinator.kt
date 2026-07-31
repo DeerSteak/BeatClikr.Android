@@ -276,6 +276,8 @@ sealed interface PlaybackEngineUpdateResult {
 
 data class SoundPreparationPublication(
     val requestSequence: Long?,
+    val sessionId: PlaybackSessionId?,
+    val adopted: Boolean,
     val active: ActiveSoundConfiguration?,
     val failure: SoundPreparationFailure?
 )
@@ -1276,7 +1278,9 @@ class PlaybackCoordinator(
         )
         transitionTo(PlaybackTransportState.Playing(committed))
         publishRenderedEvents()
-        mutateOwnership { it.copy(activeMode = committed.mode) }
+        mutateOwnership {
+            it.copy(activeMode = committed.mode, audibleSounds = evidence.audibleSounds)
+        }
         dispatchNextUpdate()
     }
 
@@ -1634,6 +1638,11 @@ class PlaybackCoordinator(
                 publication.requestSequence < latestSoundRequestSequence) {
                 return@executeControl
             }
+            val current = transportState.value as? PlaybackTransportState.Playing
+            if (publication.sessionId != null &&
+                publication.sessionId != current?.context?.sessionId) {
+                return@executeControl
+            }
             val active = publication.active
             val failure = publication.failure
             val requested = ownership.value.requestedSounds
@@ -1641,19 +1650,33 @@ class PlaybackCoordinator(
                 active.bank == requested.bank &&
                 active.beatSound == requested.beatSound &&
                 active.rhythmSound == requested.rhythmSound
+            val adopted = matches &&
+                publication.adopted &&
+                publication.sessionId == current?.context?.sessionId
             mutateOwnership {
                 it.copy(
-                    audibleSounds = if (matches) active else it.audibleSounds,
+                    audibleSounds = if (adopted) active else it.audibleSounds,
                     soundPreparationFailure = failure
                 )
             }
-            if (failure != null) {
-                mutableControlEvents.tryEmit(
-                    PlaybackControlEvent.SoundPreparationFailed(
-                        ownership.value.lastCommandSequence,
-                        failure
+            if (adopted) {
+                val adoptedSounds = requireNotNull(active)
+                val adoptedState = requireNotNull(current)
+                transitionTo(
+                    adoptedState.copy(
+                        context = adoptedState.context.copy(audibleSounds = adoptedSounds)
                     )
                 )
+            }
+            if (failure != null) {
+                publication.requestSequence?.let { requestSequence ->
+                    mutableControlEvents.tryEmit(
+                        PlaybackControlEvent.SoundPreparationFailed(
+                            requestSequence,
+                            failure
+                        )
+                    )
+                }
             }
         }
     }
@@ -1662,6 +1685,8 @@ class PlaybackCoordinator(
         onSoundPreparation(
             SoundPreparationPublication(
                 null,
+                null,
+                false,
                 engine.activeSoundConfiguration(),
                 engine.soundPreparationFailure()
             )

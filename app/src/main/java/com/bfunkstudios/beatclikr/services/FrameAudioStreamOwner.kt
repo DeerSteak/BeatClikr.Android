@@ -260,6 +260,12 @@ class FrameAudioStreamOwner(
         return updateTimeline { polyrhythmUpdater?.update(configuration, nextFrame) }
     }
 
+    fun updateSounds(sounds: ActivePreparedSounds): Boolean {
+        val frameRenderer = renderer as? FramePcmRenderer ?: return false
+        frameRenderer.replaceWaveforms(RenderWaveforms(sounds.beat, sounds.rhythm))
+        return true
+    }
+
     private inline fun updateTimeline(replacement: () -> FrameEventTimeline?): Boolean {
         return try {
             val frameRenderer = renderer as? FramePcmRenderer ?: return false
