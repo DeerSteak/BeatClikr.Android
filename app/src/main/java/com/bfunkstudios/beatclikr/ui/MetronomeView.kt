@@ -78,6 +78,8 @@ fun MetronomeView(
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         SecondaryOutputFailureText(viewModel.lastSecondaryOutputFailure)
+        PlaybackDiagnosticText(viewModel.lastPlaybackDiagnostic)
+        VariableLatencyWarning(viewModel.hasVariableOutputLatency)
         SectionCard {
             Column(
                 modifier = Modifier.padding(12.dp),

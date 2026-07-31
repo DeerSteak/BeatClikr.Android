@@ -73,6 +73,7 @@ sealed interface PlaybackFailureReason {
     data class SoundPreparation(val failure: SoundPreparationFailure) :
         PlaybackFailureReason
 
+    data class StreamStart(val diagnostic: String) : PlaybackFailureReason
     data class Engine(val diagnostic: String) : PlaybackFailureReason
 }
 

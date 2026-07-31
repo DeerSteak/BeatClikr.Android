@@ -1,6 +1,8 @@
 package com.bfunkstudios.beatclikr
 
 import android.content.Context
+import android.content.res.Configuration
+import android.view.WindowManager
 import androidx.room.Room
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
@@ -8,6 +10,7 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.lifecycle.Lifecycle
 import com.bfunkstudios.beatclikr.data.IAppPreferences
 import com.bfunkstudios.beatclikr.data.PlaylistRepository
 import com.bfunkstudios.beatclikr.data.PlaylistRepositoryImpl
@@ -26,6 +29,11 @@ import com.bfunkstudios.beatclikr.services.IFlashlightService
 import com.bfunkstudios.beatclikr.services.IHapticFeedbackService
 import com.bfunkstudios.beatclikr.services.IPracticeReminderScheduler
 import com.bfunkstudios.beatclikr.services.PlaybackObservation
+import com.bfunkstudios.beatclikr.services.AudioOutputRoute
+import com.bfunkstudios.beatclikr.services.PlaybackFailureReason
+import com.bfunkstudios.beatclikr.services.PlaybackInterruptionReason
+import com.bfunkstudios.beatclikr.services.PlaybackMode
+import com.bfunkstudios.beatclikr.services.PlaybackTransportState
 import com.bfunkstudios.beatclikr.services.SecondaryOutputCoordinator
 import com.bfunkstudios.beatclikr.services.SecondaryOutputObservation
 import dagger.Module
@@ -39,6 +47,7 @@ import dagger.hilt.components.SingletonComponent
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import java.util.Locale
 import org.junit.Before
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -207,6 +216,147 @@ class InstantMetronomeViewTest {
     }
 
     @Test
+    fun bluetoothWarningTracksAuthoritativeRouteInBothModes() {
+        val fake = audio as FakeAudioPlayerService
+        fake.publishPlaying(PlaybackMode.STANDARD, AudioOutputRoute.BLUETOOTH)
+        composeRule.onNodeWithTag("bluetooth_latency_warning").assertIsDisplayed()
+        composeRule.onNodeWithContentDescription(
+            activity.getString(R.string.bluetooth_latency_warning)
+        ).assertIsDisplayed()
+
+        fake.publishPlaying(PlaybackMode.STANDARD, AudioOutputRoute.BUILT_IN)
+        composeRule.onNodeWithTag("bluetooth_latency_warning").assertDoesNotExist()
+
+        composeRule.onNodeWithTag("metronome_mode_polyrhythm").performClick()
+        fake.publishPlaying(PlaybackMode.POLYRHYTHM, AudioOutputRoute.BLUETOOTH)
+        composeRule.onNodeWithTag("bluetooth_latency_warning").assertIsDisplayed()
+
+        fake.stopPlayback()
+        composeRule.onNodeWithTag("bluetooth_latency_warning").assertDoesNotExist()
+    }
+
+    @Test
+    fun playbackDiagnosticsAreVisibleAndSuccessfulStartClearsThem() {
+        val fake = audio as FakeAudioPlayerService
+        val cases = listOf(
+            PlaybackFailureReason.AudioFocusUnavailable to R.string.playback_focus_unavailable,
+            PlaybackFailureReason.RouteUnavailable to R.string.playback_route_unavailable,
+            PlaybackFailureReason.StreamStart("stream start rejected") to
+                R.string.playback_stream_start_failed,
+            PlaybackFailureReason.Engine("RENDER: INTERNAL_ERROR") to
+                R.string.playback_engine_failed
+        )
+        cases.forEach { (reason, message) ->
+            fake.publishFailed(PlaybackMode.STANDARD, reason)
+            composeRule.onNodeWithText(activity.getString(message)).assertIsDisplayed()
+        }
+
+        fake.publishInterrupted(
+            PlaybackMode.STANDARD,
+            PlaybackInterruptionReason.RouteChanged(
+                AudioOutputRoute.BUILT_IN,
+                AudioOutputRoute.USB
+            )
+        )
+        composeRule.onNodeWithText(
+            activity.getString(
+                R.string.playback_route_changed,
+                activity.getString(R.string.audio_route_built_in),
+                activity.getString(R.string.audio_route_usb)
+            )
+        ).assertIsDisplayed()
+
+        fake.publishPlaying(PlaybackMode.STANDARD)
+        composeRule.onNodeWithTag("playback_diagnostic").assertDoesNotExist()
+
+        composeRule.onNodeWithTag("metronome_mode_polyrhythm").performClick()
+        fake.publishFailed(PlaybackMode.POLYRHYTHM, PlaybackFailureReason.RouteUnavailable)
+        composeRule.onNodeWithText(
+            activity.getString(R.string.playback_route_unavailable)
+        ).assertIsDisplayed()
+        fake.publishPlaying(PlaybackMode.POLYRHYTHM)
+        composeRule.onNodeWithTag("playback_diagnostic").assertDoesNotExist()
+    }
+
+    @Test
+    fun spanishRouteChangeMessageUsesLocalizedRouteLabels() {
+        val configuration = Configuration(activity.resources.configuration).apply {
+            setLocale(Locale.forLanguageTag("es"))
+        }
+        val localized = activity.createConfigurationContext(configuration)
+        val message = localized.getString(
+            R.string.playback_route_changed,
+            localized.getString(R.string.audio_route_built_in),
+            localized.getString(R.string.audio_route_bluetooth)
+        )
+
+        assertEquals(
+            "La reproducción se detuvo porque la salida de audio cambió de " +
+                "altavoz integrado a Bluetooth.",
+            message
+        )
+        assertFalse(message.contains("BUILT_IN"))
+    }
+
+    @Test
+    fun keepScreenOnRequiresPreferenceVisibilityAndPlaying() {
+        val fake = audio as FakeAudioPlayerService
+        fake.publishPlaying(PlaybackMode.STANDARD)
+        composeRule.waitForIdle()
+        assertFalse(activity.isKeepingScreenOn())
+
+        FakeAppPreferences.instance.keepScreenAwake = true
+        composeRule.activityRule.scenario.recreate()
+        composeRule.waitForIdle()
+        composeRule.waitUntil { activity.isKeepingScreenOn() }
+
+        fake.startMetronome(120f, 4, null, false)
+        composeRule.waitUntil { !activity.isKeepingScreenOn() }
+
+        fake.publishPlaying(PlaybackMode.STANDARD)
+        composeRule.waitUntil { activity.isKeepingScreenOn() }
+
+        val playing = fake.transportState.value as PlaybackTransportState.Playing
+        fake.transportState.value = PlaybackTransportState.Stopping(playing.context)
+        composeRule.waitUntil { !activity.isKeepingScreenOn() }
+
+        fake.publishPlaying(PlaybackMode.STANDARD)
+        fake.publishInterrupted(
+            PlaybackMode.STANDARD,
+            PlaybackInterruptionReason.AudioFocusLost
+        )
+        composeRule.waitUntil { !activity.isKeepingScreenOn() }
+
+        fake.publishPlaying(PlaybackMode.STANDARD)
+        composeRule.waitUntil { activity.isKeepingScreenOn() }
+
+        val resumedActivity = activity
+        composeRule.activityRule.scenario.moveToState(Lifecycle.State.CREATED)
+        composeRule.waitUntil { !resumedActivity.isKeepingScreenOn() }
+
+        composeRule.activityRule.scenario.moveToState(Lifecycle.State.RESUMED)
+        composeRule.waitUntil { activity.isKeepingScreenOn() }
+
+        fake.publishFailed(
+            PlaybackMode.STANDARD,
+            PlaybackFailureReason.Engine("render failed")
+        )
+        composeRule.waitUntil { !activity.isKeepingScreenOn() }
+    }
+
+    @Test
+    fun keepScreenOnSurvivesRecreationOnlyForPlayingSession() {
+        val fake = audio as FakeAudioPlayerService
+        FakeAppPreferences.instance.keepScreenAwake = true
+        fake.publishPlaying(PlaybackMode.STANDARD)
+        composeRule.activityRule.scenario.recreate()
+        composeRule.waitUntil { activity.isKeepingScreenOn() }
+
+        fake.stopPlayback()
+        composeRule.waitUntil { !activity.isKeepingScreenOn() }
+    }
+
+    @Test
     fun quarterSubdivisionDisplaysOnLaunch() {
         composeRule.onNodeWithText(activity.getString(R.string.subdivision_quarter)).assertIsDisplayed()
     }
@@ -262,4 +412,7 @@ class InstantMetronomeViewTest {
 
         assertFalse(FakeAppPreferences.instance.alwaysUseDarkTheme)
     }
+
+    private fun MainActivity.isKeepingScreenOn(): Boolean =
+        window.attributes.flags and WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON != 0
 }

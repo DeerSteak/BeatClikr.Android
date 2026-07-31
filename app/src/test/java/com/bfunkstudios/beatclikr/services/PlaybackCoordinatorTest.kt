@@ -1085,6 +1085,34 @@ class PlaybackCoordinatorTest {
     }
 
     @Test
+    fun engineStartFailureRemainsTypedAsStreamStart() {
+        val engine = FakePlaybackEngine().apply {
+            autoStartAcknowledgement = false
+            autoStopAcknowledgement = false
+        }
+        val coordinator = PlaybackCoordinator(engine)
+        try {
+            coordinator.submit(PlaybackIntent.StartStandard(120f, 4, null, false))
+            assertTrue(coordinator.awaitControlIdle())
+            val starting = coordinator.transportState.value as PlaybackTransportState.Starting
+
+            engine.transportObserver?.engineStartFailed(
+                starting.context.sessionId,
+                "Audio stream failed to start"
+            )
+            assertTrue(coordinator.awaitControlIdle())
+
+            val failed = coordinator.transportState.value as PlaybackTransportState.Failed
+            assertEquals(
+                PlaybackFailureReason.StreamStart("Audio stream failed to start"),
+                failed.reason
+            )
+        } finally {
+            coordinator.release()
+        }
+    }
+
+    @Test
     fun modeReplacementBeforeFirstStartAcknowledgementStopsPendingSession() {
         val engine = FakePlaybackEngine().apply { autoStartAcknowledgement = false }
         val coordinator = PlaybackCoordinator(engine)
