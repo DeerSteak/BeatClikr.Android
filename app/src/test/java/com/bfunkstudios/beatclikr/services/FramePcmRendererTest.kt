@@ -309,15 +309,64 @@ class FramePcmRendererTest {
     }
 
     @Test
-    fun preparedRenderWithEventCaptureAllocatesNoMemory() {
+    fun preparedRenderCapturesEveryBlockEventWithoutLoss() {
+        val capture = RenderedEventRing(512)
         val renderer = FramePcmRenderer(
             EveryBlockEventSource,
             RenderWaveforms(shortArrayOf(1), shortArrayOf(1)),
             maximumActiveVoices = 8,
-            eventCapture = RenderedEventRing(512)
+            eventCapture = capture
+        ).also { it.prepare(64) }
+        val output = ShortArray(64)
+
+        repeat(512) { block ->
+            val startFrame = block * output.size.toLong()
+            assertEquals(FrameRenderResult.COMPLETE, renderer.render(startFrame, output, output.size))
+        }
+        val batch = capture.drain(0)
+
+        assertEquals(512, batch.records.size)
+        assertEquals(0, batch.droppedRecords)
+        assertEquals(511L * output.size, batch.records.last().intendedFrame)
+    }
+
+    @Test
+    fun preparedRenderWithEveryBlockEventAllocatesNoMemory() {
+        val renderer = FramePcmRenderer(
+            EveryBlockEventSource,
+            RenderWaveforms(shortArrayOf(1), shortArrayOf(1)),
+            maximumActiveVoices = 8
         ).also { it.prepare(64) }
 
         assertPreparedRenderAllocatesNoMemory(renderer)
+    }
+
+    @Test
+    fun renderedEventRingRecordAllocatesNoMemory() {
+        val ring = RenderedEventRing(512)
+        val bean = ManagementFactory.getThreadMXBean() as ThreadMXBean
+        assumeTrue(bean.isThreadAllocatedMemorySupported)
+        bean.isThreadAllocatedMemoryEnabled = true
+        val measuredBytes = AtomicLong(Long.MAX_VALUE)
+        val measurementThread = Thread {
+            var sequence = recordEvents(ring, 0, 500_000)
+            var minimumAllocatedBytes = Long.MAX_VALUE
+            var attempts = 0
+            while (attempts < 100 && minimumAllocatedBytes != 0L) {
+                val before = bean.currentThreadAllocatedBytes
+                sequence = recordEvents(ring, sequence, 10_000)
+                minimumAllocatedBytes = minOf(
+                    minimumAllocatedBytes,
+                    bean.currentThreadAllocatedBytes - before
+                )
+                attempts++
+            }
+            measuredBytes.set(minimumAllocatedBytes)
+        }
+        measurementThread.start()
+        measurementThread.join()
+
+        assertEquals("Rendered ring record allocated bytes", 0, measuredBytes.get())
     }
 
     @Test
@@ -383,6 +432,21 @@ class FramePcmRendererTest {
             remaining--
         }
         return startFrame
+    }
+
+    private fun recordEvents(
+        ring: RenderedEventRing,
+        initialSequence: Long,
+        eventCount: Int
+    ): Long {
+        var sequence = initialSequence
+        var remaining = eventCount
+        while (remaining > 0) {
+            ring.recordOrdinal(1, sequence, 0, sequence, false, 0)
+            sequence++
+            remaining--
+        }
+        return sequence
     }
 
     private fun renderer(

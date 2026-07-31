@@ -14,6 +14,7 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertSame
 import org.junit.Before
 import org.junit.Test
 
@@ -115,13 +116,26 @@ class SecondaryOutputCoordinatorTest {
     fun secondaryFailureIsPublishedWithoutChangingPlayback() {
         every { prefs.useVibration } returns true
         every { haptics.playBeatHaptic() } throws IllegalStateException("vibrator unavailable")
+        val transportBeforeFailure = transportState.value
 
         coordinator.applyCommittedEvent(rendered(roleIndex = 0))
         scheduler.runNext()
 
         assertEquals(SecondaryOutput.HAPTIC, coordinator.secondaryOutputFailure.value?.output)
         assertEquals("vibrator unavailable", coordinator.secondaryOutputFailure.value?.diagnostic)
-        assertEquals(sessionId, standardPlaying().context.sessionId)
+        assertSame(transportBeforeFailure, transportState.value)
+    }
+
+    @Test
+    fun successfulSessionStartClearsRetainedFailure() {
+        every { prefs.useVibration } returns true
+        every { haptics.playBeatHaptic() } throws IllegalStateException("vibrator unavailable")
+        coordinator.applyCommittedEvent(rendered(roleIndex = 0))
+        scheduler.runNext()
+
+        applyTransportState(standardPlaying())
+
+        assertNull(coordinator.secondaryOutputFailure.value)
     }
 
     @Test
@@ -135,6 +149,16 @@ class SecondaryOutputCoordinatorTest {
         assertEquals(SecondaryOutput.TORCH, coordinator.secondaryOutputFailure.value?.output)
         assertEquals("camera busy", coordinator.secondaryOutputFailure.value?.diagnostic)
         verify { flashlight.turnFlashlightOff() }
+    }
+
+    @Test
+    fun failedImmediateStopOffSchedulesFreshFailsafe() {
+        every { flashlight.turnFlashlightOff() } throws IllegalStateException("camera busy")
+
+        coordinator.stopEffects()
+
+        assertEquals(250_000_000L, scheduler.tasks.single().delayNanos)
+        assertEquals("camera busy", coordinator.secondaryOutputFailure.value?.diagnostic)
     }
 
     @Test

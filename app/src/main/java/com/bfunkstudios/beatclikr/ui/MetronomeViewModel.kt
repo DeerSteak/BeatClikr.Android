@@ -340,8 +340,9 @@ class MetronomeViewModel @Inject constructor(
         beatTimeNanos: Long,
         presentationIsFrameTime: Boolean = false
     ) {
+        if (!isBeat) return
         // Avoid dispatch latency when handing the scheduled time to Choreographer.
-        val hasScheduledBeatTime = isBeat && beatTimeNanos > 0L
+        val hasScheduledBeatTime = beatTimeNanos > 0L
         if (hasScheduledBeatTime) {
             pendingBeatEvent.set(PendingBeatEvent(
                 timeNanos = if (presentationIsFrameTime) {
@@ -353,13 +354,11 @@ class MetronomeViewModel @Inject constructor(
             ))
         }
         viewModelScope.launch(Dispatchers.Main) {
-            if (isBeat) {
-                iconScale = MetronomeConstants.ICON_SCALE_MAX
-                if (hasScheduledBeatTime) startChoreographerLoop()
-                handleBeat()
-                delay(16)
-                iconScale = MetronomeConstants.ICON_SCALE_MIN
-            }
+            iconScale = MetronomeConstants.ICON_SCALE_MAX
+            if (hasScheduledBeatTime) startChoreographerLoop()
+            handleBeat()
+            delay(16)
+            iconScale = MetronomeConstants.ICON_SCALE_MIN
         }
     }
 

@@ -70,13 +70,19 @@ class SecondaryOutputCoordinator(
     }
 
     fun stopEffects() {
-        pulseGeneration.incrementAndGet()
+        val generation = pulseGeneration.incrementAndGet()
         runOutput(SecondaryOutput.HAPTIC, "cancel") { haptics.cancel() }
-        runOutput(SecondaryOutput.TORCH, "off") { flashlight.turnFlashlightOff() }
+        if (!runOutput(SecondaryOutput.TORCH, "off") { flashlight.turnFlashlightOff() }) {
+            scheduleTorchOff(generation, TORCH_FAILSAFE_NANOS, "stop failsafe off")
+        }
     }
 
     internal fun applyTransportState(state: PlaybackTransportState) {
-        if (state !is PlaybackTransportState.Playing) stopEffects()
+        if (state is PlaybackTransportState.Playing) {
+            mutableFailure.value = null
+        } else {
+            stopEffects()
+        }
     }
 
     internal fun applyCommittedEvent(event: PlaybackCommittedEvent) {
@@ -117,7 +123,11 @@ class SecondaryOutputCoordinator(
             flashlight.turnFlashlightOn()
         }
         if (!enabled) {
-            runOutput(SecondaryOutput.TORCH, "failsafe off") { flashlight.turnFlashlightOff() }
+            if (!runOutput(SecondaryOutput.TORCH, "failsafe off") {
+                    flashlight.turnFlashlightOff()
+                }) {
+                scheduleTorchOff(generation, TORCH_FAILSAFE_NANOS, "retry failsafe off")
+            }
             return
         }
         scheduleTorchOff(generation, TORCH_PULSE_NANOS, "pulse off")
