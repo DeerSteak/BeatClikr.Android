@@ -479,6 +479,128 @@ class PlaybackCoordinatorTest {
     }
 
     @Test
+    fun modeReplacementBeforeFirstStartAcknowledgementStopsPendingSession() {
+        val engine = FakePlaybackEngine().apply { autoStartAcknowledgement = false }
+        val coordinator = PlaybackCoordinator(engine)
+        try {
+            coordinator.submit(PlaybackIntent.StartStandard(120f, 4, null, false))
+            assertTrue(coordinator.awaitControlIdle())
+            val first = (coordinator.transportState.value as PlaybackTransportState.Starting)
+                .context.sessionId
+
+            coordinator.submit(PlaybackIntent.StartPolyrhythm(120f, 3, 2))
+            assertTrue(coordinator.awaitControlIdle())
+            val second = (coordinator.transportState.value as PlaybackTransportState.Starting)
+                .context.sessionId
+
+            assertEquals(listOf("startStandard", "stopStandard", "startPolyrhythm"), engine.operations)
+            assertTrue(second.value > first.value)
+        } finally {
+            coordinator.release()
+        }
+    }
+
+    @Test
+    fun modeReplacementAfterCommittedEventRejectsStaleOldSessionWork() {
+        val engine = FakePlaybackEngine()
+        val coordinator = PlaybackCoordinator(engine)
+        try {
+            coordinator.submit(PlaybackIntent.StartStandard(120f, 4, null, false))
+            assertTrue(coordinator.awaitControlIdle())
+            val first = (coordinator.transportState.value as PlaybackTransportState.Playing)
+                .context.sessionId
+            engine.renderedBatch = renderedBatch(first, 31)
+            coordinator.metronomeBeatFired(true, 0.5f, 0)
+            assertTrue(coordinator.awaitControlIdle())
+
+            coordinator.submit(PlaybackIntent.StartPolyrhythm(120f, 3, 2))
+            assertTrue(coordinator.awaitControlIdle())
+            val second = (coordinator.transportState.value as PlaybackTransportState.Playing)
+                .context.sessionId
+            engine.renderedBatch = renderedBatch(first, 32)
+            coordinator.metronomeBeatFired(true, 0.5f, 0)
+            assertTrue(coordinator.awaitControlIdle())
+
+            assertEquals(second, (coordinator.transportState.value as PlaybackTransportState.Playing).context.sessionId)
+            assertEquals(
+                listOf(31L),
+                coordinator.committedEvents.replayCache
+                    .filterIsInstance<PlaybackCommittedEvent.Rendered>()
+                    .map { it.eventSequence }
+            )
+        } finally {
+            coordinator.release()
+        }
+    }
+
+    @Test
+    fun configurationAndSoundCommandsQueuedBehindStopCannotReviveSession() {
+        val engine = FakePlaybackEngine().apply { blockStop = true }
+        val coordinator = PlaybackCoordinator(engine)
+        try {
+            coordinator.submit(PlaybackIntent.StartStandard(120f, 4, null, false))
+            assertTrue(coordinator.awaitControlIdle())
+            coordinator.submit(PlaybackIntent.Stop)
+            assertTrue(engine.stopEntered.await(2, TimeUnit.SECONDS))
+
+            val updateSequence = coordinator.submit(
+                PlaybackIntent.UpdateStandard(140f, 2, null, false)
+            )
+            coordinator.submit(PlaybackIntent.SelectSounds(SoundFile.SNARE, SoundFile.COWBELL))
+            engine.allowStop.countDown()
+            assertTrue(coordinator.awaitControlIdle())
+
+            assertTrue(coordinator.transportState.value is PlaybackTransportState.Idle)
+            assertEquals(1, engine.operations.count { it == "startStandard" })
+            assertFalse(engine.operations.contains("updateStandard"))
+            assertTrue(engine.operations.contains("selectSounds"))
+            val updateOutcome = coordinator.controlEvents.replayCache
+                .filterIsInstance<PlaybackControlEvent.IntentCompleted>()
+                .single { it.commandSequence == updateSequence }
+                .outcome
+            assertEquals(
+                PlaybackCoordinatorFailureCode.MODE_MISMATCH,
+                (updateOutcome as PlaybackIntentOutcome.Rejected).failure.code
+            )
+        } finally {
+            engine.allowStop.countDown()
+            coordinator.release()
+        }
+    }
+
+    @Test
+    fun routeRemovalAndEngineFailureDuringStartStopExactlyOnce() {
+        listOf<(PlaybackSessionId) -> PlaybackSystemInput>(
+            { sessionId ->
+                PlaybackSystemInput.Interrupted(
+                    sessionId,
+                    PlaybackInterruptionReason.RouteLost
+                )
+            },
+            { sessionId -> PlaybackSystemInput.EngineFailed(sessionId, "start failed") }
+        ).forEach { createInput ->
+            val engine = FakePlaybackEngine().apply {
+                autoStartAcknowledgement = false
+                autoStopAcknowledgement = false
+            }
+            val coordinator = PlaybackCoordinator(engine)
+            try {
+                coordinator.submit(PlaybackIntent.StartStandard(120f, 4, null, false))
+                assertTrue(coordinator.awaitControlIdle())
+                val starting = coordinator.transportState.value as PlaybackTransportState.Starting
+
+                coordinator.submitSystemInput(createInput(starting.context.sessionId))
+                assertTrue(coordinator.awaitControlIdle())
+
+                assertTrue(coordinator.transportState.value is PlaybackTransportState.Failed)
+                assertEquals(1, engine.operations.count { it == "stopStandard" })
+            } finally {
+                coordinator.release()
+            }
+        }
+    }
+
+    @Test
     fun unavailablePrerequisiteFailsBeforeEngineStart() {
         val engine = FakePlaybackEngine()
         val coordinator = PlaybackCoordinator(engine)
@@ -995,9 +1117,12 @@ class PlaybackCoordinatorTest {
         var throwOnStart = false
         var throwOnStop = false
         var blockStart = false
+        var blockStop = false
         var autoStartAcknowledgement = true
         val startEntered = CountDownLatch(1)
         val allowStart = CountDownLatch(1)
+        val stopEntered = CountDownLatch(1)
+        val allowStop = CountDownLatch(1)
         var activeSounds: ActiveSoundConfiguration? = ActiveSoundConfiguration(
             SoundBank.ACOUSTIC,
             SoundFile.CLICK_HI,
@@ -1093,6 +1218,10 @@ class PlaybackCoordinatorTest {
 
         override fun stopSession(sessionId: PlaybackSessionId, mode: PlaybackMode) {
             if (throwOnStop) error("stop failed")
+            if (blockStop) {
+                stopEntered.countDown()
+                allowStop.await()
+            }
             when (mode) {
                 PlaybackMode.STANDARD -> stopMetronome()
                 PlaybackMode.POLYRHYTHM -> stopPolyrhythm()

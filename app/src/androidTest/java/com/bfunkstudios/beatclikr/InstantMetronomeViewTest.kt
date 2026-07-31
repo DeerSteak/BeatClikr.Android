@@ -140,6 +140,35 @@ class InstantMetronomeViewTest {
     }
 
     @Test
+    fun launchAndActivityRecreationDoNotStartPlayback() {
+        val fake = audio as FakeAudioPlayerService
+        assertEquals(0, fake.startCount)
+        assertEquals(0, fake.polyrhythmStartCount)
+
+        composeRule.activityRule.scenario.recreate()
+        composeRule.waitForIdle()
+
+        assertEquals(0, fake.startCount)
+        assertEquals(0, fake.polyrhythmStartCount)
+    }
+
+    @Test
+    fun activityRecreationPreservesActivePlaybackWithoutRestart() {
+        val fake = audio as FakeAudioPlayerService
+        composeRule.onNodeWithText(activity.getString(R.string.play)).performClick()
+        assertEquals(1, fake.startCount)
+
+        composeRule.activityRule.scenario.recreate()
+        composeRule.waitForIdle()
+
+        assertEquals(0, fake.stopCount)
+        assertEquals(0, fake.polyrhythmStopCount)
+        assertEquals(1, fake.startCount)
+        assertEquals(0, fake.polyrhythmStartCount)
+        composeRule.onNodeWithText(activity.getString(R.string.pause)).assertIsDisplayed()
+    }
+
+    @Test
     fun bpmLabelDisplaysOnLaunch() {
         composeRule.onNodeWithText(activity.getString(R.string.bpm)).assertIsDisplayed()
     }

@@ -7,9 +7,6 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
-import androidx.lifecycle.DefaultLifecycleObserver
-import androidx.lifecycle.LifecycleOwner
-import androidx.lifecycle.ProcessLifecycleOwner
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.bfunkstudios.beatclikr.constants.MetronomeConstants
@@ -99,14 +96,7 @@ class PolyrhythmViewModel @Inject constructor(
     private var lastCommittedEventSequence =
         playback.committedEvents.replayCache.lastOrNull()?.sequence ?: 0L
 
-    private val appLifecycleObserver = object : DefaultLifecycleObserver {
-        override fun onPause(owner: LifecycleOwner) {
-            if (isPlaying) stop()
-        }
-    }
-
     init {
-        ProcessLifecycleOwner.get().lifecycle.addObserver(appLifecycleObserver)
         viewModelScope.launch {
             playback.transportState.collect(::applyTransportState)
         }
@@ -326,7 +316,6 @@ class PolyrhythmViewModel @Inject constructor(
 
     override fun onCleared() {
         super.onCleared()
-        ProcessLifecycleOwner.get().lifecycle.removeObserver(appLifecycleObserver)
         stop()
     }
 

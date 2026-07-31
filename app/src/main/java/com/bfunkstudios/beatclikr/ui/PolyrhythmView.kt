@@ -31,7 +31,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -58,9 +57,8 @@ fun PolyrhythmView(
     modifier: Modifier = Modifier,
     viewModel: PolyrhythmViewModel = hiltViewModel()
 ) {
-    DisposableEffect(Unit) {
+    LaunchedEffect(Unit) {
         viewModel.setupPolyrhythm()
-        onDispose { viewModel.stop() }
     }
 
     Column(
