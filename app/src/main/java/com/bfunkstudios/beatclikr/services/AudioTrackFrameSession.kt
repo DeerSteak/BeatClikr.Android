@@ -272,6 +272,16 @@ class AudioTrackFrameSession(
         }
     }
 
+    fun updateSounds(
+        sounds: ActivePreparedSounds,
+        completion: (Boolean) -> Unit
+    ): Boolean {
+        if (released || !renderRunning) return false
+        return handler.post {
+            completion(renderRunning && owner.updateSounds(sounds))
+        }
+    }
+
     @Synchronized
     fun release(): Boolean {
         if (released) return true
