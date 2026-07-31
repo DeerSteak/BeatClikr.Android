@@ -389,6 +389,111 @@ class MetronomeAudioEngine(private val context: Context) {
         }
     }
 
+    fun updateStandardSession(
+        sessionId: PlaybackSessionId,
+        configuration: CommittedPlaybackConfiguration.Standard,
+        completion: (PlaybackEngineUpdateResult) -> Unit
+    ) {
+        handler.post {
+            val rejection = when {
+                activeCoordinatorSessionId != sessionId -> PlaybackEngineUpdateResult.Reason.STALE_SESSION
+                !isPlaying || !frameAudioActive -> PlaybackEngineUpdateResult.Reason.INACTIVE_MODE
+                framePolyrhythmActive -> PlaybackEngineUpdateResult.Reason.INACTIVE_MODE
+                else -> null
+            }
+            if (rejection != null) {
+                completion(PlaybackEngineUpdateResult.Rejected(sessionId, rejection))
+                return@post
+            }
+            try {
+                val accepted = requireNotNull(frameAudioEngine).updateStandard(
+                    configuration.bpm,
+                    configuration.subdivisions,
+                    configuration.accentPattern,
+                    configuration.alternateSixteenth,
+                    isMuted
+                )
+                if (!accepted) {
+                    completion(
+                        PlaybackEngineUpdateResult.Rejected(
+                            sessionId,
+                            PlaybackEngineUpdateResult.Reason.RENDERER_REJECTED
+                        )
+                    )
+                    return@post
+                }
+                currentBPM = configuration.bpm
+                currentSubdivisions = configuration.subdivisions
+                currentAccentPattern = configuration.accentPattern
+                currentAlternateSixteenth = configuration.alternateSixteenth
+                if (currentAccentPattern != null && subdivisionCounter >= currentAccentPattern!!.size) {
+                    subdivisionCounter = 0
+                }
+                completion(PlaybackEngineUpdateResult.Accepted(sessionId))
+            } catch (failure: IllegalArgumentException) {
+                completion(updateFailure(sessionId, PlaybackEngineUpdateResult.Reason.INVALID_CONFIGURATION, failure))
+            } catch (failure: Throwable) {
+                completion(updateFailure(sessionId, PlaybackEngineUpdateResult.Reason.ENGINE_FAILURE, failure))
+            }
+        }
+    }
+
+    fun updatePolyrhythmSession(
+        sessionId: PlaybackSessionId,
+        configuration: CommittedPlaybackConfiguration.Polyrhythm,
+        completion: (PlaybackEngineUpdateResult) -> Unit
+    ) {
+        handler.post {
+            val rejection = when {
+                activeCoordinatorSessionId != sessionId -> PlaybackEngineUpdateResult.Reason.STALE_SESSION
+                !polyrhythmPlaying || !frameAudioActive || !framePolyrhythmActive ->
+                    PlaybackEngineUpdateResult.Reason.INACTIVE_MODE
+                else -> null
+            }
+            if (rejection != null) {
+                completion(PlaybackEngineUpdateResult.Rejected(sessionId, rejection))
+                return@post
+            }
+            try {
+                val accepted = requireNotNull(frameAudioEngine).updatePolyrhythm(
+                    configuration.bpm,
+                    configuration.beats,
+                    configuration.against,
+                    isMuted
+                )
+                if (!accepted) {
+                    completion(
+                        PlaybackEngineUpdateResult.Rejected(
+                            sessionId,
+                            PlaybackEngineUpdateResult.Reason.RENDERER_REJECTED
+                        )
+                    )
+                    return@post
+                }
+                polyrhythmEngine.updateAtCycleBoundary(
+                    configuration.bpm,
+                    configuration.beats,
+                    configuration.against
+                )
+                completion(PlaybackEngineUpdateResult.Accepted(sessionId))
+            } catch (failure: IllegalArgumentException) {
+                completion(updateFailure(sessionId, PlaybackEngineUpdateResult.Reason.INVALID_CONFIGURATION, failure))
+            } catch (failure: Throwable) {
+                completion(updateFailure(sessionId, PlaybackEngineUpdateResult.Reason.ENGINE_FAILURE, failure))
+            }
+        }
+    }
+
+    private fun updateFailure(
+        sessionId: PlaybackSessionId,
+        reason: PlaybackEngineUpdateResult.Reason,
+        failure: Throwable
+    ) = PlaybackEngineUpdateResult.Rejected(
+        sessionId,
+        reason,
+        failure.message ?: failure::class.java.simpleName
+    )
+
     fun release() {
         val latch = CountDownLatch(1)
         handler.post {
