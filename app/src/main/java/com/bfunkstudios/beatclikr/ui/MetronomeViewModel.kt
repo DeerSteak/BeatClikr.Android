@@ -22,12 +22,11 @@ import com.bfunkstudios.beatclikr.data.SoundFile
 import com.bfunkstudios.beatclikr.services.CommittedPlaybackConfiguration
 import com.bfunkstudios.beatclikr.services.EventPresentation
 import com.bfunkstudios.beatclikr.services.IAudioPlayerService
-import com.bfunkstudios.beatclikr.services.IFlashlightService
-import com.bfunkstudios.beatclikr.services.IHapticFeedbackService
 import com.bfunkstudios.beatclikr.services.PlaybackCommittedEvent
 import com.bfunkstudios.beatclikr.services.PlaybackMode
 import com.bfunkstudios.beatclikr.services.PlaybackObservation
 import com.bfunkstudios.beatclikr.services.PlaybackTransportState
+import com.bfunkstudios.beatclikr.services.SecondaryOutputObservation
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -40,8 +39,7 @@ class MetronomeViewModel @Inject constructor(
     private val audio: IAudioPlayerService,
     private val playback: PlaybackObservation,
     private val prefs: IAppPreferences,
-    private val flashlight: IFlashlightService,
-    private val haptics: IHapticFeedbackService
+    secondaryOutputs: SecondaryOutputObservation
 ) : ViewModel() {
 
     var iconScale by mutableFloatStateOf(MetronomeConstants.ICON_SCALE_MIN)
@@ -62,6 +60,9 @@ class MetronomeViewModel @Inject constructor(
         get() = transportState.hasVariableOutputLatency(PlaybackMode.STANDARD)
 
     var lastPlaybackFailure by mutableStateOf<String?>(null)
+        private set
+
+    var lastSecondaryOutputFailure by mutableStateOf<String?>(null)
         private set
 
     var clickerType by mutableStateOf(ClickerType.INSTANT)
@@ -125,6 +126,11 @@ class MetronomeViewModel @Inject constructor(
         }
         viewModelScope.launch {
             playback.committedEvents.collect(::applyCommittedEvent)
+        }
+        viewModelScope.launch {
+            secondaryOutputs.secondaryOutputFailure.collect { failure ->
+                lastSecondaryOutputFailure = failure?.diagnostic
+            }
         }
     }
 
@@ -298,7 +304,6 @@ class MetronomeViewModel @Inject constructor(
     fun stop() {
         val shouldRestoreRampBpm = rampEnabled && clickerType == ClickerType.INSTANT
         audio.stopMetronome()
-        flashlight.turnFlashlightOff()
         rampController.reset()
         iconScale = MetronomeConstants.ICON_SCALE_MIN
         stopChoreographerLoop()
@@ -347,7 +352,6 @@ class MetronomeViewModel @Inject constructor(
                 durationNanos = (beatInterval * 1_000_000_000L).toLong().coerceAtLeast(1L)
             ))
         }
-        if (!isBeat && !prefs.useFlashlight && !prefs.useVibration) return
         viewModelScope.launch(Dispatchers.Main) {
             if (isBeat) {
                 iconScale = MetronomeConstants.ICON_SCALE_MAX
@@ -355,8 +359,6 @@ class MetronomeViewModel @Inject constructor(
                 handleBeat()
                 delay(16)
                 iconScale = MetronomeConstants.ICON_SCALE_MIN
-            } else {
-                handleRhythm()
             }
         }
     }
@@ -368,21 +370,10 @@ class MetronomeViewModel @Inject constructor(
     ) = applyStandardEvent(isBeat, beatInterval, beatTimeNanos)
 
     private fun handleBeat() {
-        if (prefs.useFlashlight) flashlight.turnFlashlightOn()
-        if (prefs.useVibration) haptics.playBeatHaptic()
         if (clickerType != ClickerType.INSTANT) return
         val newBpm = rampController.onBeat(currentSong.beatsPerMinute) ?: return
         currentSong = currentSong.copy(beatsPerMinute = newBpm)
         audio.updateTempo(newBpm, getSubdivisionValue(), computeAccentPattern(), prefs.sixteenthAlternate)
-    }
-
-    private fun handleRhythm() {
-        if (prefs.useFlashlight) {
-            flashlight.turnFlashlightOff()
-        }
-        if (prefs.useVibration) {
-            haptics.playRhythmHaptic()
-        }
     }
 
     private fun startChoreographerLoop() {

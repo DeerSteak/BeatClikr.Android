@@ -1,7 +1,6 @@
 package com.bfunkstudios.beatclikr.services
 
 import com.bfunkstudios.beatclikr.music.MusicalEventRole
-import java.util.concurrent.atomic.AtomicLongArray
 
 data class RenderedFrameEvent(
     val captureSequence: Long,
@@ -24,7 +23,7 @@ class RenderedEventRing(private val capacity: Int) {
         require(capacity > 0) { "Rendered event capacity must be positive" }
     }
 
-    private val slotSequences = AtomicLongArray(capacity)
+    private val slotSequences = Array(capacity) { SlotSequence(UNPUBLISHED) }
     private val sessionIds = LongArray(capacity)
     private val eventSequences = LongArray(capacity)
     private val intendedFrames = LongArray(capacity)
@@ -35,14 +34,6 @@ class RenderedEventRing(private val capacity: Int) {
 
     @Volatile
     private var publishedSequence = 0L
-
-    init {
-        var index = 0
-        while (index < capacity) {
-            slotSequences.set(index, UNPUBLISHED)
-            index++
-        }
-    }
 
     fun record(
         sessionId: Long,
@@ -70,14 +61,14 @@ class RenderedEventRing(private val capacity: Int) {
     ) {
         val sequence = producerSequence
         val index = (sequence % capacity).toInt()
-        slotSequences.set(index, UNPUBLISHED)
+        slotSequences[index].value = UNPUBLISHED
         sessionIds[index] = sessionId
         eventSequences[index] = eventSequence
         intendedFrames[index] = intendedFrame
         roles[index] = roleOrdinal.toByte()
         roleIndices[index] = roleIndex
         muted[index] = isMuted
-        slotSequences.set(index, sequence)
+        slotSequences[index].value = sequence
         producerSequence = sequence + 1
         publishedSequence = producerSequence
     }
@@ -103,7 +94,7 @@ class RenderedEventRing(private val capacity: Int) {
         var sequence = start
         while (sequence < end) {
             val index = (sequence % capacity).toInt()
-            if (slotSequences.get(index) == sequence) {
+            if (slotSequences[index].value == sequence) {
                 afterSlotValidation?.invoke()
                 val record = RenderedFrameEvent(
                     sequence,
@@ -114,7 +105,7 @@ class RenderedEventRing(private val capacity: Int) {
                     muted[index],
                     roleIndices[index]
                 )
-                if (slotSequences.get(index) == sequence) {
+                if (slotSequences[index].value == sequence) {
                     records += record
                 } else {
                     dropped++
@@ -134,4 +125,6 @@ class RenderedEventRing(private val capacity: Int) {
     private companion object {
         const val UNPUBLISHED = -1L
     }
+
+    private class SlotSequence(@Volatile var value: Long)
 }

@@ -22,10 +22,11 @@ Audio events are positioned by absolute frames inside render blocks. Secondary-o
 
 ## Secondary output services
 
-- `HapticFeedbackService` emits optional vibration feedback.
+- `HapticFeedbackService` emits optional vibration feedback and supports explicit cancellation.
 - `FlashlightService` checks for torch support and controls the camera flash.
+- `SecondaryOutputCoordinator` consumes session-guarded committed audio events, schedules presentation-relative effects, and exposes retained typed failures independently of audio transport.
 
-Both consume scheduled beat events but have independent platform and hardware latency. Neither should be used as evidence of acoustic alignment.
+Haptic and torch effects are foreground-only. Torch-on is paired with a 40 ms pulse-off and a separate 250 ms failsafe; stop, interruption, failure, and lifecycle exit invalidate pending work and force both outputs off. Platform and hardware latency remain independent, so these effects are not evidence of acoustic alignment.
 
 ## Reminder services
 

@@ -22,6 +22,8 @@ import com.bfunkstudios.beatclikr.services.IFlashlightService
 import com.bfunkstudios.beatclikr.services.IHapticFeedbackService
 import com.bfunkstudios.beatclikr.services.IPracticeReminderScheduler
 import com.bfunkstudios.beatclikr.services.PracticeReminderScheduler
+import com.bfunkstudios.beatclikr.services.SecondaryOutputCoordinator
+import com.bfunkstudios.beatclikr.services.SecondaryOutputObservation
 import dagger.Binds
 import dagger.Module
 import dagger.Provides
@@ -74,6 +76,21 @@ abstract class AppModule {
         @Provides @Singleton
         fun provideHapticFeedbackService(@ApplicationContext context: Context): IHapticFeedbackService =
             HapticFeedbackService(context)
+
+        @Provides @Singleton
+        fun provideSecondaryOutputCoordinator(
+            playback: PlaybackObservation,
+            prefs: IAppPreferences,
+            flashlight: IFlashlightService,
+            haptics: IHapticFeedbackService,
+            @ApplicationScope scope: CoroutineScope
+        ): SecondaryOutputCoordinator =
+            SecondaryOutputCoordinator(playback, prefs, flashlight, haptics, scope)
+
+        @Provides @Singleton
+        fun provideSecondaryOutputObservation(
+            coordinator: SecondaryOutputCoordinator
+        ): SecondaryOutputObservation = coordinator
 
         @Provides @Singleton
         fun provideAppPreferences(@ApplicationContext context: Context): IAppPreferences =

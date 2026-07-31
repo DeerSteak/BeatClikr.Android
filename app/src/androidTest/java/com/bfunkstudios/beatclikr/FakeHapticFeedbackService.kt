@@ -13,4 +13,6 @@ class FakeHapticFeedbackService : IHapticFeedbackService {
     override fun playRhythmHaptic() {
         rhythmCount += 1
     }
+
+    override fun cancel() = Unit
 }

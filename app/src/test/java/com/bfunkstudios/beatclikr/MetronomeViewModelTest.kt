@@ -16,8 +16,6 @@ import com.bfunkstudios.beatclikr.services.AudioOutputRoute
 import com.bfunkstudios.beatclikr.services.CommittedPlaybackConfiguration
 import com.bfunkstudios.beatclikr.services.EventPresentation
 import com.bfunkstudios.beatclikr.services.IAudioPlayerService
-import com.bfunkstudios.beatclikr.services.IFlashlightService
-import com.bfunkstudios.beatclikr.services.IHapticFeedbackService
 import com.bfunkstudios.beatclikr.services.PlaybackCommittedEvent
 import com.bfunkstudios.beatclikr.services.PlaybackMode
 import com.bfunkstudios.beatclikr.services.PlaybackObservation
@@ -26,6 +24,7 @@ import com.bfunkstudios.beatclikr.services.PlaybackSessionContext
 import com.bfunkstudios.beatclikr.services.PlaybackSessionId
 import com.bfunkstudios.beatclikr.services.PlaybackStartOrigin
 import com.bfunkstudios.beatclikr.services.PlaybackTransportState
+import com.bfunkstudios.beatclikr.services.SecondaryOutputObservation
 import com.bfunkstudios.beatclikr.ui.MetronomeViewModel
 import io.mockk.every
 import io.mockk.mockk
@@ -57,8 +56,7 @@ class MetronomeViewModelTest {
     private lateinit var playback: PlaybackObservation
     private lateinit var transportState: MutableStateFlow<PlaybackTransportState>
     private lateinit var committedEvents: MutableSharedFlow<PlaybackCommittedEvent>
-    private lateinit var flashlight: IFlashlightService
-    private lateinit var haptics: IHapticFeedbackService
+    private lateinit var secondaryOutputs: SecondaryOutputObservation
     private lateinit var viewModel: MetronomeViewModel
 
     @Before
@@ -71,8 +69,8 @@ class MetronomeViewModelTest {
         committedEvents = MutableSharedFlow(extraBufferCapacity = 16)
         every { playback.transportState } returns transportState
         every { playback.committedEvents } returns committedEvents
-        flashlight = mockk(relaxed = true)
-        haptics = mockk(relaxed = true)
+        secondaryOutputs = mockk()
+        every { secondaryOutputs.secondaryOutputFailure } returns MutableStateFlow(null)
         every { prefs.instantBpm } returns 120f
         every { prefs.instantGroove } returns Groove.Quarter
         every { prefs.instantBeatPattern } returns null
@@ -82,15 +80,13 @@ class MetronomeViewModelTest {
         every { prefs.rampIncrement } returns 2
         every { prefs.rampInterval } returns 8
         every { prefs.muteMetronome } returns false
-        every { prefs.useFlashlight } returns false
-        every { prefs.useVibration } returns false
         every { audio.startMetronome(any(), any(), any(), any()) } answers {
             transportState.value = standardPreparing()
         }
         every { audio.stopMetronome() } answers {
             transportState.value = PlaybackTransportState.Idle
         }
-        viewModel = MetronomeViewModel(audio, playback, prefs, flashlight, haptics)
+        viewModel = MetronomeViewModel(audio, playback, prefs, secondaryOutputs)
     }
 
     @After
@@ -172,60 +168,6 @@ class MetronomeViewModelTest {
         assertTrue(viewModel.isPlaying)
     }
 
-    @Test
-    fun `committed standard event uses authoritative role index`() {
-        every { prefs.useVibration } returns true
-        val playing = standardPlaying()
-        transportState.value = playing
-
-        committedEvents.tryEmit(
-            PlaybackCommittedEvent.Rendered(
-                1,
-                playing.context.sessionId,
-                1,
-                MusicalEventRole.STANDARD,
-                0,
-                false,
-                EventPresentation.Unavailable,
-                roleIndex = 0
-            )
-        )
-
-        verify { haptics.playBeatHaptic() }
-    }
-
-    @Test
-    fun `in-flight role index tolerates a shorter amended accent pattern`() {
-        every { prefs.useVibration } returns true
-        val playing = standardPlaying().copy(
-            context = standardPlaying().context.copy(
-                configuration = CommittedPlaybackConfiguration.Standard(
-                    120f,
-                    4,
-                    listOf(true, false, false, false),
-                    false,
-                    false
-                )
-            )
-        )
-        transportState.value = playing
-
-        committedEvents.tryEmit(
-            PlaybackCommittedEvent.Rendered(
-                1,
-                playing.context.sessionId,
-                1,
-                MusicalEventRole.STANDARD,
-                0,
-                false,
-                EventPresentation.Unavailable,
-                roleIndex = 6
-            )
-        )
-
-        verify { haptics.playRhythmHaptic() }
-    }
-
     private fun standardPreparing(): PlaybackTransportState.Preparing =
         PlaybackTransportState.Preparing(
             PlaybackSessionContext(
@@ -249,52 +191,6 @@ class MetronomeViewModelTest {
                 backend = AudioBackendType.AUDIO_TRACK
             )
         )
-
-    @Test
-    fun `beat turns flashlight on when enabled`() {
-        every { prefs.useFlashlight } returns true
-
-        viewModel.metronomeBeatFired(isBeat = true, beatInterval = 0.5f)
-
-        verify { flashlight.turnFlashlightOn() }
-    }
-
-    @Test
-    fun `rhythm and stop turn flashlight off`() {
-        every { prefs.useFlashlight } returns true
-
-        viewModel.metronomeBeatFired(isBeat = false, beatInterval = 0.5f)
-        viewModel.stop()
-
-        verify(exactly = 2) { flashlight.turnFlashlightOff() }
-    }
-
-    @Test
-    fun `beat plays strong haptic when vibration is enabled`() {
-        every { prefs.useVibration } returns true
-
-        viewModel.metronomeBeatFired(isBeat = true, beatInterval = 0.5f)
-
-        verify { haptics.playBeatHaptic() }
-    }
-
-    @Test
-    fun `rhythm plays light haptic when vibration is enabled`() {
-        every { prefs.useVibration } returns true
-
-        viewModel.metronomeBeatFired(isBeat = false, beatInterval = 0.5f)
-
-        verify { haptics.playRhythmHaptic() }
-    }
-
-    @Test
-    fun `beat and rhythm do not play haptics when vibration is disabled`() {
-        viewModel.metronomeBeatFired(isBeat = true, beatInterval = 0.5f)
-        viewModel.metronomeBeatFired(isBeat = false, beatInterval = 0.5f)
-
-        verify(exactly = 0) { haptics.playBeatHaptic() }
-        verify(exactly = 0) { haptics.playRhythmHaptic() }
-    }
 
     // --- BPM ---
 

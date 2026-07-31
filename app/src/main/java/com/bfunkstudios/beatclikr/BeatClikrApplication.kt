@@ -9,14 +9,14 @@ import androidx.lifecycle.ProcessLifecycleOwner
 import com.bfunkstudios.beatclikr.data.IAppPreferences
 import com.bfunkstudios.beatclikr.data.SoundBank
 import com.bfunkstudios.beatclikr.services.IAudioPlayerService
-import com.bfunkstudios.beatclikr.services.IFlashlightService
+import com.bfunkstudios.beatclikr.services.SecondaryOutputCoordinator
 import dagger.hilt.android.HiltAndroidApp
 import javax.inject.Inject
 
 @HiltAndroidApp
 class BeatClikrApplication : Application() {
 
-    @Inject lateinit var flashlightService: IFlashlightService
+    @Inject lateinit var secondaryOutputs: SecondaryOutputCoordinator
     @Inject lateinit var audioPlayerService: IAudioPlayerService
     @Inject lateinit var prefs: IAppPreferences
 
@@ -27,8 +27,14 @@ class BeatClikrApplication : Application() {
             audioPlayerService.prepareAudioTrackSounds(prefs.audioTrackSoundCacheSet())
         }
         audioPlayerService.prewarmAudioTrack()
+        secondaryOutputs.start()
         ProcessLifecycleOwner.get().lifecycle.addObserver(object : DefaultLifecycleObserver {
+            override fun onStart(owner: LifecycleOwner) {
+                secondaryOutputs.setVisible(true)
+            }
+
             override fun onStop(owner: LifecycleOwner) {
+                secondaryOutputs.setVisible(false)
                 stopResources()
             }
         })
@@ -47,7 +53,7 @@ class BeatClikrApplication : Application() {
     private fun stopResources() {
         audioPlayerService.stopMetronome()
         audioPlayerService.stopPolyrhythm()
-        flashlightService.turnFlashlightOff()
+        secondaryOutputs.stopEffects()
     }
 
     private fun IAppPreferences.audioTrackSoundCacheSet() = listOf(

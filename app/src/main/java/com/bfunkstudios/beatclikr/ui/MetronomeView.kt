@@ -81,6 +81,7 @@ fun MetronomeView(
             .navigationBarsPadding(),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
+        SecondaryOutputFailureText(viewModel.lastSecondaryOutputFailure)
         SectionCard {
             Column(
                 modifier = Modifier.padding(12.dp),

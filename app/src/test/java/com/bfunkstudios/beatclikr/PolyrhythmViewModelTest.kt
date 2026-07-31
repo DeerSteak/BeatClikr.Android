@@ -20,6 +20,7 @@ import com.bfunkstudios.beatclikr.services.PlaybackSessionContext
 import com.bfunkstudios.beatclikr.services.PlaybackSessionId
 import com.bfunkstudios.beatclikr.services.PlaybackStartOrigin
 import com.bfunkstudios.beatclikr.services.PlaybackTransportState
+import com.bfunkstudios.beatclikr.services.SecondaryOutputObservation
 import com.bfunkstudios.beatclikr.ui.PolyrhythmViewModel
 import com.bfunkstudios.beatclikr.ui.polyrhythmBeatDurationNanos
 import com.bfunkstudios.beatclikr.ui.polyrhythmRhythmDurationNanos
@@ -52,6 +53,7 @@ class PolyrhythmViewModelTest {
     private lateinit var playback: PlaybackObservation
     private lateinit var transportState: MutableStateFlow<PlaybackTransportState>
     private lateinit var committedEvents: MutableSharedFlow<PlaybackCommittedEvent>
+    private lateinit var secondaryOutputs: SecondaryOutputObservation
     private lateinit var viewModel: PolyrhythmViewModel
 
     @Before
@@ -64,6 +66,8 @@ class PolyrhythmViewModelTest {
         committedEvents = MutableSharedFlow(extraBufferCapacity = 16)
         every { playback.transportState } returns transportState
         every { playback.committedEvents } returns committedEvents
+        secondaryOutputs = mockk()
+        every { secondaryOutputs.secondaryOutputFailure } returns MutableStateFlow(null)
         every { prefs.polyrhythmBpm } returns 120f
         every { prefs.polyrhythmBeats } returns 3
         every { prefs.polyrhythmAgainst } returns 2
@@ -76,7 +80,7 @@ class PolyrhythmViewModelTest {
         every { audio.stopPolyrhythm() } answers {
             transportState.value = PlaybackTransportState.Idle
         }
-        viewModel = PolyrhythmViewModel(audio, playback, prefs)
+        viewModel = PolyrhythmViewModel(audio, playback, prefs, secondaryOutputs)
     }
 
     @After
