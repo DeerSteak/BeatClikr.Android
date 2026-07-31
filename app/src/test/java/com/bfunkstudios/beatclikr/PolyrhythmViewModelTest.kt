@@ -77,7 +77,7 @@ class PolyrhythmViewModelTest {
         every { audio.startPolyrhythm(any(), any(), any()) } answers {
             transportState.value = polyrhythmPreparing()
         }
-        every { audio.stopPolyrhythm() } answers {
+        every { audio.stopIfCurrent(PlaybackSessionId(2)) } answers {
             transportState.value = PlaybackTransportState.Idle
         }
         viewModel = PolyrhythmViewModel(audio, playback, prefs, secondaryOutputs)
@@ -177,7 +177,7 @@ class PolyrhythmViewModelTest {
         viewModel.start()
         viewModel.stop()
         assertFalse(viewModel.isPlaying)
-        verify { audio.stopPolyrhythm() }
+        verify { audio.stopIfCurrent(PlaybackSessionId(2)) }
     }
 
     @Test

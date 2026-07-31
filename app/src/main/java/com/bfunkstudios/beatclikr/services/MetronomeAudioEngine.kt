@@ -107,16 +107,11 @@ class MetronomeAudioEngine(private val context: Context) {
             AudioManager.AUDIOFOCUS_LOSS,
             AudioManager.AUDIOFOCUS_LOSS_TRANSIENT,
             AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK -> {
-                val sessionId = activeCoordinatorSessionId
-                if (sessionId == null) {
-                    stopMetronome()
-                    stopPolyrhythm()
-                } else {
-                    playbackInterruptionObserver?.invoke(
-                        sessionId,
-                        PlaybackInterruptionReason.AudioFocusLost
-                    )
-                }
+                val sessionId = activeCoordinatorSessionId ?: return@OnAudioFocusChangeListener
+                playbackInterruptionObserver?.invoke(
+                    sessionId,
+                    PlaybackInterruptionReason.AudioFocusLost
+                )
             }
         }
     }

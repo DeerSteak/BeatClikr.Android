@@ -25,6 +25,53 @@ class PlaybackCoordinatorArchitectureTest {
     }
 
     @Test
+    fun productionEnginePortExposesOnlySessionAwareTransportMutation() {
+        val coordinator = locateMainSource("services/PlaybackCoordinator.kt").readText()
+        val port = coordinator.substringAfter("interface PlaybackEnginePort {")
+            .substringBefore("sealed interface PlaybackEngineUpdateResult")
+        val service = locateMainSource("services/AudioPlayerService.kt").readText()
+
+        assertFalse(coordinator.contains("interface PlaybackEnginePort : IAudioPlayerService"))
+        listOf(
+            "fun startMetronome(",
+            "fun stopMetronome(",
+            "fun updateTempo(",
+            "fun startPolyrhythm(",
+            "fun stopPolyrhythm("
+        ).forEach { sessionless ->
+            assertFalse("Engine port exposes $sessionless", port.contains(sessionless))
+            assertFalse("Production adapter exposes $sessionless", service.contains(sessionless))
+        }
+        assertTrue(port.contains("fun beginStandardSession("))
+        assertTrue(port.contains("fun stopSession(sessionId: PlaybackSessionId"))
+    }
+
+    @Test
+    fun focusLossCanOnlyPublishSessionTaggedCoordinatorInput() {
+        val engine = locateMainSource("services/MetronomeAudioEngine.kt").readText()
+        val listener = engine.substringAfter("private val focusListener")
+            .substringBefore("private val audioFocusRequest")
+
+        assertTrue(listener.contains("activeCoordinatorSessionId"))
+        assertTrue(listener.contains("playbackInterruptionObserver?.invoke("))
+        assertTrue(listener.contains("PlaybackInterruptionReason.AudioFocusLost"))
+        assertFalse(listener.contains("stopMetronome()"))
+        assertFalse(listener.contains("stopPolyrhythm()"))
+    }
+
+    @Test
+    fun viewModelCleanupCannotMutateTransport() {
+        val metronome = locateMainSource("ui/MetronomeViewModel.kt").readText()
+        val polyrhythm = locateMainSource("ui/PolyrhythmViewModel.kt").readText()
+
+        listOf(metronome, polyrhythm).forEach { source ->
+            val cleanup = source.substringAfter("override fun onCleared()")
+                .substringBefore("\n    }")
+            assertFalse(cleanup.contains("audio."))
+        }
+    }
+
+    @Test
     fun uiAndApplicationCodeCannotConstructConcreteEngineOwner() {
         val mainRoot = locateMainSource("")
         val offenders = Files.walk(mainRoot).use { paths ->

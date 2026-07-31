@@ -54,9 +54,20 @@ class FakeAudioPlayerService : IAudioPlayerService, PlaybackObservation {
             )
         )
     }
-    override fun stopMetronome() {
-        stopCount++
-        transportState.value = PlaybackTransportState.Idle
+    override fun replaceMetronome(
+        bpm: Float,
+        subdivisions: Int,
+        accentPattern: List<Boolean>?,
+        alternateSixteenth: Boolean
+    ) = startMetronome(bpm, subdivisions, accentPattern, alternateSixteenth)
+    override fun stopIfCurrent(expectedSessionId: PlaybackSessionId) {
+        val current = transportState.value as? PlaybackTransportState.SessionState ?: return
+        if (current.context.sessionId != expectedSessionId) return
+        recordStop(current.context.mode)
+    }
+    override fun stopPlayback() {
+        val current = transportState.value as? PlaybackTransportState.SessionState ?: return
+        recordStop(current.context.mode)
     }
     override fun updateTempo(
         bpm: Float,
@@ -71,8 +82,9 @@ class FakeAudioPlayerService : IAudioPlayerService, PlaybackObservation {
             CommittedPlaybackConfiguration.Polyrhythm(bpm, beats, against, isMuted)
         )
     }
-    override fun stopPolyrhythm() {
-        polyrhythmStopCount++
+    private fun recordStop(mode: PlaybackMode) {
+        if (mode == PlaybackMode.STANDARD) stopCount++
+        if (mode == PlaybackMode.POLYRHYTHM) polyrhythmStopCount++
         transportState.value = PlaybackTransportState.Idle
     }
     override fun prewarmAudioTrack() {}

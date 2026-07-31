@@ -51,8 +51,7 @@ class BeatClikrApplication : Application() {
     }
 
     private fun stopResources() {
-        audioPlayerService.stopMetronome()
-        audioPlayerService.stopPolyrhythm()
+        audioPlayerService.stopPlayback()
         secondaryOutputs.stopEffects()
     }
 

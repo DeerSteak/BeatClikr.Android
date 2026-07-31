@@ -83,7 +83,7 @@ class MetronomeViewModelTest {
         every { audio.startMetronome(any(), any(), any(), any()) } answers {
             transportState.value = standardPreparing()
         }
-        every { audio.stopMetronome() } answers {
+        every { audio.stopIfCurrent(PlaybackSessionId(1)) } answers {
             transportState.value = PlaybackTransportState.Idle
         }
         viewModel = MetronomeViewModel(audio, playback, prefs, secondaryOutputs)
@@ -164,7 +164,7 @@ class MetronomeViewModelTest {
         viewModel.togglePlayPause()
 
         verify(exactly = 2) { audio.startMetronome(any(), any(), any(), any()) }
-        verify(exactly = 1) { audio.stopMetronome() }
+        verify(exactly = 1) { audio.stopIfCurrent(PlaybackSessionId(1)) }
         assertTrue(viewModel.isPlaying)
     }
 
@@ -405,11 +405,32 @@ class MetronomeViewModelTest {
     }
 
     @Test
-    fun `stop calls audio stopMetronome`() {
+    fun `stop submits owner scoped session stop`() {
         viewModel.start()
         viewModel.stop()
-        verify { audio.stopMetronome() }
+        verify { audio.stopIfCurrent(PlaybackSessionId(1)) }
         assertFalse(viewModel.isPlaying)
+    }
+
+    @Test
+    fun `obsolete view model stop keeps its original session identity`() {
+        viewModel.start()
+        transportState.value = standardPreparing().copy(
+            context = standardPreparing().context.copy(sessionId = PlaybackSessionId(2))
+        )
+
+        viewModel.stop()
+
+        verify { audio.stopIfCurrent(PlaybackSessionId(1)) }
+        verify(exactly = 0) { audio.stopIfCurrent(PlaybackSessionId(2)) }
+    }
+
+    @Test
+    fun `top level navigation uses intentional global stop`() {
+        viewModel.stopPlaybackForTopLevelNavigation()
+
+        verify { audio.stopPlayback() }
+        verify(exactly = 0) { audio.stopIfCurrent(PlaybackSessionId(1)) }
     }
 
     // --- Mute ---
@@ -486,7 +507,23 @@ class MetronomeViewModelTest {
         viewModel.playSong(song)
 
         verify(exactly = 0) { audio.updateTempo(any(), any(), any(), any()) }
-        verify(exactly = 1) { audio.startMetronome(140f, 2, any(), any()) }
+        verify(exactly = 1) { audio.replaceMetronome(140f, 2, any(), any()) }
+    }
+
+    @Test
+    fun `playing another song adopts replacement session ownership`() {
+        viewModel.start()
+        every { audio.replaceMetronome(any(), any(), any(), any()) } answers {
+            transportState.value = standardPreparing().copy(
+                context = standardPreparing().context.copy(sessionId = PlaybackSessionId(2))
+            )
+        }
+        val song = Song(title = "Next", artist = "Artist", beatsPerMinute = 140f, beatsPerMeasure = 4, groove = Groove.Eighth, liveSequence = null, rehearsalSequence = null)
+
+        viewModel.playSong(song)
+        viewModel.stop()
+
+        verify { audio.stopIfCurrent(PlaybackSessionId(2)) }
     }
 
     // --- Beat fired ---

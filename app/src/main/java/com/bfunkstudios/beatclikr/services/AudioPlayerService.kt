@@ -30,14 +30,6 @@ internal class AudioPlayerService(context: Context) : PlaybackEnginePort, Metron
         get() = audioEngine.isMuted
         set(value) { audioEngine.isMuted = value }
 
-    override var soundBank: SoundBank
-        get() = audioEngine.soundBank
-        set(value) { audioEngine.soundBank = value }
-
-    override fun setupAudioPlayer(beatResourceId: Int, rhythmResourceId: Int) {
-        audioEngine.loadSounds(beatResourceId, rhythmResourceId)
-    }
-
     override fun selectSounds(
         requestSequence: Long,
         beatResourceId: Int,
@@ -54,42 +46,8 @@ internal class AudioPlayerService(context: Context) : PlaybackEnginePort, Metron
         audioEngine.prepareAudioTrackSounds(sounds, requestSequence)
     }
 
-    override fun startMetronome(
-        bpm: Float,
-        subdivisions: Int,
-        accentPattern: List<Boolean>?,
-        alternateSixteenth: Boolean
-    ) {
-        audioEngine.startMetronome(bpm, subdivisions, accentPattern, alternateSixteenth, this)
-    }
-
-    override fun stopMetronome() {
-        audioEngine.stopMetronome()
-    }
-
-    override fun updateTempo(
-        bpm: Float,
-        subdivisions: Int,
-        accentPattern: List<Boolean>?,
-        alternateSixteenth: Boolean
-    ) {
-        audioEngine.updateTempo(bpm, subdivisions, accentPattern, alternateSixteenth)
-    }
-
-    override fun startPolyrhythm(bpm: Float, beats: Int, against: Int) {
-        audioEngine.startPolyrhythm(bpm, beats, against)
-    }
-
-    override fun stopPolyrhythm() {
-        audioEngine.stopPolyrhythm()
-    }
-
     override fun prewarmAudioTrack() {
         audioEngine.prewarm()
-    }
-
-    override fun prepareAudioTrackSounds(soundFiles: Collection<SoundFile>) {
-        audioEngine.prepareAudioTrackSounds(soundFiles)
     }
 
     override fun getFrameAudioMetricsSnapshot(): FrameAudioMetricsSnapshot? {

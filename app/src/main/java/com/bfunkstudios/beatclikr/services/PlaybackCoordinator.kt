@@ -52,6 +52,12 @@ sealed interface PlaybackIntent {
         val accentPattern: List<Boolean>?,
         val alternateSixteenth: Boolean
     ) : PlaybackIntent
+    data class ReplaceStandard(
+        val bpm: Float,
+        val subdivisions: Int,
+        val accentPattern: List<Boolean>?,
+        val alternateSixteenth: Boolean
+    ) : PlaybackIntent
     data class UpdateStandard(
         val bpm: Float,
         val subdivisions: Int,
@@ -68,6 +74,7 @@ sealed interface PlaybackIntent {
         val beats: Int,
         val against: Int
     ) : PlaybackIntent
+    data class StopIfCurrent(val expectedSessionId: PlaybackSessionId) : PlaybackIntent
     data object Stop : PlaybackIntent
     data object Prewarm : PlaybackIntent
     data class PrepareSounds(val sounds: Collection<SoundFile>) : PlaybackIntent
@@ -201,12 +208,18 @@ sealed interface EventPresentation {
     ) : EventPresentation
 }
 
-interface PlaybackEnginePort : IAudioPlayerService {
+interface PlaybackEnginePort {
     var soundPreparationObserver: ((SoundPreparationPublication) -> Unit)?
     var transportObserver: PlaybackEngineTransportObserver?
+    var delegate: MetronomeAudioEngineDelegate?
+    var polyrhythmDelegate: PolyrhythmAudioEngineDelegate?
+    var isMuted: Boolean
 
     fun activeSoundConfiguration(): ActiveSoundConfiguration?
     fun soundPreparationFailure(): SoundPreparationFailure?
+    fun prewarmAudioTrack()
+    fun getFrameAudioMetricsSnapshot(): FrameAudioMetricsSnapshot?
+    fun release()
     fun beginStandardSession(
         sessionId: PlaybackSessionId,
         bpm: Float,
@@ -438,8 +451,24 @@ class PlaybackCoordinator(
         )
     }
 
-    override fun stopMetronome() {
-        submit(PlaybackIntent.Stop)
+    override fun replaceMetronome(
+        bpm: Float,
+        subdivisions: Int,
+        accentPattern: List<Boolean>?,
+        alternateSixteenth: Boolean
+    ) {
+        submit(
+            PlaybackIntent.ReplaceStandard(
+                bpm,
+                subdivisions,
+                accentPattern?.toList(),
+                alternateSixteenth
+            )
+        )
+    }
+
+    override fun stopIfCurrent(expectedSessionId: PlaybackSessionId) {
+        submit(PlaybackIntent.StopIfCurrent(expectedSessionId))
     }
 
     override fun updateTempo(
@@ -462,7 +491,7 @@ class PlaybackCoordinator(
         submit(PlaybackIntent.StartPolyrhythm(bpm, beats, against))
     }
 
-    override fun stopPolyrhythm() {
+    override fun stopPlayback() {
         submit(PlaybackIntent.Stop)
     }
 
@@ -672,6 +701,13 @@ class PlaybackCoordinator(
                         )
                     }
                 }
+                is PlaybackIntent.ReplaceStandard -> replaceOrStart(
+                    PendingStart.Standard(
+                        newSessionId(),
+                        intent.asStartIntent(),
+                        ownership.value.muted
+                    )
+                )
                 is PlaybackIntent.UpdateStandard -> {
                     queueUpdate(sequence, intent, standardConfiguration(intent))
                     awaitsEngineAcknowledgement = true
@@ -694,9 +730,10 @@ class PlaybackCoordinator(
                     queueUpdate(sequence, intent, polyrhythmConfiguration(intent))
                     awaitsEngineAcknowledgement = true
                 }
-                PlaybackIntent.Stop -> {
-                    applyStop(sequence)
+                is PlaybackIntent.StopIfCurrent -> {
+                    applyStop(sequence, intent.expectedSessionId)
                 }
+                PlaybackIntent.Stop -> applyStop(sequence)
                 PlaybackIntent.Prewarm -> engine.prewarmAudioTrack()
                 is PlaybackIntent.PrepareSounds -> {
                     latestSoundRequestSequence = sequence
@@ -898,9 +935,11 @@ class PlaybackCoordinator(
     private fun validate(intent: PlaybackIntent): String? = when (intent) {
         is PlaybackIntent.Invalid -> intent.diagnostic
         is PlaybackIntent.StartStandard,
+        is PlaybackIntent.ReplaceStandard,
         is PlaybackIntent.UpdateStandard -> {
             val standard = when (intent) {
                 is PlaybackIntent.StartStandard -> intent
+                is PlaybackIntent.ReplaceStandard -> intent.asStartIntent()
                 is PlaybackIntent.UpdateStandard -> PlaybackIntent.StartStandard(
                     intent.bpm,
                     intent.subdivisions,
@@ -997,7 +1036,16 @@ class PlaybackCoordinator(
         )
     }
 
-    private fun applyStop(sequence: Long) {
+    private fun applyStop(
+        sequence: Long,
+        expectedSessionId: PlaybackSessionId? = null
+    ) {
+        val currentSession = transportState.value as? PlaybackTransportState.SessionState
+        if (expectedSessionId != null &&
+            (currentSession?.context?.sessionId != expectedSessionId || pendingReplacement != null)) {
+            mutateOwnership { it.copy(lastCommandSequence = sequence) }
+            return
+        }
         pendingReplacement = null
         when (val current = transportState.value) {
             PlaybackTransportState.Idle -> Unit
@@ -1622,10 +1670,19 @@ class PlaybackCoordinator(
 
     private fun PlaybackIntent.immutableCopy(): PlaybackIntent = when (this) {
         is PlaybackIntent.StartStandard -> copy(accentPattern = accentPattern?.toList())
+        is PlaybackIntent.ReplaceStandard -> copy(accentPattern = accentPattern?.toList())
         is PlaybackIntent.UpdateStandard -> copy(accentPattern = accentPattern?.toList())
         is PlaybackIntent.PrepareSounds -> copy(sounds = sounds.toList())
         else -> this
     }
+
+    private fun PlaybackIntent.ReplaceStandard.asStartIntent() =
+        PlaybackIntent.StartStandard(
+            bpm,
+            subdivisions,
+            accentPattern?.toList(),
+            alternateSixteenth
+        )
 
     private inline fun mutateOwnership(
         transform: (PlaybackOwnershipSnapshot) -> PlaybackOwnershipSnapshot
