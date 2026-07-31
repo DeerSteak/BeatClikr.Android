@@ -495,7 +495,6 @@ class PlaybackCoordinatorTest {
 
             assertEquals(listOf("startStandard", "stopStandard", "startPolyrhythm"), engine.operations)
             assertTrue(second.value > first.value)
-            assertEquals(1, engine.operations.count { it == "stopStandard" })
         } finally {
             coordinator.release()
         }
@@ -571,13 +570,15 @@ class PlaybackCoordinatorTest {
 
     @Test
     fun routeRemovalAndEngineFailureDuringStartStopExactlyOnce() {
-        listOf<PlaybackSystemInput>(
-            PlaybackSystemInput.Interrupted(
-                PlaybackSessionId(1),
-                PlaybackInterruptionReason.RouteLost
-            ),
-            PlaybackSystemInput.EngineFailed(PlaybackSessionId(1), "start failed")
-        ).forEach { inputTemplate ->
+        listOf<(PlaybackSessionId) -> PlaybackSystemInput>(
+            { sessionId ->
+                PlaybackSystemInput.Interrupted(
+                    sessionId,
+                    PlaybackInterruptionReason.RouteLost
+                )
+            },
+            { sessionId -> PlaybackSystemInput.EngineFailed(sessionId, "start failed") }
+        ).forEach { createInput ->
             val engine = FakePlaybackEngine().apply {
                 autoStartAcknowledgement = false
                 autoStopAcknowledgement = false
@@ -587,15 +588,8 @@ class PlaybackCoordinatorTest {
                 coordinator.submit(PlaybackIntent.StartStandard(120f, 4, null, false))
                 assertTrue(coordinator.awaitControlIdle())
                 val starting = coordinator.transportState.value as PlaybackTransportState.Starting
-                val input = when (inputTemplate) {
-                    is PlaybackSystemInput.Interrupted ->
-                        inputTemplate.copy(sessionId = starting.context.sessionId)
-                    is PlaybackSystemInput.EngineFailed ->
-                        inputTemplate.copy(sessionId = starting.context.sessionId)
-                    else -> error("Unexpected input")
-                }
 
-                coordinator.submitSystemInput(input)
+                coordinator.submitSystemInput(createInput(starting.context.sessionId))
                 assertTrue(coordinator.awaitControlIdle())
 
                 assertTrue(coordinator.transportState.value is PlaybackTransportState.Failed)
