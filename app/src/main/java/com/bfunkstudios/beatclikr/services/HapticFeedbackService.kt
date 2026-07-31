@@ -25,6 +25,10 @@ class HapticFeedbackService(private val context: Context) : IHapticFeedbackServi
         vibrate(durationMillis = 14L, amplitude = 96)
     }
 
+    override fun cancel() {
+        vibrator?.cancel()
+    }
+
     private fun vibrate(durationMillis: Long, amplitude: Int) {
         val vibrator = vibrator ?: return
         if (!vibrator.hasVibrator()) return

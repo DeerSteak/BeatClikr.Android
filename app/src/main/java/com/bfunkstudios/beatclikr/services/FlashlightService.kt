@@ -33,8 +33,6 @@ class FlashlightService(private val context: Context) : IFlashlightService {
     private fun setTorch(enabled: Boolean) {
         val cameraId = torchCameraId ?: return
 
-        runCatching {
-            cameraManager.setTorchMode(cameraId, enabled)
-        }
+        cameraManager.setTorchMode(cameraId, enabled)
     }
 }

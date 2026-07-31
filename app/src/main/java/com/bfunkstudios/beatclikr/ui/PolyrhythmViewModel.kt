@@ -24,6 +24,7 @@ import com.bfunkstudios.beatclikr.services.PlaybackMode
 import com.bfunkstudios.beatclikr.services.PlaybackObservation
 import com.bfunkstudios.beatclikr.services.PlaybackSessionId
 import com.bfunkstudios.beatclikr.services.PlaybackTransportState
+import com.bfunkstudios.beatclikr.services.SecondaryOutputObservation
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.collect
@@ -34,7 +35,8 @@ import javax.inject.Inject
 class PolyrhythmViewModel @Inject constructor(
     private val audio: IAudioPlayerService,
     private val playback: PlaybackObservation,
-    private val prefs: IAppPreferences
+    private val prefs: IAppPreferences,
+    secondaryOutputs: SecondaryOutputObservation
 ) : ViewModel() {
 
     var beats by mutableIntStateOf(prefs.polyrhythmBeats)
@@ -58,6 +60,9 @@ class PolyrhythmViewModel @Inject constructor(
         get() = transportState.hasVariableOutputLatency(PlaybackMode.POLYRHYTHM)
 
     var lastPlaybackFailure by mutableStateOf<String?>(null)
+        private set
+
+    var lastSecondaryOutputFailure by mutableStateOf<String?>(null)
         private set
 
     var selectedBeatSound by mutableStateOf(prefs.polyrhythmBeatSound)
@@ -107,6 +112,11 @@ class PolyrhythmViewModel @Inject constructor(
         }
         viewModelScope.launch {
             playback.committedEvents.collect(::applyCommittedEvent)
+        }
+        viewModelScope.launch {
+            secondaryOutputs.secondaryOutputFailure.collect { failure ->
+                lastSecondaryOutputFailure = failure?.diagnostic
+            }
         }
     }
 

@@ -26,6 +26,8 @@ import com.bfunkstudios.beatclikr.services.IFlashlightService
 import com.bfunkstudios.beatclikr.services.IHapticFeedbackService
 import com.bfunkstudios.beatclikr.services.IPracticeReminderScheduler
 import com.bfunkstudios.beatclikr.services.PlaybackObservation
+import com.bfunkstudios.beatclikr.services.SecondaryOutputCoordinator
+import com.bfunkstudios.beatclikr.services.SecondaryOutputObservation
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -74,6 +76,21 @@ class InstantMetronomeViewTest {
 
         @Provides @Singleton
         fun provideHaptics(): IHapticFeedbackService = FakeHapticFeedbackService()
+
+        @Provides @Singleton
+        fun provideSecondaryOutputCoordinator(
+            playback: PlaybackObservation,
+            prefs: IAppPreferences,
+            flashlight: IFlashlightService,
+            haptics: IHapticFeedbackService,
+            @ApplicationScope scope: CoroutineScope
+        ): SecondaryOutputCoordinator =
+            SecondaryOutputCoordinator(playback, prefs, flashlight, haptics, scope)
+
+        @Provides
+        fun provideSecondaryOutputObservation(
+            coordinator: SecondaryOutputCoordinator
+        ): SecondaryOutputObservation = coordinator
 
         @Provides @Singleton
         fun providePracticeReminderScheduler(): IPracticeReminderScheduler = FakePracticeReminderScheduler()

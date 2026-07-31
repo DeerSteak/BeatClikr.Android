@@ -2,6 +2,7 @@ package com.bfunkstudios.beatclikr.services
 
 import com.bfunkstudios.beatclikr.music.MusicalEventRole
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import org.junit.Test
@@ -61,6 +62,28 @@ class RenderedEventRingTest {
 
         assertEquals(emptyList<RenderedFrameEvent>(), batch.records)
         assertEquals(1, batch.droppedRecords)
+    }
+
+    @Test
+    fun publishedRecordFieldsAreVisibleAcrossThreads() {
+        val ring = RenderedEventRing(1)
+        val published = CountDownLatch(1)
+        val producer = Thread {
+            ring.record(9, 27, MusicalEventRole.POLYRHYTHM_RHYTHM, 144, true, 3)
+            published.countDown()
+        }
+        producer.start()
+        assertEquals(true, published.await(2, TimeUnit.SECONDS))
+
+        val record = ring.drain(0).records.single()
+        producer.join()
+
+        assertEquals(9, record.sessionId)
+        assertEquals(27, record.eventSequence)
+        assertEquals(MusicalEventRole.POLYRHYTHM_RHYTHM, record.role)
+        assertEquals(144, record.intendedFrame)
+        assertTrue(record.muted)
+        assertEquals(3, record.roleIndex)
     }
 
     @Test

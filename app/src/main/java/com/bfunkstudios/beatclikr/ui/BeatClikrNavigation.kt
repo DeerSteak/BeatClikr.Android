@@ -99,8 +99,7 @@ internal fun BeatClikrNavigationBar(
     tabs: List<AppTab>,
     currentRoute: String?,
     navController: NavHostController,
-    metronomeViewModel: MetronomeViewModel,
-    polyrhythmViewModel: PolyrhythmViewModel
+    stopPlayback: () -> Unit
 ) {
     NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
         tabs.forEach { tab ->
@@ -111,8 +110,7 @@ internal fun BeatClikrNavigationBar(
                         tab = tab,
                         navController = navController,
                         currentRoute = currentRoute,
-                        metronomeViewModel = metronomeViewModel,
-                        polyrhythmViewModel = polyrhythmViewModel
+                        stopPlayback = stopPlayback
                     )
                 },
                 icon = { AppTabIcon(tab) },
@@ -134,8 +132,7 @@ internal fun BeatClikrNavigationRail(
     tabs: List<AppTab>,
     currentRoute: String?,
     navController: NavHostController,
-    metronomeViewModel: MetronomeViewModel,
-    polyrhythmViewModel: PolyrhythmViewModel
+    stopPlayback: () -> Unit
 ) {
     NavigationRail(
         modifier = Modifier.fillMaxHeight(),
@@ -149,8 +146,7 @@ internal fun BeatClikrNavigationRail(
                         tab = tab,
                         navController = navController,
                         currentRoute = currentRoute,
-                        metronomeViewModel = metronomeViewModel,
-                        polyrhythmViewModel = polyrhythmViewModel
+                        stopPlayback = stopPlayback
                     )
                 },
                 icon = { AppTabIcon(tab) },
@@ -185,15 +181,10 @@ private fun navigateToTopLevel(
     tab: AppTab,
     navController: NavHostController,
     currentRoute: String?,
-    metronomeViewModel: MetronomeViewModel,
-    polyrhythmViewModel: PolyrhythmViewModel
+    stopPlayback: () -> Unit
 ) {
     if (currentRoute == tab.route) return
-    when (tab) {
-        AppTab.Instant -> polyrhythmViewModel.stop()
-        AppTab.Polyrhythm -> metronomeViewModel.stop()
-        else -> Unit
-    }
+    stopPlayback()
     navController.navigate(tab.route) {
         popUpTo(navController.graph.findStartDestination().id) {
             saveState = true

@@ -71,6 +71,7 @@ fun PolyrhythmView(
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
+        SecondaryOutputFailureText(viewModel.lastSecondaryOutputFailure)
         SectionCard {
             Column(
                 modifier = Modifier.padding(12.dp),

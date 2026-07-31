@@ -127,6 +127,7 @@
     <string name="focus_view">Vista enfocada</string>
     <string name="previous_month">Mes anterior</string>
     <string name="next_month">Mes siguiente</string>
+    <string name="secondary_output_failure">Salida secundaria no disponible: %1$s</string>
 
     <plurals name="day_count">
         <item quantity="one">%1$d día</item>

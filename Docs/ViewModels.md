@@ -1,6 +1,6 @@
 # ViewModels
 
-Hilt constructs Android ViewModels and supplies repository, preference, audio, haptic, flashlight, and reminder interfaces. Compose observes a mixture of `StateFlow` and snapshot state.
+Hilt constructs Android ViewModels and supplies repository, preference, playback, secondary-output, flashlight-setting, and reminder interfaces. Compose observes a mixture of `StateFlow` and snapshot state.
 
 ## ViewModel responsibilities
 
@@ -21,6 +21,6 @@ Hilt constructs Android ViewModels and supplies repository, preference, audio, h
 
 ## State ownership limits
 
-Playback truth is currently split between ViewModel flags and the audio engine. Audio-focus failure or lifecycle-driven stop can therefore diverge from `isPlaying`. The target design replaces this with one coordinator exposing an authoritative `StateFlow<PlaybackState>`.
+Playback ViewModels project the application-scoped coordinator's authoritative transport state. They also expose retained secondary-output failure diagnostics without allowing haptic or torch failures to alter healthy audio transport.
 
 Timing callbacks also cross from audio scheduling into Choreographer-based visual state. See [PlaybackPerformance.md](PlaybackPerformance.md) for the clock and measurement constraints.
