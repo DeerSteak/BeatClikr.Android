@@ -22,7 +22,8 @@ interface IAudioPlayerService {
         accentPattern: List<Boolean>? = null,
         alternateSixteenth: Boolean = false
     )
-    fun stopMetronome()
+    fun stopIfCurrent(expectedSessionId: PlaybackSessionId)
+    fun stopPlayback()
     fun updateTempo(
         bpm: Float,
         subdivisions: Int,
@@ -30,7 +31,6 @@ interface IAudioPlayerService {
         alternateSixteenth: Boolean = false
     )
     fun startPolyrhythm(bpm: Float, beats: Int, against: Int)
-    fun stopPolyrhythm()
     fun prewarmAudioTrack()
     fun prepareAudioTrackSounds(soundFiles: Collection<SoundFile>)
     fun getFrameAudioMetricsSnapshot(): FrameAudioMetricsSnapshot?

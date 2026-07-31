@@ -17,6 +17,58 @@ import org.junit.Test
 class PlaybackCoordinatorTest {
 
     @Test
+    fun obsoleteOwnerStopCannotStopReplacementButGlobalStopCan() {
+        val engine = FakePlaybackEngine()
+        val coordinator = PlaybackCoordinator(engine)
+        try {
+            coordinator.submit(PlaybackIntent.StartStandard(120f, 4, null, false))
+            assertTrue(coordinator.awaitControlIdle())
+            val obsolete = (coordinator.transportState.value as PlaybackTransportState.Playing)
+                .context.sessionId
+            coordinator.submit(PlaybackIntent.StartPolyrhythm(120f, 3, 2))
+            assertTrue(coordinator.awaitControlIdle())
+            val replacement = (coordinator.transportState.value as PlaybackTransportState.Playing)
+                .context.sessionId
+            engine.operations.clear()
+
+            coordinator.submit(PlaybackIntent.StopIfCurrent(obsolete))
+            assertTrue(coordinator.awaitControlIdle())
+            assertEquals(replacement, (coordinator.transportState.value as PlaybackTransportState.Playing).context.sessionId)
+            assertTrue(engine.operations.isEmpty())
+
+            coordinator.submit(PlaybackIntent.Stop)
+            assertTrue(coordinator.awaitControlIdle())
+            assertTrue(coordinator.transportState.value is PlaybackTransportState.Idle)
+            assertEquals(listOf("stopPolyrhythm"), engine.operations)
+        } finally {
+            coordinator.release()
+        }
+    }
+
+    @Test
+    fun obsoleteOwnerStopDuringReplacementCannotCancelPendingStart() {
+        val engine = FakePlaybackEngine().apply { autoStopAcknowledgement = false }
+        val coordinator = PlaybackCoordinator(engine)
+        try {
+            coordinator.submit(PlaybackIntent.StartStandard(120f, 4, null, false))
+            assertTrue(coordinator.awaitControlIdle())
+            val obsolete = (coordinator.transportState.value as PlaybackTransportState.Playing)
+                .context.sessionId
+            coordinator.submit(PlaybackIntent.StartPolyrhythm(120f, 3, 2))
+            assertTrue(coordinator.awaitControlIdle())
+            coordinator.submit(PlaybackIntent.StopIfCurrent(obsolete))
+            assertTrue(coordinator.awaitControlIdle())
+
+            engine.transportObserver?.engineStopped(obsolete)
+            assertTrue(coordinator.awaitControlIdle())
+            assertTrue(coordinator.transportState.value is PlaybackTransportState.Playing)
+            assertEquals(PlaybackMode.POLYRHYTHM, coordinator.ownership.value.activeMode)
+        } finally {
+            coordinator.release()
+        }
+    }
+
+    @Test
     fun modeReplacementStopsOldModeBeforeStartingNewMode() {
         val engine = FakePlaybackEngine()
         val coordinator = PlaybackCoordinator(engine)
@@ -1506,42 +1558,7 @@ class PlaybackCoordinatorTest {
         override var delegate: MetronomeAudioEngineDelegate? = null
         override var polyrhythmDelegate: PolyrhythmAudioEngineDelegate? = null
         override var isMuted: Boolean = false
-        override var soundBank: SoundBank = SoundBank.ACOUSTIC
-
-        override fun setupAudioPlayer(beatResourceId: Int, rhythmResourceId: Int) =
-            call("selectSounds")
-
-        override fun startMetronome(
-            bpm: Float,
-            subdivisions: Int,
-            accentPattern: List<Boolean>?,
-            alternateSixteenth: Boolean
-        ) = call("startStandard") {
-            if (throwOnStart) error("start failed")
-            if (blockStart) {
-                startEntered.countDown()
-                allowStart.await()
-            }
-        }
-
-        override fun stopMetronome() = call("stopStandard")
-
-        override fun updateTempo(
-            bpm: Float,
-            subdivisions: Int,
-            accentPattern: List<Boolean>?,
-            alternateSixteenth: Boolean
-        ) = call("updateStandard")
-
-        override fun startPolyrhythm(bpm: Float, beats: Int, against: Int) =
-            call("startPolyrhythm") {
-                if (throwOnStart) error("start failed")
-            }
-
-        override fun stopPolyrhythm() = call("stopPolyrhythm")
         override fun prewarmAudioTrack() = call("prewarm")
-        override fun prepareAudioTrackSounds(soundFiles: Collection<SoundFile>) =
-            call("prepareSounds")
         override fun getFrameAudioMetricsSnapshot(): FrameAudioMetricsSnapshot? = null
         override fun activeSoundConfiguration(): ActiveSoundConfiguration? {
             if (blockSoundSnapshot) {
@@ -1560,16 +1577,16 @@ class PlaybackCoordinatorTest {
             requestSequence: Long,
             beatResourceId: Int,
             rhythmResourceId: Int
-        ) = setupAudioPlayer(beatResourceId, rhythmResourceId)
+        ) = call("selectSounds")
 
         override fun selectSoundBank(requestSequence: Long, bank: SoundBank) {
-            soundBank = bank
+            call("selectSoundBank")
         }
 
         override fun prepareSounds(
             requestSequence: Long,
             sounds: Collection<SoundFile>
-        ) = prepareAudioTrackSounds(sounds)
+        ) = call("prepareSounds")
         override fun beginStandardSession(
             sessionId: PlaybackSessionId,
             bpm: Float,
@@ -1577,7 +1594,13 @@ class PlaybackCoordinatorTest {
             accentPattern: List<Boolean>?,
             alternateSixteenth: Boolean
         ) {
-            startMetronome(bpm, subdivisions, accentPattern, alternateSixteenth)
+            call("startStandard") {
+                if (throwOnStart) error("start failed")
+                if (blockStart) {
+                    startEntered.countDown()
+                    allowStart.await()
+                }
+            }
             if (!throwOnStart && autoStartAcknowledgement) publishStarted(sessionId)
         }
 
@@ -1587,7 +1610,9 @@ class PlaybackCoordinatorTest {
             beats: Int,
             against: Int
         ) {
-            startPolyrhythm(bpm, beats, against)
+            call("startPolyrhythm") {
+                if (throwOnStart) error("start failed")
+            }
             if (!throwOnStart && autoStartAcknowledgement) publishStarted(sessionId)
         }
 
@@ -1616,8 +1641,8 @@ class PlaybackCoordinatorTest {
                 allowStop.await()
             }
             when (mode) {
-                PlaybackMode.STANDARD -> stopMetronome()
-                PlaybackMode.POLYRHYTHM -> stopPolyrhythm()
+                PlaybackMode.STANDARD -> call("stopStandard")
+                PlaybackMode.POLYRHYTHM -> call("stopPolyrhythm")
                 PlaybackMode.NONE -> Unit
             }
             renderedBatchOnStop?.let {

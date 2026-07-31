@@ -83,7 +83,7 @@ class MetronomeViewModelTest {
         every { audio.startMetronome(any(), any(), any(), any()) } answers {
             transportState.value = standardPreparing()
         }
-        every { audio.stopMetronome() } answers {
+        every { audio.stopIfCurrent(PlaybackSessionId(1)) } answers {
             transportState.value = PlaybackTransportState.Idle
         }
         viewModel = MetronomeViewModel(audio, playback, prefs, secondaryOutputs)
@@ -164,7 +164,7 @@ class MetronomeViewModelTest {
         viewModel.togglePlayPause()
 
         verify(exactly = 2) { audio.startMetronome(any(), any(), any(), any()) }
-        verify(exactly = 1) { audio.stopMetronome() }
+        verify(exactly = 1) { audio.stopIfCurrent(PlaybackSessionId(1)) }
         assertTrue(viewModel.isPlaying)
     }
 
@@ -405,11 +405,32 @@ class MetronomeViewModelTest {
     }
 
     @Test
-    fun `stop calls audio stopMetronome`() {
+    fun `stop submits owner scoped session stop`() {
         viewModel.start()
         viewModel.stop()
-        verify { audio.stopMetronome() }
+        verify { audio.stopIfCurrent(PlaybackSessionId(1)) }
         assertFalse(viewModel.isPlaying)
+    }
+
+    @Test
+    fun `obsolete view model stop keeps its original session identity`() {
+        viewModel.start()
+        transportState.value = standardPreparing().copy(
+            context = standardPreparing().context.copy(sessionId = PlaybackSessionId(2))
+        )
+
+        viewModel.stop()
+
+        verify { audio.stopIfCurrent(PlaybackSessionId(1)) }
+        verify(exactly = 0) { audio.stopIfCurrent(PlaybackSessionId(2)) }
+    }
+
+    @Test
+    fun `top level navigation uses intentional global stop`() {
+        viewModel.stopPlaybackForTopLevelNavigation()
+
+        verify { audio.stopPlayback() }
+        verify(exactly = 0) { audio.stopIfCurrent(PlaybackSessionId(1)) }
     }
 
     // --- Mute ---

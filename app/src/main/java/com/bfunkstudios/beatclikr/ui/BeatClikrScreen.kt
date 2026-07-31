@@ -229,7 +229,7 @@ private fun BeatClikrNavigationContent(
                     tabs = appTabs,
                     currentRoute = currentRoute,
                     navController = navController,
-                    stopPlayback = metronomeViewModel::stop
+                    stopPlayback = metronomeViewModel::stopPlaybackForTopLevelNavigation
                 )
             }
         }
@@ -345,7 +345,7 @@ private fun BeatClikrNavigationContent(
                 tabs = appTabs,
                 currentRoute = currentRoute,
                 navController = navController,
-                stopPlayback = metronomeViewModel::stop
+                stopPlayback = metronomeViewModel::stopPlaybackForTopLevelNavigation
             )
             contentScaffold()
         }

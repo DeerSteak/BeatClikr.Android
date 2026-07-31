@@ -46,6 +46,9 @@ class PolyrhythmViewModel @Inject constructor(
         private set
 
     private var transportState by mutableStateOf(playback.transportState.value)
+    private var ownedSessionId: PlaybackSessionId? =
+        transportState.polyrhythmSessionId()
+    private var awaitingOwnedSession = false
 
     val isPlaying: Boolean
         get() = transportState.isModeActive(PlaybackMode.POLYRHYTHM)
@@ -153,6 +156,9 @@ class PolyrhythmViewModel @Inject constructor(
     }
 
     fun start() {
+        val currentSession = transportState.polyrhythmSessionId()
+        ownedSessionId = currentSession
+        awaitingOwnedSession = currentSession == null
         setupPolyrhythm()
         beatPulse = 0f
         rhythmPulse = 0f
@@ -162,7 +168,7 @@ class PolyrhythmViewModel @Inject constructor(
     }
 
     fun stop() {
-        audio.stopPolyrhythm()
+        ownedSessionId?.let(audio::stopIfCurrent)
         stopChoreographerLoop()
         beatPulse = 0f
         rhythmPulse = 0f
@@ -266,6 +272,12 @@ class PolyrhythmViewModel @Inject constructor(
 
     private fun applyTransportState(state: PlaybackTransportState) {
         transportState = state
+        if (awaitingOwnedSession) {
+            state.polyrhythmSessionId()?.let { sessionId ->
+                ownedSessionId = sessionId
+                awaitingOwnedSession = false
+            }
+        }
         lastPlaybackFailure = (state as? PlaybackTransportState.Failed)
             ?.reason
             ?.toString()
@@ -316,10 +328,16 @@ class PolyrhythmViewModel @Inject constructor(
 
     override fun onCleared() {
         super.onCleared()
-        stop()
+        stopChoreographerLoop()
     }
 
 }
+
+private fun PlaybackTransportState.polyrhythmSessionId(): PlaybackSessionId? =
+    (this as? PlaybackTransportState.SessionState)
+        ?.context
+        ?.takeIf { it.mode == PlaybackMode.POLYRHYTHM }
+        ?.sessionId
 
 internal fun polyrhythmBeatDurationNanos(bpm: Float): Long =
     (NANOS_PER_MINUTE / bpm.toDouble()).toLong()

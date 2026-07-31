@@ -22,6 +22,7 @@ import com.bfunkstudios.beatclikr.services.IAudioPlayerService
 import com.bfunkstudios.beatclikr.services.PlaybackCommittedEvent
 import com.bfunkstudios.beatclikr.services.PlaybackMode
 import com.bfunkstudios.beatclikr.services.PlaybackObservation
+import com.bfunkstudios.beatclikr.services.PlaybackSessionId
 import com.bfunkstudios.beatclikr.services.PlaybackTransportState
 import com.bfunkstudios.beatclikr.services.SecondaryOutputObservation
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -46,6 +47,9 @@ class MetronomeViewModel @Inject constructor(
         private set
 
     private var transportState by mutableStateOf(playback.transportState.value)
+    private var ownedSessionId: PlaybackSessionId? =
+        transportState.sessionIdFor(PlaybackMode.STANDARD)
+    private var awaitingOwnedSession = false
 
     val isPlaying: Boolean
         get() = transportState.isModeActive(PlaybackMode.STANDARD)
@@ -269,6 +273,9 @@ class MetronomeViewModel @Inject constructor(
     }
 
     fun start() {
+        val currentSession = transportState.sessionIdFor(PlaybackMode.STANDARD)
+        ownedSessionId = currentSession
+        awaitingOwnedSession = currentSession == null
         if (clickerType == ClickerType.INSTANT) {
             selectedBeatSound = prefs.instantBeatSound
             selectedRhythmSound = prefs.instantRhythmSound
@@ -293,7 +300,7 @@ class MetronomeViewModel @Inject constructor(
 
     fun stop() {
         val shouldRestoreRampBpm = rampEnabled && clickerType == ClickerType.INSTANT
-        audio.stopMetronome()
+        ownedSessionId?.let(audio::stopIfCurrent)
         rampController.reset()
         iconScale = MetronomeConstants.ICON_SCALE_MIN
         stopChoreographerLoop()
@@ -304,6 +311,10 @@ class MetronomeViewModel @Inject constructor(
         if (shouldRestoreRampBpm) {
             currentSong = currentSong.copy(beatsPerMinute = activeBpm)
         }
+    }
+
+    fun stopPlaybackForTopLevelNavigation() {
+        audio.stopPlayback()
     }
 
     fun recordTap() {
@@ -420,6 +431,12 @@ class MetronomeViewModel @Inject constructor(
 
     private fun applyTransportState(state: PlaybackTransportState) {
         transportState = state
+        if (awaitingOwnedSession) {
+            state.sessionIdFor(PlaybackMode.STANDARD)?.let { sessionId ->
+                ownedSessionId = sessionId
+                awaitingOwnedSession = false
+            }
+        }
         lastPlaybackFailure = (state as? PlaybackTransportState.Failed)
             ?.reason
             ?.toString()
@@ -453,6 +470,13 @@ class MetronomeViewModel @Inject constructor(
 
     override fun onCleared() {
         super.onCleared()
-        stop()
+        stopChoreographerLoop()
+        pendingBeatEvent.set(null)
     }
 }
+
+private fun PlaybackTransportState.sessionIdFor(mode: PlaybackMode): PlaybackSessionId? =
+    (this as? PlaybackTransportState.SessionState)
+        ?.context
+        ?.takeIf { it.mode == mode }
+        ?.sessionId
