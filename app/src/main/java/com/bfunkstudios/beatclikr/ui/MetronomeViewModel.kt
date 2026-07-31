@@ -50,6 +50,7 @@ class MetronomeViewModel @Inject constructor(
     private var ownedSessionId: PlaybackSessionId? =
         transportState.sessionIdFor(PlaybackMode.STANDARD)
     private var awaitingOwnedSession = false
+    private var replacedSessionId: PlaybackSessionId? = null
 
     val isPlaying: Boolean
         get() = transportState.isModeActive(PlaybackMode.STANDARD)
@@ -130,7 +131,7 @@ class MetronomeViewModel @Inject constructor(
 
     fun playSong(song: Song) {
         selectSong(song, ClickerType.PLAYLIST)
-        start()
+        start(replaceCurrentSession = true)
     }
 
     fun returnToInstantMode() {
@@ -272,10 +273,13 @@ class MetronomeViewModel @Inject constructor(
         if (isPlaying) stop() else start()
     }
 
-    fun start() {
+    fun start() = start(replaceCurrentSession = false)
+
+    private fun start(replaceCurrentSession: Boolean) {
         val currentSession = transportState.sessionIdFor(PlaybackMode.STANDARD)
-        ownedSessionId = currentSession
-        awaitingOwnedSession = currentSession == null
+        ownedSessionId = if (replaceCurrentSession) null else currentSession
+        awaitingOwnedSession = replaceCurrentSession || currentSession == null
+        replacedSessionId = if (replaceCurrentSession) currentSession else null
         if (clickerType == ClickerType.INSTANT) {
             selectedBeatSound = prefs.instantBeatSound
             selectedRhythmSound = prefs.instantRhythmSound
@@ -290,12 +294,24 @@ class MetronomeViewModel @Inject constructor(
         audio.soundBank = prefs.soundBank
         activeBpm = currentSong.beatsPerMinute
         rampController.reset()
-        audio.startMetronome(
-            currentSong.beatsPerMinute,
-            getSubdivisionValue(),
-            computeAccentPattern(),
-            prefs.sixteenthAlternate
-        )
+        val bpm = currentSong.beatsPerMinute
+        val subdivisions = getSubdivisionValue()
+        val accentPattern = computeAccentPattern()
+        if (replaceCurrentSession) {
+            audio.replaceMetronome(
+                bpm,
+                subdivisions,
+                accentPattern,
+                prefs.sixteenthAlternate
+            )
+        } else {
+            audio.startMetronome(
+                bpm,
+                subdivisions,
+                accentPattern,
+                prefs.sixteenthAlternate
+            )
+        }
     }
 
     fun stop() {
@@ -432,10 +448,13 @@ class MetronomeViewModel @Inject constructor(
     private fun applyTransportState(state: PlaybackTransportState) {
         transportState = state
         if (awaitingOwnedSession) {
-            state.sessionIdFor(PlaybackMode.STANDARD)?.let { sessionId ->
-                ownedSessionId = sessionId
-                awaitingOwnedSession = false
-            }
+            state.sessionIdFor(PlaybackMode.STANDARD)
+                ?.takeIf { it != replacedSessionId }
+                ?.let { sessionId ->
+                    ownedSessionId = sessionId
+                    awaitingOwnedSession = false
+                    replacedSessionId = null
+                }
         }
         lastPlaybackFailure = (state as? PlaybackTransportState.Failed)
             ?.reason

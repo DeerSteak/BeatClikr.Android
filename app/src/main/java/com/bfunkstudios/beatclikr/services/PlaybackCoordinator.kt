@@ -52,6 +52,12 @@ sealed interface PlaybackIntent {
         val accentPattern: List<Boolean>?,
         val alternateSixteenth: Boolean
     ) : PlaybackIntent
+    data class ReplaceStandard(
+        val bpm: Float,
+        val subdivisions: Int,
+        val accentPattern: List<Boolean>?,
+        val alternateSixteenth: Boolean
+    ) : PlaybackIntent
     data class UpdateStandard(
         val bpm: Float,
         val subdivisions: Int,
@@ -445,6 +451,22 @@ class PlaybackCoordinator(
         )
     }
 
+    override fun replaceMetronome(
+        bpm: Float,
+        subdivisions: Int,
+        accentPattern: List<Boolean>?,
+        alternateSixteenth: Boolean
+    ) {
+        submit(
+            PlaybackIntent.ReplaceStandard(
+                bpm,
+                subdivisions,
+                accentPattern?.toList(),
+                alternateSixteenth
+            )
+        )
+    }
+
     override fun stopIfCurrent(expectedSessionId: PlaybackSessionId) {
         submit(PlaybackIntent.StopIfCurrent(expectedSessionId))
     }
@@ -679,6 +701,13 @@ class PlaybackCoordinator(
                         )
                     }
                 }
+                is PlaybackIntent.ReplaceStandard -> replaceOrStart(
+                    PendingStart.Standard(
+                        newSessionId(),
+                        intent.asStartIntent(),
+                        ownership.value.muted
+                    )
+                )
                 is PlaybackIntent.UpdateStandard -> {
                     queueUpdate(sequence, intent, standardConfiguration(intent))
                     awaitsEngineAcknowledgement = true
@@ -906,9 +935,11 @@ class PlaybackCoordinator(
     private fun validate(intent: PlaybackIntent): String? = when (intent) {
         is PlaybackIntent.Invalid -> intent.diagnostic
         is PlaybackIntent.StartStandard,
+        is PlaybackIntent.ReplaceStandard,
         is PlaybackIntent.UpdateStandard -> {
             val standard = when (intent) {
                 is PlaybackIntent.StartStandard -> intent
+                is PlaybackIntent.ReplaceStandard -> intent.asStartIntent()
                 is PlaybackIntent.UpdateStandard -> PlaybackIntent.StartStandard(
                     intent.bpm,
                     intent.subdivisions,
@@ -1639,10 +1670,19 @@ class PlaybackCoordinator(
 
     private fun PlaybackIntent.immutableCopy(): PlaybackIntent = when (this) {
         is PlaybackIntent.StartStandard -> copy(accentPattern = accentPattern?.toList())
+        is PlaybackIntent.ReplaceStandard -> copy(accentPattern = accentPattern?.toList())
         is PlaybackIntent.UpdateStandard -> copy(accentPattern = accentPattern?.toList())
         is PlaybackIntent.PrepareSounds -> copy(sounds = sounds.toList())
         else -> this
     }
+
+    private fun PlaybackIntent.ReplaceStandard.asStartIntent() =
+        PlaybackIntent.StartStandard(
+            bpm,
+            subdivisions,
+            accentPattern?.toList(),
+            alternateSixteenth
+        )
 
     private inline fun mutateOwnership(
         transform: (PlaybackOwnershipSnapshot) -> PlaybackOwnershipSnapshot

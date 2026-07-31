@@ -17,6 +17,65 @@ import org.junit.Test
 class PlaybackCoordinatorTest {
 
     @Test
+    fun explicitStandardReplacementCreatesNewSessionAtRequestedConfiguration() {
+        val engine = FakePlaybackEngine()
+        val coordinator = PlaybackCoordinator(engine)
+        try {
+            coordinator.submit(PlaybackIntent.StartStandard(120f, 4, null, false))
+            assertTrue(coordinator.awaitControlIdle())
+            val first = (coordinator.transportState.value as PlaybackTransportState.Playing)
+                .context.sessionId
+            engine.operations.clear()
+
+            coordinator.submit(
+                PlaybackIntent.ReplaceStandard(150f, 2, listOf(true, false), true)
+            )
+            assertTrue(coordinator.awaitControlIdle())
+
+            val playing = coordinator.transportState.value as PlaybackTransportState.Playing
+            val configuration = playing.context.configuration as
+                CommittedPlaybackConfiguration.Standard
+            assertTrue(playing.context.sessionId != first)
+            assertEquals(listOf("stopStandard", "startStandard"), engine.operations)
+            assertEquals(150f, configuration.bpm)
+            assertEquals(2, configuration.subdivisions)
+            assertEquals(listOf(true, false), configuration.accentPattern)
+            assertTrue(configuration.alternateSixteenth)
+            assertEquals(configuration, engine.standardStarts.last())
+            assertTrue(
+                coordinator.committedEvents.replayCache
+                    .filterIsInstance<PlaybackCommittedEvent.FirstEventScheduled>()
+                    .any { it.sessionId == playing.context.sessionId }
+            )
+        } finally {
+            coordinator.release()
+        }
+    }
+
+    @Test
+    fun explicitSameModeReplacementHasNoIdleTransition() {
+        val engine = FakePlaybackEngine()
+        val coordinator = PlaybackCoordinator(engine)
+        try {
+            coordinator.submit(PlaybackIntent.StartStandard(120f, 4, null, false))
+            assertTrue(coordinator.awaitControlIdle())
+            val transitionStart = coordinator.stateTransitions.replayCache.size
+
+            coordinator.submit(PlaybackIntent.ReplaceStandard(140f, 2, null, false))
+            assertTrue(coordinator.awaitControlIdle())
+
+            val replacementStates = coordinator.stateTransitions.replayCache
+                .drop(transitionStart)
+                .map { it.to }
+            assertTrue(replacementStates.none { it is PlaybackTransportState.Idle })
+            assertTrue(replacementStates.any { it is PlaybackTransportState.Stopping })
+            assertTrue(replacementStates.any { it is PlaybackTransportState.Playing })
+        } finally {
+            coordinator.release()
+        }
+    }
+
+    @Test
     fun obsoleteOwnerStopCannotStopReplacementButGlobalStopCan() {
         val engine = FakePlaybackEngine()
         val coordinator = PlaybackCoordinator(engine)
@@ -1525,6 +1584,7 @@ class PlaybackCoordinatorTest {
         val operations = Collections.synchronizedList(mutableListOf<String>())
         val callingThreads = Collections.synchronizedSet(mutableSetOf<String>())
         val maximumConcurrentCalls = AtomicInteger()
+        val standardStarts = mutableListOf<CommittedPlaybackConfiguration.Standard>()
         private val activeCalls = AtomicInteger()
         var throwOnStart = false
         var throwOnStop = false
@@ -1594,6 +1654,13 @@ class PlaybackCoordinatorTest {
             accentPattern: List<Boolean>?,
             alternateSixteenth: Boolean
         ) {
+            standardStarts += CommittedPlaybackConfiguration.Standard(
+                bpm,
+                subdivisions,
+                accentPattern?.toList(),
+                alternateSixteenth,
+                isMuted
+            )
             call("startStandard") {
                 if (throwOnStart) error("start failed")
                 if (blockStart) {

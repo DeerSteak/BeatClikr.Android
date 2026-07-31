@@ -54,6 +54,12 @@ class FakeAudioPlayerService : IAudioPlayerService, PlaybackObservation {
             )
         )
     }
+    override fun replaceMetronome(
+        bpm: Float,
+        subdivisions: Int,
+        accentPattern: List<Boolean>?,
+        alternateSixteenth: Boolean
+    ) = startMetronome(bpm, subdivisions, accentPattern, alternateSixteenth)
     override fun stopIfCurrent(expectedSessionId: PlaybackSessionId) {
         val current = transportState.value as? PlaybackTransportState.SessionState ?: return
         if (current.context.sessionId != expectedSessionId) return

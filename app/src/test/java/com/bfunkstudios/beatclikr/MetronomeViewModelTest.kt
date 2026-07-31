@@ -507,7 +507,23 @@ class MetronomeViewModelTest {
         viewModel.playSong(song)
 
         verify(exactly = 0) { audio.updateTempo(any(), any(), any(), any()) }
-        verify(exactly = 1) { audio.startMetronome(140f, 2, any(), any()) }
+        verify(exactly = 1) { audio.replaceMetronome(140f, 2, any(), any()) }
+    }
+
+    @Test
+    fun `playing another song adopts replacement session ownership`() {
+        viewModel.start()
+        every { audio.replaceMetronome(any(), any(), any(), any()) } answers {
+            transportState.value = standardPreparing().copy(
+                context = standardPreparing().context.copy(sessionId = PlaybackSessionId(2))
+            )
+        }
+        val song = Song(title = "Next", artist = "Artist", beatsPerMinute = 140f, beatsPerMeasure = 4, groove = Groove.Eighth, liveSequence = null, rehearsalSequence = null)
+
+        viewModel.playSong(song)
+        viewModel.stop()
+
+        verify { audio.stopIfCurrent(PlaybackSessionId(2)) }
     }
 
     // --- Beat fired ---

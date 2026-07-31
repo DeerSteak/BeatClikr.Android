@@ -22,6 +22,12 @@ interface IAudioPlayerService {
         accentPattern: List<Boolean>? = null,
         alternateSixteenth: Boolean = false
     )
+    fun replaceMetronome(
+        bpm: Float,
+        subdivisions: Int,
+        accentPattern: List<Boolean>? = null,
+        alternateSixteenth: Boolean = false
+    )
     fun stopIfCurrent(expectedSessionId: PlaybackSessionId)
     fun stopPlayback()
     fun updateTempo(
