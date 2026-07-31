@@ -134,6 +134,22 @@ internal class AudioPlayerService(context: Context) : PlaybackEnginePort, Metron
         audioEngine.startPolyrhythm(sessionId, bpm, beats, against, ::publishStartResult)
     }
 
+    override fun updateStandardSession(
+        sessionId: PlaybackSessionId,
+        configuration: CommittedPlaybackConfiguration.Standard,
+        completion: (PlaybackEngineUpdateResult) -> Unit
+    ) {
+        audioEngine.updateStandardSession(sessionId, configuration, completion)
+    }
+
+    override fun updatePolyrhythmSession(
+        sessionId: PlaybackSessionId,
+        configuration: CommittedPlaybackConfiguration.Polyrhythm,
+        completion: (PlaybackEngineUpdateResult) -> Unit
+    ) {
+        audioEngine.updatePolyrhythmSession(sessionId, configuration, completion)
+    }
+
     override fun stopSession(sessionId: PlaybackSessionId, mode: PlaybackMode) {
         audioEngine.stopSession(mode) {
             transportObserver?.engineStopped(sessionId)
