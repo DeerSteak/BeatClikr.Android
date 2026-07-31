@@ -14,26 +14,6 @@ enum class PlaybackStartOrigin {
     SERVICE
 }
 
-enum class PlaybackPrerequisite {
-    AUDIO_FOCUS,
-    ROUTE_READY
-}
-
-data class PlaybackPrerequisites(
-    val audioFocusReady: Boolean,
-    val routeReady: Boolean
-) {
-    val missing: Set<PlaybackPrerequisite>
-        get() = buildSet {
-            if (!audioFocusReady) add(PlaybackPrerequisite.AUDIO_FOCUS)
-            if (!routeReady) add(PlaybackPrerequisite.ROUTE_READY)
-        }
-
-    companion object {
-        val READY = PlaybackPrerequisites(audioFocusReady = true, routeReady = true)
-    }
-}
-
 sealed interface CommittedPlaybackConfiguration {
     val muted: Boolean
 
@@ -75,7 +55,7 @@ data class PlaybackSessionContext(
 
 sealed interface PlaybackInterruptionReason {
     data object AudioFocusLost : PlaybackInterruptionReason
-    data object RouteLost : PlaybackInterruptionReason
+    data class RouteUnavailable(val previous: AudioOutputRoute) : PlaybackInterruptionReason
     data class RouteChanged(
         val previous: AudioOutputRoute,
         val current: AudioOutputRoute
@@ -88,10 +68,7 @@ val PlaybackSessionContext.hasVariableOutputLatency: Boolean
 
 sealed interface PlaybackFailureReason {
     data object AudioFocusUnavailable : PlaybackFailureReason
-
-    data class PrerequisiteUnavailable(
-        val missing: Set<PlaybackPrerequisite>
-    ) : PlaybackFailureReason
+    data object RouteUnavailable : PlaybackFailureReason
 
     data class SoundPreparation(val failure: SoundPreparationFailure) :
         PlaybackFailureReason
@@ -106,10 +83,7 @@ sealed interface PlaybackTransportState {
         val context: PlaybackSessionContext
     }
 
-    data class Preparing(
-        override val context: PlaybackSessionContext,
-        val prerequisites: PlaybackPrerequisites
-    ) : SessionState
+    data class Preparing(override val context: PlaybackSessionContext) : SessionState
 
     data class Starting(override val context: PlaybackSessionContext) : SessionState {
         init {
@@ -124,7 +98,9 @@ sealed interface PlaybackTransportState {
             requireNotNull(context.audibleSounds) {
                 "Playing requires prepared audible sounds"
             }
-            requireNotNull(context.route) { "Playing requires a committed output route" }
+            require(context.route != null && context.route != AudioOutputRoute.UNKNOWN) {
+                "Playing requires a usable committed output route"
+            }
             requireNotNull(context.backend) { "Playing requires a committed audio backend" }
         }
     }
@@ -173,8 +149,7 @@ object PlaybackTransportTransitions {
             PlaybackTransportState.Idle -> to is PlaybackTransportState.Preparing
             is PlaybackTransportState.Preparing ->
                 sameSession && (
-                    to is PlaybackTransportState.Starting &&
-                        from.prerequisites.missing.isEmpty() ||
+                    to is PlaybackTransportState.Starting ||
                         to is PlaybackTransportState.Stopping ||
                         to is PlaybackTransportState.Failed
                     )

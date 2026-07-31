@@ -16,7 +16,7 @@ class PlaybackTransportStateTest {
     fun standardLifecycleTransitionsAreLegal() {
         val states = listOf(
             PlaybackTransportState.Idle,
-            PlaybackTransportState.Preparing(first, PlaybackPrerequisites.READY),
+            PlaybackTransportState.Preparing(first),
             PlaybackTransportState.Starting(first),
             PlaybackTransportState.Playing(first),
             PlaybackTransportState.Stopping(first),
@@ -31,10 +31,7 @@ class PlaybackTransportStateTest {
     @Test
     fun replacementSkipsObservableIdle() {
         val stopping = PlaybackTransportState.Stopping(first)
-        val preparing = PlaybackTransportState.Preparing(
-            second,
-            PlaybackPrerequisites.READY
-        )
+        val preparing = PlaybackTransportState.Preparing(second)
 
         assertTrue(PlaybackTransportTransitions.isLegal(stopping, preparing))
         assertFalse(
@@ -49,16 +46,13 @@ class PlaybackTransportStateTest {
     fun interruptionAndFailureRequireIdleBeforeRestart() {
         val interrupted = PlaybackTransportState.Interrupted(
             first,
-            PlaybackInterruptionReason.RouteLost
+            PlaybackInterruptionReason.RouteUnavailable(AudioOutputRoute.BUILT_IN)
         )
         val failed = PlaybackTransportState.Failed(
             first,
             PlaybackFailureReason.Engine("write failed")
         )
-        val preparing = PlaybackTransportState.Preparing(
-            second,
-            PlaybackPrerequisites.READY
-        )
+        val preparing = PlaybackTransportState.Preparing(second)
 
         assertTrue(
             PlaybackTransportTransitions.isLegal(
@@ -98,23 +92,15 @@ class PlaybackTransportStateTest {
     }
 
     @Test
-    fun preparingCanFailWhenPrerequisitesAreUnavailable() {
-        val prerequisites = PlaybackPrerequisites(
-            audioFocusReady = false,
-            routeReady = true
-        )
-        val preparing = PlaybackTransportState.Preparing(first, prerequisites)
+    fun preparingCanFailWhenRouteIsUnavailable() {
+        val preparing = PlaybackTransportState.Preparing(first)
         val failed = PlaybackTransportState.Failed(
             first,
-            PlaybackFailureReason.PrerequisiteUnavailable(prerequisites.missing)
+            PlaybackFailureReason.RouteUnavailable
         )
 
         assertTrue(PlaybackTransportTransitions.isLegal(preparing, failed))
-        assertTrue(
-            (failed.reason as PlaybackFailureReason.PrerequisiteUnavailable)
-                .missing
-                .contains(PlaybackPrerequisite.AUDIO_FOCUS)
-        )
+        assertEquals(PlaybackFailureReason.RouteUnavailable, failed.reason)
     }
 
     @Test
@@ -144,10 +130,7 @@ class PlaybackTransportStateTest {
     @Test
     fun preparingDoesNotRequireResultsProducedByPreparationOrBackendOpen() {
         val context = requestedContext(1)
-        val preparing = PlaybackTransportState.Preparing(
-            context,
-            PlaybackPrerequisites.READY
-        )
+        val preparing = PlaybackTransportState.Preparing(context)
 
         assertTrue(preparing.context.audibleSounds == null)
         assertTrue(preparing.context.route == null)
@@ -168,8 +151,8 @@ class PlaybackTransportStateTest {
         )
     }
 
-    @Test
-    fun startingCanAmendBackendFactsBeforePlaying() {
+    @Test(expected = IllegalArgumentException::class)
+    fun playingRejectsUnavailableRouteEvidence() {
         val startingContext = requestedContext(1).copy(
             audibleSounds = sounds()
         )
@@ -182,12 +165,7 @@ class PlaybackTransportStateTest {
         )
 
         assertTrue(PlaybackTransportTransitions.isLegal(starting, opened))
-        assertTrue(
-            PlaybackTransportTransitions.isLegal(
-                opened,
-                PlaybackTransportState.Playing(opened.context)
-            )
-        )
+        PlaybackTransportState.Playing(opened.context)
     }
 
     @Test(expected = IllegalArgumentException::class)
@@ -213,25 +191,19 @@ class PlaybackTransportStateTest {
     @Test
     fun transitionMatrixCoversEveryLifecycleEdge() {
         val idle = PlaybackTransportState.Idle
-        val preparing = PlaybackTransportState.Preparing(
-            first,
-            PlaybackPrerequisites.READY
-        )
+        val preparing = PlaybackTransportState.Preparing(first)
         val starting = PlaybackTransportState.Starting(first)
         val playing = PlaybackTransportState.Playing(first)
         val stopping = PlaybackTransportState.Stopping(first)
         val interrupted = PlaybackTransportState.Interrupted(
             first,
-            PlaybackInterruptionReason.RouteLost
+            PlaybackInterruptionReason.RouteUnavailable(AudioOutputRoute.BUILT_IN)
         )
         val failed = PlaybackTransportState.Failed(
             first,
             PlaybackFailureReason.Engine("failed")
         )
-        val replacement = PlaybackTransportState.Preparing(
-            second,
-            PlaybackPrerequisites.READY
-        )
+        val replacement = PlaybackTransportState.Preparing(second)
         val states = listOf(
             idle,
             preparing,
@@ -292,7 +264,7 @@ class PlaybackTransportStateTest {
 
     private fun playingContext(id: Long) = requestedContext(id).copy(
         audibleSounds = sounds(),
-        route = AudioOutputRoute.UNKNOWN,
+        route = AudioOutputRoute.BUILT_IN,
         backend = AudioBackendType.AUDIO_TRACK
     )
 

@@ -1180,7 +1180,7 @@ class PlaybackCoordinatorTest {
             { sessionId ->
                 PlaybackSystemInput.Interrupted(
                     sessionId,
-                    PlaybackInterruptionReason.RouteLost
+                    PlaybackInterruptionReason.RouteUnavailable(AudioOutputRoute.BUILT_IN)
                 )
             },
             { sessionId -> PlaybackSystemInput.EngineFailed(sessionId, "start failed") }
@@ -1203,32 +1203,6 @@ class PlaybackCoordinatorTest {
             } finally {
                 coordinator.release()
             }
-        }
-    }
-
-    @Test
-    fun unavailablePrerequisiteFailsBeforeEngineStart() {
-        val engine = FakePlaybackEngine()
-        val coordinator = PlaybackCoordinator(engine)
-        try {
-            coordinator.submitSystemInput(
-                PlaybackSystemInput.PrerequisitesChanged(
-                    PlaybackPrerequisites(
-                        audioFocusReady = false,
-                        routeReady = true
-                    )
-                )
-            )
-            coordinator.submit(PlaybackIntent.StartStandard(120f, 4, null, false))
-            assertTrue(coordinator.awaitControlIdle())
-
-            val failed = coordinator.transportState.value as PlaybackTransportState.Failed
-            val reason =
-                failed.reason as PlaybackFailureReason.PrerequisiteUnavailable
-            assertTrue(reason.missing.contains(PlaybackPrerequisite.AUDIO_FOCUS))
-            assertFalse(engine.operations.contains("startStandard"))
-        } finally {
-            coordinator.release()
         }
     }
 
@@ -1296,6 +1270,111 @@ class PlaybackCoordinatorTest {
     }
 
     @Test
+    fun unavailableStartRouteFailsAndClosesStream() {
+        val engine = FakePlaybackEngine().apply {
+            startRoute = AudioOutputRoute.UNKNOWN
+            autoStopAcknowledgement = false
+        }
+        val coordinator = PlaybackCoordinator(engine)
+        try {
+            coordinator.submit(PlaybackIntent.StartStandard(120f, 4, null, false))
+            assertTrue(coordinator.awaitControlIdle())
+
+            val failed = coordinator.transportState.value as PlaybackTransportState.Failed
+            assertEquals(PlaybackFailureReason.RouteUnavailable, failed.reason)
+            assertEquals(1, engine.operations.count { it == "stopStandard" })
+        } finally {
+            coordinator.release()
+        }
+    }
+
+    @Test
+    fun unclassifiedUsableStartRouteCanCommitPlaying() {
+        val engine = FakePlaybackEngine().apply { startRoute = AudioOutputRoute.OTHER }
+        val coordinator = PlaybackCoordinator(engine)
+        try {
+            coordinator.submit(PlaybackIntent.StartStandard(120f, 4, null, false))
+            assertTrue(coordinator.awaitControlIdle())
+
+            val playing = coordinator.transportState.value as PlaybackTransportState.Playing
+            assertEquals(AudioOutputRoute.OTHER, playing.context.route)
+        } finally {
+            coordinator.release()
+        }
+    }
+
+    @Test
+    fun explicitRestartCommitsEvidenceFromNewRoute() {
+        val engine = FakePlaybackEngine().apply { startRoute = AudioOutputRoute.BUILT_IN }
+        val coordinator = PlaybackCoordinator(engine)
+        try {
+            coordinator.submit(PlaybackIntent.StartStandard(120f, 4, null, false))
+            assertTrue(coordinator.awaitControlIdle())
+            val first = coordinator.transportState.value as PlaybackTransportState.Playing
+
+            coordinator.submitSystemInput(
+                PlaybackSystemInput.Interrupted(
+                    first.context.sessionId,
+                    PlaybackInterruptionReason.RouteChanged(
+                        AudioOutputRoute.BUILT_IN,
+                        AudioOutputRoute.USB
+                    )
+                )
+            )
+            assertTrue(coordinator.awaitControlIdle())
+            engine.startRoute = AudioOutputRoute.USB
+            coordinator.submit(PlaybackIntent.StartStandard(120f, 4, null, false))
+            assertTrue(coordinator.awaitControlIdle())
+
+            val restarted = coordinator.transportState.value as PlaybackTransportState.Playing
+            assertEquals(AudioOutputRoute.USB, restarted.context.route)
+            assertTrue(restarted.context.sessionId != first.context.sessionId)
+            assertEquals(2, engine.operations.count { it == "startStandard" })
+        } finally {
+            coordinator.release()
+        }
+    }
+
+    @Test
+    fun deviceRemovalCallbackInterruptsCoordinatorThroughProductionRoutePolicy() {
+        val engine = FakePlaybackEngine().apply { autoStopAcknowledgement = false }
+        val coordinator = PlaybackCoordinator(engine)
+        lateinit var callback: android.media.AudioDeviceCallback
+        try {
+            coordinator.submit(PlaybackIntent.StartStandard(120f, 4, null, false))
+            assertTrue(coordinator.awaitControlIdle())
+            val playing = coordinator.transportState.value as PlaybackTransportState.Playing
+            val tracker = ActiveOutputRouteTracker().apply {
+                begin(requireNotNull(playing.context.route))
+            }
+            val monitor = AudioDeviceTopologyMonitor(
+                register = { callback = it },
+                unregister = {},
+                onTopologyChanged = {
+                    tracker.observe(AudioOutputRoute.UNKNOWN)?.let { reason ->
+                        coordinator.submitSystemInput(
+                            PlaybackSystemInput.Interrupted(playing.context.sessionId, reason)
+                        )
+                    }
+                }
+            )
+
+            callback.onAudioDevicesRemoved(emptyArray<android.media.AudioDeviceInfo>())
+            assertTrue(coordinator.awaitControlIdle())
+
+            val interrupted = coordinator.transportState.value as PlaybackTransportState.Interrupted
+            assertEquals(
+                PlaybackInterruptionReason.RouteUnavailable(AudioOutputRoute.BUILT_IN),
+                interrupted.reason
+            )
+            assertEquals(1, engine.operations.count { it == "stopStandard" })
+            monitor.release()
+        } finally {
+            coordinator.release()
+        }
+    }
+
+    @Test
     fun activeMediaServerFailureFailsAndStopsSession() {
         val engine = FakePlaybackEngine().apply {
             autoStopAcknowledgement = false
@@ -1325,6 +1404,35 @@ class PlaybackCoordinatorTest {
     }
 
     @Test
+    fun deadAudioTrackWriteCaptureFailsCoordinatorAndStopsSession() {
+        val engine = FakePlaybackEngine().apply {
+            capturedBackendFailure = AudioBackendFailure(
+                AudioBackendOperation.RENDER,
+                audioTrackWriteFailureCode(android.media.AudioTrack.ERROR_DEAD_OBJECT)
+            )
+            autoStopAcknowledgement = false
+        }
+        val coordinator = PlaybackCoordinator(engine)
+        try {
+            coordinator.submit(PlaybackIntent.StartStandard(120f, 4, null, false))
+            val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(2)
+            while (System.nanoTime() < deadline &&
+                coordinator.transportState.value !is PlaybackTransportState.Failed) {
+                Thread.sleep(5)
+            }
+
+            val failed = coordinator.transportState.value as PlaybackTransportState.Failed
+            assertEquals(
+                PlaybackFailureReason.Engine("RENDER: DEVICE_DISCONNECTED"),
+                failed.reason
+            )
+            assertEquals(1, engine.operations.count { it == "stopStandard" })
+        } finally {
+            coordinator.release()
+        }
+    }
+
+    @Test
     fun staleInterruptionAndEngineFailureInputsAreIgnored() {
         val engine = FakePlaybackEngine()
         val coordinator = PlaybackCoordinator(engine)
@@ -1339,7 +1447,7 @@ class PlaybackCoordinatorTest {
             coordinator.submitSystemInput(
                 PlaybackSystemInput.Interrupted(
                     stale,
-                    PlaybackInterruptionReason.RouteLost
+                    PlaybackInterruptionReason.RouteUnavailable(AudioOutputRoute.BUILT_IN)
                 )
             )
             coordinator.submitSystemInput(
@@ -1353,44 +1461,6 @@ class PlaybackCoordinatorTest {
                     .context.sessionId
             )
             assertFalse(engine.operations.contains("stopStandard"))
-        } finally {
-            coordinator.release()
-        }
-    }
-
-    @Test
-    fun staleSessionGuardStillRecordsLatestPrerequisiteState() {
-        val engine = FakePlaybackEngine()
-        val coordinator = PlaybackCoordinator(engine)
-        try {
-            coordinator.submit(PlaybackIntent.StartStandard(120f, 4, null, false))
-            assertTrue(coordinator.awaitControlIdle())
-            val ended =
-                (coordinator.transportState.value as PlaybackTransportState.Playing)
-                    .context.sessionId
-            coordinator.submitSystemInput(
-                PlaybackSystemInput.PrerequisitesChanged(
-                    PlaybackPrerequisites(
-                        audioFocusReady = false,
-                        routeReady = true
-                    ),
-                    ended
-                )
-            )
-            assertTrue(coordinator.awaitControlIdle())
-            assertTrue(coordinator.transportState.value is PlaybackTransportState.Idle)
-
-            coordinator.submitSystemInput(
-                PlaybackSystemInput.PrerequisitesChanged(
-                    PlaybackPrerequisites.READY,
-                    ended
-                )
-            )
-            coordinator.submit(PlaybackIntent.StartStandard(121f, 4, null, false))
-            assertTrue(coordinator.awaitControlIdle())
-
-            assertTrue(coordinator.transportState.value is PlaybackTransportState.Playing)
-            assertEquals(2, engine.operations.count { it == "startStandard" })
         } finally {
             coordinator.release()
         }
@@ -1411,7 +1481,7 @@ class PlaybackCoordinatorTest {
             coordinator.submitSystemInput(
                 PlaybackSystemInput.Interrupted(
                     sessionId,
-                    PlaybackInterruptionReason.RouteLost
+                    PlaybackInterruptionReason.RouteUnavailable(AudioOutputRoute.BUILT_IN)
                 )
             )
             assertTrue(coordinator.awaitControlIdle())
@@ -1679,8 +1749,9 @@ class PlaybackCoordinatorTest {
         assertTrue(coordinator.awaitControlIdle())
 
         val sequence = coordinator.submitSystemInput(
-            PlaybackSystemInput.PrerequisitesChanged(
-                PlaybackPrerequisites.READY
+            PlaybackSystemInput.Interrupted(
+                PlaybackSessionId(1),
+                PlaybackInterruptionReason.AudioFocusLost
             )
         )
 
@@ -1715,7 +1786,7 @@ class PlaybackCoordinatorTest {
         null
     )
 
-    private class FakePlaybackEngine : PlaybackEnginePort {
+    private inner class FakePlaybackEngine : PlaybackEnginePort {
         val operations = Collections.synchronizedList(mutableListOf<String>())
         val callingThreads = Collections.synchronizedSet(mutableSetOf<String>())
         val maximumConcurrentCalls = AtomicInteger()
@@ -1726,6 +1797,7 @@ class PlaybackCoordinatorTest {
         var blockStart = false
         var blockStop = false
         var autoStartAcknowledgement = true
+        var startRoute = AudioOutputRoute.BUILT_IN
         val startEntered = CountDownLatch(1)
         val allowStart = CountDownLatch(1)
         val stopEntered = CountDownLatch(1)
@@ -1738,6 +1810,7 @@ class PlaybackCoordinatorTest {
         var preparationFailure: SoundPreparationFailure? = null
         var renderedBatch: FrameAudioRenderedEventBatch? = null
         var renderedBatchOnStop: FrameAudioRenderedEventBatch? = null
+        var capturedBackendFailure: AudioBackendFailure? = null
         var autoStopAcknowledgement = true
         var asynchronousUpdates = false
         var throwOnUpdate = false
@@ -1754,7 +1827,8 @@ class PlaybackCoordinatorTest {
         override var polyrhythmDelegate: PolyrhythmAudioEngineDelegate? = null
         override var isMuted: Boolean = false
         override fun prewarmAudioTrack() = call("prewarm")
-        override fun getFrameAudioMetricsSnapshot(): FrameAudioMetricsSnapshot? = null
+        override fun getFrameAudioMetricsSnapshot(): FrameAudioMetricsSnapshot? =
+            capturedBackendFailure?.let(::metricsWithFailure)
         override fun activeSoundConfiguration(): ActiveSoundConfiguration? {
             if (blockSoundSnapshot) {
                 soundSnapshotEntered.countDown()
@@ -1768,6 +1842,13 @@ class PlaybackCoordinatorTest {
             afterCaptureSequence: Long
         ): FrameAudioRenderedEventBatch? =
             renderedBatch?.also { renderedBatch = null }
+                ?: capturedBackendFailure?.let {
+                    FrameAudioRenderedEventBatch(
+                        RenderedEventBatch(emptyList(), afterCaptureSequence, 0),
+                        48_000,
+                        null
+                    )
+                }
         override fun selectSounds(
             requestSequence: Long,
             beatResourceId: Int,
@@ -1860,7 +1941,7 @@ class PlaybackCoordinatorTest {
                 PlaybackEngineStartEvidence(
                     sessionId,
                     requireNotNull(activeSounds),
-                    AudioOutputRoute.UNKNOWN,
+                    startRoute,
                     AudioBackendType.AUDIO_TRACK,
                     3_216
                 )
@@ -1924,4 +2005,41 @@ class PlaybackCoordinatorTest {
             }
         }
     }
+
+    private fun metricsWithFailure(failure: AudioBackendFailure) = FrameAudioMetricsSnapshot(
+        backend = AudioBackendType.AUDIO_TRACK,
+        route = AudioOutputRoute.BUILT_IN,
+        sampleRate = 48_000,
+        channelCount = 1,
+        outputFramesPerBuffer = 192,
+        bufferFrames = 384,
+        performanceMode = AudioBackendPerformanceMode.LOW_LATENCY,
+        bufferSizeInBytes = 768,
+        renderChunkFrames = 192,
+        estimatedOutputLatencyNanos = 12_000_000,
+        queuedClicks = 0,
+        queuedBeatClicks = 0,
+        queuedRhythmClicks = 0,
+        renderedChunks = 0,
+        intendedFrames = 0,
+        renderedFrames = 0,
+        writtenFrames = 0,
+        estimatedPresentedFrames = null,
+        mixDurationP50UpperBoundNanos = 0,
+        mixDurationP95UpperBoundNanos = 0,
+        mixDurationP99UpperBoundNanos = 0,
+        maximumMixDurationNanos = 0,
+        writeDurationP50UpperBoundNanos = 0,
+        writeDurationP95UpperBoundNanos = 0,
+        writeDurationP99UpperBoundNanos = 0,
+        maximumWriteDurationNanos = 0,
+        routeChangeCount = 0,
+        deadlineMisses = 0,
+        droppedEvents = 0,
+        maxActiveClicks = 0,
+        underrunCount = 0,
+        underrunSkippedFrames = 0,
+        frameCorrelation = null,
+        latestBackendFailure = failure
+    )
 }
