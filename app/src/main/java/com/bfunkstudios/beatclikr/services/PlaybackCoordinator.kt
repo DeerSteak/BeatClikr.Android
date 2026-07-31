@@ -94,6 +94,9 @@ enum class PlaybackCoordinatorFailureCode {
     INVALID_INPUT,
     SOUND_PREPARATION_FAILED,
     MODE_MISMATCH,
+    STALE_SESSION,
+    RENDERER_REJECTED,
+    SUPERSEDED,
     ENGINE_FAILURE,
     RELEASED
 }
@@ -754,6 +757,22 @@ class PlaybackCoordinator(
         configuration: CommittedPlaybackConfiguration
     ) {
         val current = transportState.value as PlaybackTransportState.SessionState
+        val superseded = pendingUpdates.filter {
+            it.sessionId == current.context.sessionId &&
+                it.configuration::class == configuration::class
+        }
+        pendingUpdates.removeAll(superseded.toSet())
+        superseded.forEach { update ->
+            recordOutcome(
+                update.sequence,
+                update.intent,
+                rejectedOutcome(
+                    update.sequence,
+                    PlaybackCoordinatorFailureCode.SUPERSEDED,
+                    "Playback update superseded by a newer configuration"
+                )
+            )
+        }
         pendingUpdates.addLast(
             PendingUpdate(sequence, intent, current.context.sessionId, configuration)
         )
@@ -832,10 +851,23 @@ class PlaybackCoordinator(
             update.intent,
             rejectedOutcome(
                 update.sequence,
-                PlaybackCoordinatorFailureCode.ENGINE_FAILURE,
+                reason.coordinatorFailureCode(),
                 diagnostic ?: "Playback update rejected: $reason"
             )
         )
+    }
+
+    private fun PlaybackEngineUpdateResult.Reason.coordinatorFailureCode() = when (this) {
+        PlaybackEngineUpdateResult.Reason.STALE_SESSION ->
+            PlaybackCoordinatorFailureCode.STALE_SESSION
+        PlaybackEngineUpdateResult.Reason.INACTIVE_MODE ->
+            PlaybackCoordinatorFailureCode.MODE_MISMATCH
+        PlaybackEngineUpdateResult.Reason.RENDERER_REJECTED ->
+            PlaybackCoordinatorFailureCode.RENDERER_REJECTED
+        PlaybackEngineUpdateResult.Reason.INVALID_CONFIGURATION ->
+            PlaybackCoordinatorFailureCode.INVALID_INPUT
+        PlaybackEngineUpdateResult.Reason.ENGINE_FAILURE ->
+            PlaybackCoordinatorFailureCode.ENGINE_FAILURE
     }
 
     private fun cancelUpdatesFor(sessionId: PlaybackSessionId) {

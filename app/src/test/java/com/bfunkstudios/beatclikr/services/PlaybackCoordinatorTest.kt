@@ -201,6 +201,77 @@ class PlaybackCoordinatorTest {
     }
 
     @Test
+    fun sameModeDragDuringStartingCoalescesToNewestConfiguration() {
+        val engine = FakePlaybackEngine().apply {
+            autoStartAcknowledgement = false
+            asynchronousUpdates = true
+        }
+        val coordinator = PlaybackCoordinator(engine)
+        try {
+            coordinator.submit(PlaybackIntent.StartStandard(120f, 4, null, false))
+            assertTrue(coordinator.awaitControlIdle())
+            val sessionId = (coordinator.transportState.value as PlaybackTransportState.Starting)
+                .context.sessionId
+            val first = coordinator.submit(
+                PlaybackIntent.UpdateStandard(130f, 4, null, false)
+            )
+            val second = coordinator.submit(
+                PlaybackIntent.UpdateStandard(140f, 4, null, false)
+            )
+            val latest = coordinator.submit(
+                PlaybackIntent.UpdateStandard(150f, 4, null, false)
+            )
+            assertTrue(coordinator.awaitControlIdle())
+            assertEquals(listOf("startStandard"), engine.operations)
+            assertFailureCode(coordinator, first, PlaybackCoordinatorFailureCode.SUPERSEDED)
+            assertFailureCode(coordinator, second, PlaybackCoordinatorFailureCode.SUPERSEDED)
+
+            engine.publishStarted(sessionId)
+            assertTrue(coordinator.awaitControlIdle())
+            assertEquals(listOf("startStandard", "updateStandard"), engine.operations)
+            engine.completeNextUpdate()
+            assertTrue(coordinator.awaitControlIdle())
+            assertEquals(150f, coordinator.standardConfiguration().bpm)
+            assertTrue(outcomeFor(coordinator, latest) is PlaybackIntentOutcome.Accepted)
+        } finally {
+            coordinator.release()
+        }
+    }
+
+    @Test
+    fun updateRejectionReasonsRemainStructuredCoordinatorOutcomes() {
+        val mappings = listOf(
+            PlaybackEngineUpdateResult.Reason.STALE_SESSION to
+                PlaybackCoordinatorFailureCode.STALE_SESSION,
+            PlaybackEngineUpdateResult.Reason.INACTIVE_MODE to
+                PlaybackCoordinatorFailureCode.MODE_MISMATCH,
+            PlaybackEngineUpdateResult.Reason.RENDERER_REJECTED to
+                PlaybackCoordinatorFailureCode.RENDERER_REJECTED,
+            PlaybackEngineUpdateResult.Reason.INVALID_CONFIGURATION to
+                PlaybackCoordinatorFailureCode.INVALID_INPUT,
+            PlaybackEngineUpdateResult.Reason.ENGINE_FAILURE to
+                PlaybackCoordinatorFailureCode.ENGINE_FAILURE
+        )
+        val engine = FakePlaybackEngine().apply { asynchronousUpdates = true }
+        val coordinator = PlaybackCoordinator(engine)
+        try {
+            coordinator.submit(PlaybackIntent.StartStandard(120f, 4, null, false))
+            assertTrue(coordinator.awaitControlIdle())
+            mappings.forEachIndexed { index, (reason, expectedCode) ->
+                val sequence = coordinator.submit(
+                    PlaybackIntent.UpdateStandard(130f + index, 4, null, false)
+                )
+                assertTrue(coordinator.awaitControlIdle())
+                engine.completeNextUpdate(reason)
+                assertTrue(coordinator.awaitControlIdle())
+                assertFailureCode(coordinator, sequence, expectedCode)
+            }
+        } finally {
+            coordinator.release()
+        }
+    }
+
+    @Test
     fun sameModeStartSubmittedDuringPreparingBecomesAcknowledgedLiveUpdate() {
         val engine = FakePlaybackEngine().apply { asynchronousUpdates = true }
         val coordinator = PlaybackCoordinator(engine)
@@ -343,12 +414,26 @@ class PlaybackCoordinatorTest {
     }
 
     private fun assertRejectedOutcome(coordinator: PlaybackCoordinator, sequence: Long) {
-        val outcome = coordinator.controlEvents.replayCache
-            .filterIsInstance<PlaybackControlEvent.IntentCompleted>()
-            .first { it.commandSequence == sequence }
-            .outcome
+        val outcome = outcomeFor(coordinator, sequence)
         assertTrue("Expected rejected update but was $outcome", outcome is PlaybackIntentOutcome.Rejected)
     }
+
+    private fun assertFailureCode(
+        coordinator: PlaybackCoordinator,
+        sequence: Long,
+        expected: PlaybackCoordinatorFailureCode
+    ) {
+        val outcome = outcomeFor(coordinator, sequence) as PlaybackIntentOutcome.Rejected
+        assertEquals(expected, outcome.failure.code)
+    }
+
+    private fun outcomeFor(
+        coordinator: PlaybackCoordinator,
+        sequence: Long
+    ): PlaybackIntentOutcome = coordinator.controlEvents.replayCache
+        .filterIsInstance<PlaybackControlEvent.IntentCompleted>()
+        .first { it.commandSequence == sequence }
+        .outcome
 
     private fun PlaybackCoordinator.standardConfiguration() =
         ((transportState.value as PlaybackTransportState.Playing).context.configuration as
