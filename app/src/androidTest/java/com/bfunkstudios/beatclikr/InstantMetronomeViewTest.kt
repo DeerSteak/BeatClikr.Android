@@ -8,16 +8,20 @@ import androidx.room.Room
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.lifecycle.Lifecycle
 import com.bfunkstudios.beatclikr.data.IAppPreferences
+import com.bfunkstudios.beatclikr.data.Playlist
+import com.bfunkstudios.beatclikr.data.PlaylistEntry
 import com.bfunkstudios.beatclikr.data.PlaylistRepository
 import com.bfunkstudios.beatclikr.data.PlaylistRepositoryImpl
 import com.bfunkstudios.beatclikr.data.PracticeHistoryRepository
 import com.bfunkstudios.beatclikr.data.PracticeHistoryRepositoryImpl
+import com.bfunkstudios.beatclikr.data.Song
 import com.bfunkstudios.beatclikr.data.SongRepository
 import com.bfunkstudios.beatclikr.data.SongRepositoryImpl
 import com.bfunkstudios.beatclikr.data.db.BeatClikrDatabase
@@ -49,6 +53,7 @@ import dagger.hilt.components.SingletonComponent
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.runBlocking
 import java.util.Locale
 import org.junit.Before
 import org.junit.Assert.assertEquals
@@ -70,6 +75,8 @@ class InstantMetronomeViewTest {
     val composeRule = createAndroidComposeRule<MainActivity>()
 
     @Inject lateinit var audio: IAudioPlayerService
+    @Inject lateinit var playlistDao: PlaylistDao
+    @Inject lateinit var songDao: SongDao
 
     @Module
     @InstallIn(SingletonComponent::class)
@@ -429,7 +436,8 @@ class InstantMetronomeViewTest {
         composeRule.waitUntil(10_000) {
             runCatching {
                 composeRule.onAllNodesWithContentDescription(
-                    activity.getString(R.string.polyrhythm)
+                    activity.getString(R.string.polyrhythm),
+                    useUnmergedTree = true
                 ).fetchSemanticsNodes().isNotEmpty()
             }.getOrDefault(false)
         }
@@ -460,6 +468,50 @@ class InstantMetronomeViewTest {
         assertEquals(1, fake.stopCount)
         assertEquals(1, fake.polyrhythmStartCount)
         assertNotEquals(standardSession, fake.currentSessionId())
+    }
+
+    @Test
+    fun internalEditorsPickersSheetsAndFocusNavigationDoNotStopPlayback() {
+        val fake = audio as FakeAudioPlayerService
+        val song = Song.instantSong().copy(title = "Internal Navigation Song")
+        val playlist = Playlist(name = "Internal Navigation Playlist")
+        runBlocking {
+            songDao.upsert(song)
+            playlistDao.upsertPlaylist(playlist)
+            playlistDao.upsertEntry(
+                PlaylistEntry(playlistId = playlist.id, songId = song.id, sequence = 0)
+            )
+        }
+
+        navigateTo(R.string.tab_library)
+        fake.publishPlaying(PlaybackMode.STANDARD)
+        fake.resetCallCounts()
+        composeRule.onNodeWithContentDescription(activity.getString(R.string.add_song)).performClick()
+        composeRule.onNodeWithText(activity.getString(R.string.song_detail)).assertIsDisplayed()
+        assertEquals(0, fake.stopCount + fake.polyrhythmStopCount)
+        composeRule.onNodeWithText(activity.getString(R.string.cancel)).performClick()
+
+        composeRule.onNodeWithText(song.title).performClick()
+        fake.publishPlaying(PlaybackMode.STANDARD)
+        fake.resetCallCounts()
+        navigateTo(R.string.tab_playlist)
+        assertEquals(1, fake.stopCount)
+        fake.publishPlaying(PlaybackMode.STANDARD)
+        fake.resetCallCounts()
+        composeRule.onNodeWithText(playlist.name).performClick()
+        composeRule.onNodeWithText(song.title).assertIsDisplayed()
+        assertEquals(0, fake.stopCount + fake.polyrhythmStopCount)
+
+        composeRule.onNodeWithContentDescription(activity.getString(R.string.add_song)).performClick()
+        composeRule.onNodeWithText(activity.getString(R.string.add_song)).assertIsDisplayed()
+        assertEquals(0, fake.stopCount + fake.polyrhythmStopCount)
+        composeRule.onAllNodesWithText(song.title)[1].performClick()
+
+        composeRule.onNodeWithText(activity.getString(R.string.edit)).performClick()
+        assertEquals(0, fake.stopCount + fake.polyrhythmStopCount)
+        composeRule.onNodeWithText(activity.getString(R.string.done)).performClick()
+        composeRule.onNodeWithContentDescription(activity.getString(R.string.focus_view)).performClick()
+        assertEquals(0, fake.stopCount + fake.polyrhythmStopCount)
     }
 
     @Test
@@ -495,7 +547,10 @@ class InstantMetronomeViewTest {
     }
 
     private fun navigateTo(title: Int) {
-        composeRule.onNodeWithContentDescription(activity.getString(title)).performClick()
+        composeRule.onNodeWithContentDescription(
+            activity.getString(title),
+            useUnmergedTree = true
+        ).performClick()
         composeRule.waitForIdle()
     }
 
