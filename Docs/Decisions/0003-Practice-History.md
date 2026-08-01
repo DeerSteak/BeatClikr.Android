@@ -42,6 +42,10 @@ The sibling iOS practice model is the reference behavior. Android mirrors its co
 ### Data integrity
 
 - **PH-019:** Duration and period-count updates are transactional and survive process death without double counting.
+
+Playback authority is never restored after process death. Transport state, process-scoped session IDs, pending commands, engine/focus ownership, route evidence, and rendered-event cursors restart empty and `Idle`; persisted navigation and preferences cannot authorize playback.
+
+Phase 5 may restore a durable practice-accounting checkpoint, including the last acknowledged lifecycle sequence and an unfinished accounting interval. Restoring that data may reconcile elapsed practice, but it must not submit Play or recreate audio authority without a new explicit user intent.
 - **PH-020:** Reminder and streak calculations use only qualified daily history.
 - **PH-021:** Schema migration preserves existing records. Legacy entries without duration receive 30 seconds so previously earned history and streaks remain qualified, matching the iOS migration policy.
 

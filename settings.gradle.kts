@@ -19,3 +19,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "BeatClikr"
 include(":app")
+include(":processdeath-test")

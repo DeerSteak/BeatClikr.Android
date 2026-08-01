@@ -56,7 +56,16 @@ abstract class AppModule {
 
         @Provides @Singleton
         fun providePlaybackEngine(@ApplicationContext context: Context): PlaybackEnginePort =
-            AudioPlayerService(context)
+            debugPlaybackEngine(context) ?: AudioPlayerService(context)
+
+        private fun debugPlaybackEngine(context: Context): PlaybackEnginePort? {
+            if (!com.bfunkstudios.beatclikr.BuildConfig.DEBUG) return null
+            return runCatching {
+                Class.forName("com.bfunkstudios.beatclikr.ProcessDeathTestEngine")
+                    .getMethod("create", Context::class.java)
+                    .invoke(null, context) as? PlaybackEnginePort
+            }.getOrNull()
+        }
 
         @Provides @Singleton
         fun providePlaybackCoordinator(engine: PlaybackEnginePort): PlaybackCoordinator =
