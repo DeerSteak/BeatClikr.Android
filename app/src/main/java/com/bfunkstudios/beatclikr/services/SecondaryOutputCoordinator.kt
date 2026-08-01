@@ -87,6 +87,7 @@ class SecondaryOutputCoordinator(
     internal fun applyTransportState(state: PlaybackTransportState) {
         if (state is PlaybackTransportState.Playing) {
             mutableFailure.value = null
+            mutableDeliveryGap.value = null
         } else {
             stopEffects()
         }

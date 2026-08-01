@@ -9,10 +9,17 @@ data class PlaybackLifecycleCheckpoint(
 
 data class PlaybackLifecycleBatch(
     val transitions: List<PlaybackStateTransition>,
-    val checkpoint: PlaybackLifecycleCheckpoint
+    val checkpoint: PlaybackLifecycleCheckpoint,
+    val gap: PlaybackLifecycleGap? = null
+)
+
+data class PlaybackLifecycleGap(
+    val requestedAfterSequence: Long,
+    val oldestAvailableSequence: Long
 )
 
 interface PlaybackLifecycleObservation {
     val lifecycleCheckpoint: StateFlow<PlaybackLifecycleCheckpoint>
     fun lifecycleTransitionsAfter(sequence: Long): PlaybackLifecycleBatch
+    fun acknowledgeLifecycleTransitionsThrough(sequence: Long)
 }

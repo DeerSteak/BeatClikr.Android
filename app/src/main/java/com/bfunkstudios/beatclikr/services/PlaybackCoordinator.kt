@@ -313,7 +313,9 @@ class PlaybackCoordinator(
     )
     private val mutableTransportState =
         MutableStateFlow<PlaybackTransportState>(PlaybackTransportState.Idle)
-    private val lifecycleJournal = ArrayList<PlaybackStateTransition>()
+    private val lifecycleJournalLock = Any()
+    private val lifecycleJournal = ArrayDeque<PlaybackStateTransition>()
+    private var acknowledgedLifecycleSequence = 0L
     private val mutableLifecycleCheckpoint = MutableStateFlow(
         PlaybackLifecycleCheckpoint(0, PlaybackTransportState.Idle)
     )
@@ -350,13 +352,38 @@ class PlaybackCoordinator(
     val stateTransitions: SharedFlow<PlaybackStateTransition> = mutableStateTransitions
     override val committedEvents: SharedFlow<PlaybackCommittedEvent> = mutableCommittedEvents
 
-    @Synchronized
     override fun lifecycleTransitionsAfter(sequence: Long): PlaybackLifecycleBatch {
         require(sequence >= 0) { "Lifecycle sequence must not be negative" }
-        return PlaybackLifecycleBatch(
-            lifecycleJournal.filter { it.sequence > sequence },
-            mutableLifecycleCheckpoint.value
-        )
+        return synchronized(lifecycleJournalLock) {
+            require(sequence >= acknowledgedLifecycleSequence) {
+                "Lifecycle sequence $sequence was already acknowledged"
+            }
+            val oldestAvailable = lifecycleJournal.firstOrNull()?.sequence
+                ?: mutableLifecycleCheckpoint.value.latestTransitionSequence + 1
+            PlaybackLifecycleBatch(
+                lifecycleJournal.filter { it.sequence > sequence },
+                mutableLifecycleCheckpoint.value,
+                if (sequence + 1 < oldestAvailable) {
+                    PlaybackLifecycleGap(sequence, oldestAvailable)
+                } else {
+                    null
+                }
+            )
+        }
+    }
+
+    override fun acknowledgeLifecycleTransitionsThrough(sequence: Long) {
+        require(sequence >= 0) { "Lifecycle sequence must not be negative" }
+        synchronized(lifecycleJournalLock) {
+            require(sequence <= mutableLifecycleCheckpoint.value.latestTransitionSequence) {
+                "Cannot acknowledge an unpublished lifecycle sequence"
+            }
+            if (sequence <= acknowledgedLifecycleSequence) return
+            while (lifecycleJournal.firstOrNull()?.sequence?.let { it <= sequence } == true) {
+                lifecycleJournal.removeFirst()
+            }
+            acknowledgedLifecycleSequence = sequence
+        }
     }
 
     @Volatile
@@ -1428,13 +1455,17 @@ class PlaybackCoordinator(
         }
     }
 
-    @Synchronized
     private fun recordLifecycleTransition(transition: PlaybackStateTransition) {
-        lifecycleJournal += transition
-        mutableLifecycleCheckpoint.value = PlaybackLifecycleCheckpoint(
-            transition.sequence,
-            transition.to
-        )
+        synchronized(lifecycleJournalLock) {
+            lifecycleJournal += transition
+            if (lifecycleJournal.size > LIFECYCLE_JOURNAL_CAPACITY) {
+                lifecycleJournal.removeFirst()
+            }
+            mutableLifecycleCheckpoint.value = PlaybackLifecycleCheckpoint(
+                transition.sequence,
+                transition.to
+            )
+        }
     }
 
     private fun newSessionId(): PlaybackSessionId =
@@ -1666,6 +1697,7 @@ class PlaybackCoordinator(
     }
 
     private companion object {
+        const val LIFECYCLE_JOURNAL_CAPACITY = 4_096
         const val TIMING_EVENT_CAPACITY = 64
         const val CONTROL_EVENT_CAPACITY = 64
         const val TRANSPORT_EVENT_CAPACITY = 64

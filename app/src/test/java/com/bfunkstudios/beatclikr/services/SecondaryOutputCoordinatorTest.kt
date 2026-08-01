@@ -76,6 +76,9 @@ class SecondaryOutputCoordinatorTest {
         assertEquals(0, scheduler.tasks.size)
         verify { haptics.cancel() }
         verify { flashlight.turnFlashlightOff() }
+
+        applyTransportState(standardPlaying())
+        assertNull(coordinator.committedEventDeliveryGap.value)
     }
 
     @Test

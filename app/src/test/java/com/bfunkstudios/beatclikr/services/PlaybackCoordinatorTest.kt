@@ -11,6 +11,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
+import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -1012,6 +1013,42 @@ class PlaybackCoordinatorTest {
             assertTrue(lifecycle.checkpoint.state is PlaybackTransportState.Idle)
             assertEquals(240L, lifecycle.checkpoint.latestTransitionSequence)
             assertTrue(coordinator.stateTransitions.replayCache.size < lifecycle.transitions.size)
+
+            coordinator.acknowledgeLifecycleTransitionsThrough(120)
+            assertEquals(
+                (121L..240L).toList(),
+                coordinator.lifecycleTransitionsAfter(120)
+                    .transitions
+                    .map(PlaybackStateTransition::sequence)
+            )
+            assertThrows(IllegalArgumentException::class.java) {
+                coordinator.lifecycleTransitionsAfter(119)
+            }
+            assertThrows(IllegalArgumentException::class.java) {
+                coordinator.acknowledgeLifecycleTransitionsThrough(241)
+            }
+        } finally {
+            coordinator.release()
+        }
+    }
+
+    @Test
+    fun lifecycleJournalReportsGapWhenUnacknowledgedHistoryExceedsSafetyCap() {
+        val coordinator = PlaybackCoordinator(FakePlaybackEngine())
+        try {
+            repeat(700) {
+                coordinator.submit(PlaybackIntent.StartStandard(120f, 4, null, false))
+                coordinator.submit(PlaybackIntent.Stop)
+            }
+            assertTrue(coordinator.awaitControlIdle())
+
+            val lifecycle = coordinator.lifecycleTransitionsAfter(0)
+            assertEquals(4_096, lifecycle.transitions.size)
+            assertEquals(
+                PlaybackLifecycleGap(0, 105),
+                lifecycle.gap
+            )
+            assertEquals(4_200L, lifecycle.checkpoint.latestTransitionSequence)
         } finally {
             coordinator.release()
         }

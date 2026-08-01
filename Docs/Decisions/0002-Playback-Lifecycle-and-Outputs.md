@@ -61,7 +61,7 @@ The clauses define the intended completed behavior, not equal delivery priority.
 
 ### Event delivery
 
-- Lifecycle transitions use a lossless in-process journal and current checkpoint, separate from rendered events. Phase 5 accounting reads this source and never infers lifecycle completeness from a replay cache.
+- Lifecycle transitions use a lossless in-process journal and current checkpoint, separate from rendered events. The single durable Phase 5 consumer acknowledges persisted sequences so the coordinator can prune them; reads behind that acknowledgement fail explicitly. A 4,096-transition safety cap prevents unbounded growth before a consumer exists and reports an explicit gap if exceeded.
 - Rendered events use a bounded recent-history stream. Visual and secondary-output consumers detect sequence gaps, reset transient output, and skip the first post-gap event rather than producing catch-up bursts.
 - Diagnostics may inspect bounded replay as best-effort history. Renderer-ring loss remains `RecordsDropped`; downstream stream loss is reported independently by each consumer's delivery cursor.
 
