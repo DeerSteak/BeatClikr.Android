@@ -5,10 +5,8 @@ import android.content.ContentValues
 import android.database.Cursor
 import android.net.Uri
 import android.os.Bundle
-import com.bfunkstudios.beatclikr.di.ProcessDeathProbeEntryPoint
-import com.bfunkstudios.beatclikr.services.PlaybackEnginePort
+import com.bfunkstudios.beatclikr.services.PlaybackCoordinator
 import com.bfunkstudios.beatclikr.services.PlaybackTransportState
-import dagger.hilt.android.EntryPointAccessors
 
 class ProcessDeathTestProbeProvider : ContentProvider() {
     override fun onCreate(): Boolean = true
@@ -29,14 +27,11 @@ class ProcessDeathTestProbeProvider : ContentProvider() {
     }
 
     private fun snapshot(): Bundle {
-        val entryPoint = EntryPointAccessors.fromApplication(
-            providerContext().applicationContext,
-            ProcessDeathProbeEntryPoint::class.java
-        )
-        val coordinator = entryPoint.coordinator()
+        val application = providerContext().applicationContext as BeatClikrApplication
+        val coordinator = application.audioPlayerService as PlaybackCoordinator
         val state = coordinator.transportState.value
         val context = (state as? PlaybackTransportState.SessionState)?.context
-        val engine = entryPoint.engine() as? ProcessDeathTestEngine
+        val engine = ProcessDeathTestEngine.current
         return Bundle().apply {
             putString("state", state::class.simpleName)
             putLong("session", context?.sessionId?.value ?: 0)

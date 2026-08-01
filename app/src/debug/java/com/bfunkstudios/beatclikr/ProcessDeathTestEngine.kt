@@ -132,11 +132,17 @@ class ProcessDeathTestEngine private constructor(private val mode: String) : Pla
             SoundFile.CLICK_LO
         )
 
+        @Volatile
+        var current: ProcessDeathTestEngine? = null
+            private set
+
         @JvmStatic
         fun create(context: Context): PlaybackEnginePort? {
             val mode = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
                 .getString(MODE, NORMAL)
-            return mode?.takeUnless { it == NORMAL }?.let(::ProcessDeathTestEngine)
+            return mode?.takeUnless { it == NORMAL }
+                ?.let(::ProcessDeathTestEngine)
+                .also { current = it }
         }
     }
 }
