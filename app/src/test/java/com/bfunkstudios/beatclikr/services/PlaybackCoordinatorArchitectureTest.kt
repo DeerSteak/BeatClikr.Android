@@ -11,6 +11,21 @@ import org.junit.Test
 class PlaybackCoordinatorArchitectureTest {
 
     @Test
+    fun engineEntryPointsRequireSessionOwnership() {
+        val engine = locateMainSource("services/MetronomeAudioEngine.kt").readText()
+        val frameEngine = locateMainSource("services/FrameAudioEngine.kt").readText()
+
+        assertFalse(
+            engine.contains("delegate: MetronomeAudioEngineDelegate,\n        sessionId: PlaybackSessionId?")
+        )
+        assertFalse(engine.contains("fun startPolyrhythm(\n        sessionId: PlaybackSessionId?"))
+        assertFalse(engine.contains("fun stopMetronome()"))
+        assertFalse(engine.contains("fun stopPolyrhythm()"))
+        assertTrue(engine.contains("fun stopSession(sessionId: PlaybackSessionId"))
+        assertFalse(frameEngine.contains("sessionId: PlaybackSessionId?"))
+    }
+
+    @Test
     fun productionBindingExposesCoordinatorInsteadOfConcreteEngineOwner() {
         val module = locateMainSource("di/AppModule.kt").readText()
 

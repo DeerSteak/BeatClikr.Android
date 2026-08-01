@@ -109,7 +109,7 @@ internal class AudioPlayerService(context: Context) : PlaybackEnginePort, Metron
     }
 
     override fun stopSession(sessionId: PlaybackSessionId, mode: PlaybackMode) {
-        audioEngine.stopSession(mode) {
+        audioEngine.stopSession(sessionId, mode) {
             transportObserver?.engineStopped(sessionId)
         }
     }
