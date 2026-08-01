@@ -58,6 +58,9 @@ The clauses define the intended completed behavior, not equal delivery priority.
 - **PL-025:** Haptic and flash effects are foreground-only and stop when the visible app becomes inactive even while audio continues.
 - **PL-026:** Disabling, denying, or stopping a secondary output does not alter audio phase.
 - **PL-027:** Secondary-output failure is surfaced without stopping otherwise healthy audio unless continuing would violate safety or platform policy.
+- Secondary-output visibility follows `ProcessLifecycleOwner` at the `STARTED` boundary. Effects are disabled when no Activity is started, including ordinary backgrounding and screen-off; configuration changes do not produce a process stop.
+- Multi-window, the notification shade, and transient system or permission overlays retain effects while BeatClikr remains started. A fully obscuring transition that stops the last Activity disables effects; audio lifecycle remains a separate policy.
+- Torch scheduling uses a pulse-off path plus a failsafe. Registration failure triggers an immediate off attempt, then at most one scheduled retry and one terminal immediate attempt; failures remain visible without changing playback.
 
 ### Event delivery
 
