@@ -96,6 +96,13 @@ class FakeAudioPlayerService : IAudioPlayerService, PlaybackObservation {
     override fun getFrameAudioMetricsSnapshot(): FrameAudioMetricsSnapshot? = null
     override fun release() {}
 
+    fun resetCallCounts() {
+        startCount = 0
+        stopCount = 0
+        polyrhythmStartCount = 0
+        polyrhythmStopCount = 0
+    }
+
     fun publishPlaying(
         mode: PlaybackMode,
         route: AudioOutputRoute = AudioOutputRoute.BUILT_IN

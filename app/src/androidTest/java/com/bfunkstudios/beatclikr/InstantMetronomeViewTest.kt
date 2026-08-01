@@ -1,11 +1,13 @@
 package com.bfunkstudios.beatclikr
 
 import android.content.Context
+import android.content.pm.ActivityInfo
 import android.content.res.Configuration
 import android.view.WindowManager
 import androidx.room.Room
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -51,6 +53,7 @@ import java.util.Locale
 import org.junit.Before
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
 import org.junit.Rule
 import org.junit.Test
 import javax.inject.Inject
@@ -405,6 +408,61 @@ class InstantMetronomeViewTest {
     }
 
     @Test
+    fun compactTopLevelDestinationsIssueOneGlobalStopForEveryPlaybackKind() {
+        val destinations = listOf(
+            R.string.tab_library,
+            R.string.tab_playlist,
+            R.string.tab_history,
+            R.string.tab_settings
+        )
+
+        assertTopLevelStopMatrix(destinations)
+        destinations.forEach { destination ->
+            navigateTo(destination)
+            assertOneStopWhenNavigatingTo(R.string.tab_instant, PlaybackMode.STANDARD)
+        }
+    }
+
+    @Test
+    fun expandedTopLevelDestinationsIssueOneGlobalStopForEveryPlaybackKind() {
+        activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+        composeRule.waitUntil(10_000) {
+            runCatching {
+                composeRule.onAllNodesWithContentDescription(
+                    activity.getString(R.string.polyrhythm)
+                ).fetchSemanticsNodes().isNotEmpty()
+            }.getOrDefault(false)
+        }
+        val destinations = listOf(
+            R.string.polyrhythm,
+            R.string.tab_library,
+            R.string.tab_playlist,
+            R.string.tab_history,
+            R.string.tab_settings
+        )
+
+        assertTopLevelStopMatrix(destinations)
+        destinations.forEach { destination ->
+            navigateTo(destination)
+            assertOneStopWhenNavigatingTo(R.string.tab_instant, PlaybackMode.STANDARD)
+        }
+    }
+
+    @Test
+    fun compactModeReplacementStopsHiddenModeOnceAndStartsAtFreshSession() {
+        val fake = audio as FakeAudioPlayerService
+        composeRule.onNodeWithText(activity.getString(R.string.play)).performClick()
+        val standardSession = fake.currentSessionId()
+
+        composeRule.onNodeWithTag("metronome_mode_polyrhythm").performClick()
+        composeRule.onNodeWithText(activity.getString(R.string.play)).performClick()
+
+        assertEquals(1, fake.stopCount)
+        assertEquals(1, fake.polyrhythmStartCount)
+        assertNotEquals(standardSession, fake.currentSessionId())
+    }
+
+    @Test
     fun alwaysUseDarkThemeSettingPersists() {
         composeRule.onNodeWithText(activity.getString(R.string.settings)).performClick()
         composeRule.onNodeWithText(activity.getString(R.string.appearance)).assertIsDisplayed()
@@ -415,4 +473,32 @@ class InstantMetronomeViewTest {
 
     private fun MainActivity.isKeepingScreenOn(): Boolean =
         window.attributes.flags and WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON != 0
+
+    private fun assertTopLevelStopMatrix(destinations: List<Int>) {
+        destinations.forEach { destination ->
+            listOf(PlaybackMode.STANDARD, PlaybackMode.POLYRHYTHM).forEach { mode ->
+                assertOneStopWhenNavigatingTo(destination, mode)
+                navigateTo(R.string.tab_instant)
+            }
+        }
+    }
+
+    private fun assertOneStopWhenNavigatingTo(destination: Int, mode: PlaybackMode) {
+        val fake = audio as FakeAudioPlayerService
+        fake.resetCallCounts()
+        fake.publishPlaying(mode)
+
+        navigateTo(destination)
+
+        assertEquals(1, fake.stopCount + fake.polyrhythmStopCount)
+        assertEquals(PlaybackTransportState.Idle, fake.transportState.value)
+    }
+
+    private fun navigateTo(title: Int) {
+        composeRule.onNodeWithContentDescription(activity.getString(title)).performClick()
+        composeRule.waitForIdle()
+    }
+
+    private fun FakeAudioPlayerService.currentSessionId() =
+        (transportState.value as PlaybackTransportState.SessionState).context.sessionId
 }
