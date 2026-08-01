@@ -166,11 +166,6 @@ data class PlaybackStateTransition(
 sealed interface PlaybackCommittedEvent {
     val sequence: Long
 
-    data class StateChanged(
-        override val sequence: Long,
-        val transition: PlaybackStateTransition
-    ) : PlaybackCommittedEvent
-
     data class FirstEventScheduled(
         override val sequence: Long,
         val sessionId: PlaybackSessionId,
@@ -306,7 +301,7 @@ class PlaybackCoordinator(
             Thread(runnable, "PlaybackCoordinatorEvents")
         }
 ) : IAudioPlayerService, MetronomeAudioEngineDelegate, PolyrhythmAudioEngineDelegate,
-    PlaybackEngineTransportObserver, PlaybackObservation {
+    PlaybackEngineTransportObserver, PlaybackObservation, PlaybackLifecycleObservation {
     private val mutableOwnership = MutableStateFlow(PlaybackOwnershipSnapshot())
     private val mutableTimingEvents = MutableSharedFlow<PlaybackTimingEvent>(
         extraBufferCapacity = TIMING_EVENT_CAPACITY,
@@ -318,6 +313,12 @@ class PlaybackCoordinator(
     )
     private val mutableTransportState =
         MutableStateFlow<PlaybackTransportState>(PlaybackTransportState.Idle)
+    private val lifecycleJournalLock = Any()
+    private val lifecycleJournal = ArrayDeque<PlaybackStateTransition>()
+    private var acknowledgedLifecycleSequence = 0L
+    private val mutableLifecycleCheckpoint = MutableStateFlow(
+        PlaybackLifecycleCheckpoint(0, PlaybackTransportState.Idle)
+    )
     private val mutableStateTransitions = MutableSharedFlow<PlaybackStateTransition>(
         replay = TRANSPORT_EVENT_CAPACITY,
         onBufferOverflow = BufferOverflow.DROP_OLDEST
@@ -346,8 +347,44 @@ class PlaybackCoordinator(
     val timingEvents: SharedFlow<PlaybackTimingEvent> = mutableTimingEvents
     val controlEvents: SharedFlow<PlaybackControlEvent> = mutableControlEvents
     override val transportState: StateFlow<PlaybackTransportState> = mutableTransportState
+    override val lifecycleCheckpoint: StateFlow<PlaybackLifecycleCheckpoint> =
+        mutableLifecycleCheckpoint
     val stateTransitions: SharedFlow<PlaybackStateTransition> = mutableStateTransitions
     override val committedEvents: SharedFlow<PlaybackCommittedEvent> = mutableCommittedEvents
+
+    override fun lifecycleTransitionsAfter(sequence: Long): PlaybackLifecycleBatch {
+        require(sequence >= 0) { "Lifecycle sequence must not be negative" }
+        return synchronized(lifecycleJournalLock) {
+            require(sequence >= acknowledgedLifecycleSequence) {
+                "Lifecycle sequence $sequence was already acknowledged"
+            }
+            val oldestAvailable = lifecycleJournal.firstOrNull()?.sequence
+                ?: mutableLifecycleCheckpoint.value.latestTransitionSequence + 1
+            PlaybackLifecycleBatch(
+                lifecycleJournal.filter { it.sequence > sequence },
+                mutableLifecycleCheckpoint.value,
+                if (sequence + 1 < oldestAvailable) {
+                    PlaybackLifecycleGap(sequence, oldestAvailable)
+                } else {
+                    null
+                }
+            )
+        }
+    }
+
+    override fun acknowledgeLifecycleTransitionsThrough(sequence: Long) {
+        require(sequence >= 0) { "Lifecycle sequence must not be negative" }
+        synchronized(lifecycleJournalLock) {
+            require(sequence <= mutableLifecycleCheckpoint.value.latestTransitionSequence) {
+                "Cannot acknowledge an unpublished lifecycle sequence"
+            }
+            if (sequence <= acknowledgedLifecycleSequence) return
+            while (lifecycleJournal.firstOrNull()?.sequence?.let { it <= sequence } == true) {
+                lifecycleJournal.removeFirst()
+            }
+            acknowledgedLifecycleSequence = sequence
+        }
+    }
 
     @Volatile
     override var delegate: MetronomeAudioEngineDelegate? = null
@@ -1404,12 +1441,7 @@ class PlaybackCoordinator(
             )
         }
         val transition = PlaybackStateTransition(nextTransitionSequence++, previous, next)
-        mutableCommittedEvents.tryEmit(
-            PlaybackCommittedEvent.StateChanged(
-                nextCommittedEventSequence++,
-                transition
-            )
-        )
+        recordLifecycleTransition(transition)
         mutableStateTransitions.tryEmit(transition)
         if (previous !is PlaybackTransportState.Playing &&
             next is PlaybackTransportState.Playing &&
@@ -1419,6 +1451,19 @@ class PlaybackCoordinator(
                 0,
                 EVENT_DRAIN_PERIOD_MILLIS,
                 TimeUnit.MILLISECONDS
+            )
+        }
+    }
+
+    private fun recordLifecycleTransition(transition: PlaybackStateTransition) {
+        synchronized(lifecycleJournalLock) {
+            lifecycleJournal += transition
+            if (lifecycleJournal.size > LIFECYCLE_JOURNAL_CAPACITY) {
+                lifecycleJournal.removeFirst()
+            }
+            mutableLifecycleCheckpoint.value = PlaybackLifecycleCheckpoint(
+                transition.sequence,
+                transition.to
             )
         }
     }
@@ -1652,6 +1697,7 @@ class PlaybackCoordinator(
     }
 
     private companion object {
+        const val LIFECYCLE_JOURNAL_CAPACITY = 4_096
         const val TIMING_EVENT_CAPACITY = 64
         const val CONTROL_EVENT_CAPACITY = 64
         const val TRANSPORT_EVENT_CAPACITY = 64

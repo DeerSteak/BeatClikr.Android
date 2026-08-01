@@ -172,6 +172,35 @@ class PolyrhythmViewModelTest {
     }
 
     @Test
+    fun `committed event gap clears pulses and skips catch-up event`() {
+        val playing = polyrhythmPlaying()
+        transportState.value = playing
+        committedEvents.tryEmit(rendered(1, playing, MusicalEventRole.POLYRHYTHM_BEAT))
+        assertTrue(viewModel.beatPulse > 0f)
+
+        committedEvents.tryEmit(rendered(4, playing, MusicalEventRole.POLYRHYTHM_RHYTHM))
+
+        assertEquals(2L, viewModel.committedEventDeliveryLoss)
+        assertEquals(0f, viewModel.beatPulse)
+        assertEquals(0f, viewModel.rhythmPulse)
+    }
+
+    private fun rendered(
+        sequence: Long,
+        playing: PlaybackTransportState.Playing,
+        role: MusicalEventRole
+    ) = PlaybackCommittedEvent.Rendered(
+        sequence,
+        playing.context.sessionId,
+        sequence,
+        role,
+        0,
+        false,
+        EventPresentation.Unavailable,
+        roleIndex = 0
+    )
+
+    @Test
     fun `polyrhythm pulse durations follow each voice period`() {
         val configuration = CommittedPlaybackConfiguration.Polyrhythm(120f, 3, 2, false)
 

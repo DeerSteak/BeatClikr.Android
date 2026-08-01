@@ -5,6 +5,7 @@ import android.view.Choreographer
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
@@ -14,6 +15,8 @@ import com.bfunkstudios.beatclikr.data.IAppPreferences
 import com.bfunkstudios.beatclikr.data.SoundFile
 import com.bfunkstudios.beatclikr.music.MusicalEventRole
 import com.bfunkstudios.beatclikr.services.CommittedPlaybackConfiguration
+import com.bfunkstudios.beatclikr.services.CommittedEventDeliveryCursor
+import com.bfunkstudios.beatclikr.services.CommittedEventDeliveryResult
 import com.bfunkstudios.beatclikr.services.EventPresentation
 import com.bfunkstudios.beatclikr.services.IAudioPlayerService
 import com.bfunkstudios.beatclikr.services.PlaybackCommittedEvent
@@ -96,8 +99,11 @@ class PolyrhythmViewModel @Inject constructor(
     private var lastRhythmTimeNanos: Long = 0L
     private var currentRhythmDurationNanos: Long = 0L
     private var projectedSessionId: PlaybackSessionId? = null
-    private var lastCommittedEventSequence =
+    private val committedEventCursor = CommittedEventDeliveryCursor(
         playback.committedEvents.replayCache.lastOrNull()?.sequence ?: 0L
+    )
+    var committedEventDeliveryLoss by mutableLongStateOf(0)
+        private set
 
     init {
         viewModelScope.launch {
@@ -295,8 +301,17 @@ class PolyrhythmViewModel @Inject constructor(
     }
 
     private fun applyCommittedEvent(event: PlaybackCommittedEvent) {
-        if (event.sequence <= lastCommittedEventSequence) return
-        lastCommittedEventSequence = event.sequence
+        when (val delivery = committedEventCursor.accept(event)) {
+            CommittedEventDeliveryResult.Accepted -> Unit
+            CommittedEventDeliveryResult.Duplicate -> return
+            is CommittedEventDeliveryResult.Gap -> {
+                committedEventDeliveryLoss += delivery.detail.missingCount
+                stopChoreographerLoop()
+                beatPulse = 0f
+                rhythmPulse = 0f
+                return
+            }
+        }
         val rendered = event as? PlaybackCommittedEvent.Rendered ?: return
         val playing = transportState as? PlaybackTransportState.Playing ?: return
         if (playing.context.mode != PlaybackMode.POLYRHYTHM ||

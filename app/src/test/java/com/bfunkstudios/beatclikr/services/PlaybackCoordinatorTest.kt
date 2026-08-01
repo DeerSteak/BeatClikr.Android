@@ -11,6 +11,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
+import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -974,21 +975,80 @@ class PlaybackCoordinatorTest {
             val playing = coordinator.transportState.value as PlaybackTransportState.Playing
             assertEquals(PlaybackMode.STANDARD, playing.context.mode)
             assertEquals(AudioBackendType.AUDIO_TRACK, playing.context.backend)
-            val committed = coordinator.committedEvents.replayCache
-            val scheduledIndex = committed.indexOfFirst {
-                it is PlaybackCommittedEvent.FirstEventScheduled
-            }
-            val playingIndex = committed.indexOfFirst {
-                it is PlaybackCommittedEvent.StateChanged &&
-                    it.transition.to is PlaybackTransportState.Playing
-            }
-            assertTrue(scheduledIndex >= 0)
-            assertTrue(scheduledIndex < playingIndex)
+            val lifecycle = coordinator.lifecycleTransitionsAfter(0)
+            assertEquals(
+                listOf("Preparing", "Preparing", "Starting", "Playing"),
+                lifecycle.transitions.map { it.to::class.simpleName }
+            )
+            assertEquals(playing, lifecycle.checkpoint.state)
+            val scheduled = coordinator.committedEvents.replayCache
+                .filterIsInstance<PlaybackCommittedEvent.FirstEventScheduled>()
+                .single()
             assertEquals(
                 3_216L,
-                (committed[scheduledIndex] as PlaybackCommittedEvent.FirstEventScheduled)
-                    .intendedFrame
+                scheduled.intendedFrame
             )
+        } finally {
+            coordinator.release()
+        }
+    }
+
+    @Test
+    fun lifecycleJournalRetainsCompleteHistoryBeyondEventReplayCapacity() {
+        val engine = FakePlaybackEngine()
+        val coordinator = PlaybackCoordinator(engine)
+        try {
+            repeat(40) {
+                coordinator.submit(PlaybackIntent.StartStandard(120f, 4, null, false))
+                coordinator.submit(PlaybackIntent.Stop)
+            }
+            assertTrue(coordinator.awaitControlIdle())
+
+            val lifecycle = coordinator.lifecycleTransitionsAfter(0)
+            assertEquals(240, lifecycle.transitions.size)
+            assertEquals(
+                (1L..240L).toList(),
+                lifecycle.transitions.map(PlaybackStateTransition::sequence)
+            )
+            assertTrue(lifecycle.checkpoint.state is PlaybackTransportState.Idle)
+            assertEquals(240L, lifecycle.checkpoint.latestTransitionSequence)
+            assertTrue(coordinator.stateTransitions.replayCache.size < lifecycle.transitions.size)
+
+            coordinator.acknowledgeLifecycleTransitionsThrough(120)
+            assertEquals(
+                (121L..240L).toList(),
+                coordinator.lifecycleTransitionsAfter(120)
+                    .transitions
+                    .map(PlaybackStateTransition::sequence)
+            )
+            assertThrows(IllegalArgumentException::class.java) {
+                coordinator.lifecycleTransitionsAfter(119)
+            }
+            assertThrows(IllegalArgumentException::class.java) {
+                coordinator.acknowledgeLifecycleTransitionsThrough(241)
+            }
+        } finally {
+            coordinator.release()
+        }
+    }
+
+    @Test
+    fun lifecycleJournalReportsGapWhenUnacknowledgedHistoryExceedsSafetyCap() {
+        val coordinator = PlaybackCoordinator(FakePlaybackEngine())
+        try {
+            repeat(700) {
+                coordinator.submit(PlaybackIntent.StartStandard(120f, 4, null, false))
+                coordinator.submit(PlaybackIntent.Stop)
+            }
+            assertTrue(coordinator.awaitControlIdle())
+
+            val lifecycle = coordinator.lifecycleTransitionsAfter(0)
+            assertEquals(4_096, lifecycle.transitions.size)
+            assertEquals(
+                PlaybackLifecycleGap(0, 105),
+                lifecycle.gap
+            )
+            assertEquals(4_200L, lifecycle.checkpoint.latestTransitionSequence)
         } finally {
             coordinator.release()
         }
