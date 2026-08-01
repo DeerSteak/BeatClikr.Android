@@ -4,5 +4,10 @@
     xmlns:tools="http://schemas.android.com/tools">
     <application
         android:allowBackup="false"
-        tools:replace="android:allowBackup" />
+        tools:replace="android:allowBackup">
+        <provider
+            android:name=".ProcessDeathTestProbeProvider"
+            android:authorities="${applicationId}.process-death-probe"
+            android:exported="true" />
+    </application>
 </manifest>
