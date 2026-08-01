@@ -109,7 +109,7 @@ internal class AudioPlayerService(context: Context) : PlaybackEnginePort, Metron
     }
 
     override fun stopSession(sessionId: PlaybackSessionId, mode: PlaybackMode) {
-        audioEngine.stopSession(mode) {
+        audioEngine.stopSession(sessionId, mode) {
             transportObserver?.engineStopped(sessionId)
         }
     }
@@ -123,10 +123,6 @@ internal class AudioPlayerService(context: Context) : PlaybackEnginePort, Metron
 
     override fun metronomeBeatFired(isBeat: Boolean, beatInterval: Float, beatTimeNanos: Long) {
         delegate?.metronomeBeatFired(isBeat, beatInterval, beatTimeNanos)
-    }
-
-    override fun metronomeStartFailed() {
-        delegate?.metronomeStartFailed()
     }
 
     private fun publishStartResult(

@@ -17,7 +17,6 @@ import java.util.concurrent.TimeUnit
 
 interface MetronomeAudioEngineDelegate {
     fun metronomeBeatFired(isBeat: Boolean, beatInterval: Float, beatTimeNanos: Long = 0L)
-    fun metronomeStartFailed()
 }
 
 interface PolyrhythmAudioEngineDelegate {
@@ -30,8 +29,6 @@ interface PolyrhythmAudioEngineDelegate {
         beatDurationNanos: Long = 0L,
         rhythmDurationNanos: Long = 0L
     )
-
-    fun polyrhythmStartFailed()
 }
 
 sealed interface AudioEngineStartResult {
@@ -169,8 +166,8 @@ class MetronomeAudioEngine(private val context: Context) {
         accentPattern: List<Boolean>?,
         alternateSixteenth: Boolean,
         delegate: MetronomeAudioEngineDelegate,
-        sessionId: PlaybackSessionId? = null,
-        completion: ((PlaybackSessionId, AudioEngineStartResult) -> Unit)? = null
+        sessionId: PlaybackSessionId,
+        completion: (PlaybackSessionId, AudioEngineStartResult) -> Unit
     ) {
         handler.post {
             handler.removeCallbacks(timerRunnable)
@@ -186,30 +183,12 @@ class MetronomeAudioEngine(private val context: Context) {
         }
     }
 
-    fun stopMetronome() {
-        handler.post {
-            isPlaying = false
-            handler.removeCallbacks(timerRunnable)
-            frameAudioEngine?.stop()
-            frameAudioActive = false
-            framePolyrhythmActive = false
-            subdivisionCounter = 0
-            activeCoordinatorSessionId = null
-            activeOutputRoute.clear()
-            abandonAudioFocus()
-        }
-    }
-
-    fun startPolyrhythm(bpm: Float, beats: Int, against: Int) {
-        startPolyrhythm(null, bpm, beats, against, null)
-    }
-
     fun startPolyrhythm(
-        sessionId: PlaybackSessionId?,
+        sessionId: PlaybackSessionId,
         bpm: Float,
         beats: Int,
         against: Int,
-        completion: ((PlaybackSessionId, AudioEngineStartResult) -> Unit)?
+        completion: (PlaybackSessionId, AudioEngineStartResult) -> Unit
     ) {
         handler.post {
             val engine = getOrCreateFrameAudioEngine()
@@ -221,9 +200,7 @@ class MetronomeAudioEngine(private val context: Context) {
                 return@post
             }
             if (!requestAudioFocus()) {
-                sessionId?.let {
-                    completion?.invoke(it, AudioEngineStartResult.AudioFocusUnavailable)
-                }
+                completion(sessionId, AudioEngineStartResult.AudioFocusUnavailable)
                 return@post
             }
             activeCoordinatorSessionId = sessionId
@@ -238,11 +215,8 @@ class MetronomeAudioEngine(private val context: Context) {
             )
             framePolyrhythmActive = frameAudioActive
             if (!frameAudioActive) {
-                polyrhythmEngine.delegate?.polyrhythmStartFailed()
                 abandonAudioFocus()
-                sessionId?.let {
-                    completion?.invoke(it, AudioEngineStartResult.StreamFailed)
-                }
+                completion(sessionId, AudioEngineStartResult.StreamFailed)
                 return@post
             }
             val evidence = engine.startEvidence()
@@ -252,35 +226,22 @@ class MetronomeAudioEngine(private val context: Context) {
                 framePolyrhythmActive = false
                 activeCoordinatorSessionId = null
                 abandonAudioFocus()
-                sessionId?.let {
-                    completion?.invoke(it, AudioEngineStartResult.StreamFailed)
-                }
+                completion(sessionId, AudioEngineStartResult.StreamFailed)
                 return@post
             }
             activeOutputRoute.begin(evidence.route)
             polyrhythmEngine.start(bpm, beats, against)
             polyrhythmPlaying = true
-            sessionId?.let {
-                completion?.invoke(it, AudioEngineStartResult.Started(evidence))
+            completion(sessionId, AudioEngineStartResult.Started(evidence))
+        }
+    }
+
+    fun stopSession(sessionId: PlaybackSessionId, mode: PlaybackMode, completion: () -> Unit) {
+        handler.post {
+            if (activeCoordinatorSessionId != sessionId) {
+                completion()
+                return@post
             }
-        }
-    }
-
-    fun stopPolyrhythm() {
-        handler.post {
-            polyrhythmEngine.stop()
-            frameAudioEngine?.stop()
-            frameAudioActive = false
-            framePolyrhythmActive = false
-            polyrhythmPlaying = false
-            activeCoordinatorSessionId = null
-            activeOutputRoute.clear()
-            abandonAudioFocus()
-        }
-    }
-
-    fun stopSession(mode: PlaybackMode, completion: () -> Unit) {
-        handler.post {
             when (mode) {
                 PlaybackMode.STANDARD -> {
                     isPlaying = false
@@ -575,13 +536,11 @@ class MetronomeAudioEngine(private val context: Context) {
         accentPattern: List<Boolean>?,
         alternateSixteenth: Boolean,
         delegate: MetronomeAudioEngineDelegate,
-        sessionId: PlaybackSessionId?,
-        completion: ((PlaybackSessionId, AudioEngineStartResult) -> Unit)?
+        sessionId: PlaybackSessionId,
+        completion: (PlaybackSessionId, AudioEngineStartResult) -> Unit
     ) {
         if (!requestAudioFocus()) {
-            sessionId?.let {
-                completion?.invoke(it, AudioEngineStartResult.AudioFocusUnavailable)
-            }
+            completion(sessionId, AudioEngineStartResult.AudioFocusUnavailable)
             return
         }
         activeCoordinatorSessionId = sessionId
@@ -610,12 +569,9 @@ class MetronomeAudioEngine(private val context: Context) {
         )
         framePolyrhythmActive = false
         if (!frameAudioActive) {
-            this.delegate?.metronomeStartFailed()
             this.delegate = null
             abandonAudioFocus()
-            sessionId?.let {
-                completion?.invoke(it, AudioEngineStartResult.StreamFailed)
-            }
+            completion(sessionId, AudioEngineStartResult.StreamFailed)
             return
         }
         val evidence = engine.startEvidence()
@@ -625,17 +581,13 @@ class MetronomeAudioEngine(private val context: Context) {
             this.delegate = null
             activeCoordinatorSessionId = null
             abandonAudioFocus()
-            sessionId?.let {
-                completion?.invoke(it, AudioEngineStartResult.StreamFailed)
-            }
+            completion(sessionId, AudioEngineStartResult.StreamFailed)
             return
         }
         activeOutputRoute.begin(evidence.route)
         this.isPlaying = true
         startTimer()
-        sessionId?.let {
-            completion?.invoke(it, AudioEngineStartResult.Started(evidence))
-        }
+        completion(sessionId, AudioEngineStartResult.Started(evidence))
     }
 
     private fun getSubdivisionDurationNanos(): Long {

@@ -7,7 +7,6 @@ import com.bfunkstudios.beatclikr.services.ActiveSoundConfiguration
 import com.bfunkstudios.beatclikr.services.AudioBackendType
 import com.bfunkstudios.beatclikr.services.AudioOutputRoute
 import com.bfunkstudios.beatclikr.services.IAudioPlayerService
-import com.bfunkstudios.beatclikr.services.MetronomeAudioEngineDelegate
 import com.bfunkstudios.beatclikr.services.CommittedPlaybackConfiguration
 import com.bfunkstudios.beatclikr.services.PlaybackCommittedEvent
 import com.bfunkstudios.beatclikr.services.PlaybackMode
@@ -18,13 +17,10 @@ import com.bfunkstudios.beatclikr.services.PlaybackSessionContext
 import com.bfunkstudios.beatclikr.services.PlaybackSessionId
 import com.bfunkstudios.beatclikr.services.PlaybackStartOrigin
 import com.bfunkstudios.beatclikr.services.PlaybackTransportState
-import com.bfunkstudios.beatclikr.services.PolyrhythmAudioEngineDelegate
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 
 class FakeAudioPlayerService : IAudioPlayerService, PlaybackObservation {
-    override var delegate: MetronomeAudioEngineDelegate? = null
-    override var polyrhythmDelegate: PolyrhythmAudioEngineDelegate? = null
     override var isMuted: Boolean = false
     override var soundBank: SoundBank = SoundBank.ACOUSTIC
 

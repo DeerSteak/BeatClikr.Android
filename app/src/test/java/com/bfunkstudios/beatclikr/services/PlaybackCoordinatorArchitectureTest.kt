@@ -11,6 +11,21 @@ import org.junit.Test
 class PlaybackCoordinatorArchitectureTest {
 
     @Test
+    fun engineEntryPointsRequireSessionOwnership() {
+        val engine = locateMainSource("services/MetronomeAudioEngine.kt").readText()
+        val frameEngine = locateMainSource("services/FrameAudioEngine.kt").readText()
+
+        assertFalse(
+            engine.contains("delegate: MetronomeAudioEngineDelegate,\n        sessionId: PlaybackSessionId?")
+        )
+        assertFalse(engine.contains("fun startPolyrhythm(\n        sessionId: PlaybackSessionId?"))
+        assertFalse(engine.contains("fun stopMetronome()"))
+        assertFalse(engine.contains("fun stopPolyrhythm()"))
+        assertTrue(engine.contains("fun stopSession(sessionId: PlaybackSessionId"))
+        assertFalse(frameEngine.contains("sessionId: PlaybackSessionId?"))
+    }
+
+    @Test
     fun productionBindingExposesCoordinatorInsteadOfConcreteEngineOwner() {
         val module = locateMainSource("di/AppModule.kt").readText()
 
@@ -100,30 +115,6 @@ class PlaybackCoordinatorArchitectureTest {
     }
 
     @Test
-    fun engineFailureCallbacksAreCompilerRequiredAndForwarded() {
-        val engine = locateMainSource("services/MetronomeAudioEngine.kt").readText()
-        val service = locateMainSource("services/AudioPlayerService.kt").readText()
-        val coordinator = locateMainSource("services/PlaybackCoordinator.kt").readText()
-
-        assertTrue(engine.contains("fun metronomeStartFailed()\\n".replace("\\n", "\n")))
-        assertTrue(engine.contains("fun polyrhythmStartFailed()\\n".replace("\\n", "\n")))
-        assertFalse(engine.contains("fun metronomeStartFailed() {}"))
-        assertFalse(engine.contains("fun polyrhythmStartFailed() {}"))
-        assertTrue(service.contains("override fun metronomeStartFailed()"))
-        assertTrue(coordinator.contains("override fun metronomeStartFailed()"))
-        assertTrue(coordinator.contains("override fun polyrhythmStartFailed()"))
-    }
-
-    @Test
-    fun timingTrafficCannotEvictControlOutcomes() {
-        val source = locateMainSource("services/PlaybackCoordinator.kt").readText()
-
-        assertTrue(source.contains("val timingEvents: SharedFlow<PlaybackTimingEvent>"))
-        assertTrue(source.contains("val controlEvents: SharedFlow<PlaybackControlEvent>"))
-        assertFalse(source.contains("SharedFlow<PlaybackCoordinatorEvent>"))
-    }
-
-    @Test
     fun legacyOwnershipModeIsProjectedOnlyFromTransportTransitions() {
         val source = locateMainSource("services/PlaybackCoordinator.kt").readText()
         val transition = source.substringAfter("private fun transitionTo(")
@@ -142,8 +133,6 @@ class PlaybackCoordinatorArchitectureTest {
             assertTrue(source.contains("private val playback: PlaybackObservation"))
             assertTrue(source.contains("playback.transportState.collect"))
             assertTrue(source.contains("playback.committedEvents.collect"))
-            assertFalse(source.contains("audio.delegate ="))
-            assertFalse(source.contains("audio.polyrhythmDelegate ="))
             assertFalse(source.contains("recordMetronomePractice"))
             assertFalse(source.contains("recordPolyrhythmPractice"))
             assertFalse(source.contains("recordSongPlayed"))

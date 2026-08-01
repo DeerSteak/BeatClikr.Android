@@ -75,7 +75,6 @@ class FrameAudioEngine(
     )
 
     private var frameSession: AudioTrackFrameSession? = null
-    private var nextSessionID = 1L
     private val renderedEvents = RenderedEventRing(RENDERED_EVENT_CAPACITY)
 
     @Volatile
@@ -253,7 +252,7 @@ class FrameAudioEngine(
         alternateSixteenth: Boolean,
         muted: Boolean,
         startDelayMillis: Long,
-        sessionId: PlaybackSessionId? = null
+        sessionId: PlaybackSessionId
     ): Boolean = startFramePublication(
         FramePlaybackPublicationBoundary.standard(
             bpm = bpm,
@@ -274,7 +273,7 @@ class FrameAudioEngine(
         against: Int,
         muted: Boolean,
         startDelayMillis: Long,
-        sessionId: PlaybackSessionId? = null
+        sessionId: PlaybackSessionId
     ): Boolean = startFramePublication(
         FramePlaybackPublicationBoundary.polyrhythm(
             bpm = bpm,
@@ -364,12 +363,8 @@ class FrameAudioEngine(
             routeChangeObserver = routeChangeObserver
         ).also { frameSession = it }
 
-    private fun nextOrigin(sessionId: PlaybackSessionId?): SessionOrigin {
-        val value = sessionId?.value ?: nextSessionID
-        val origin = SessionOrigin(SessionID(value), 0)
-        nextSessionID = maxOf(nextSessionID, Math.incrementExact(value))
-        return origin
-    }
+    private fun nextOrigin(sessionId: PlaybackSessionId): SessionOrigin =
+        SessionOrigin(SessionID(sessionId.value), 0)
 
     private fun resolveOutputFramesPerBuffer(): Int {
         val value = audioManager

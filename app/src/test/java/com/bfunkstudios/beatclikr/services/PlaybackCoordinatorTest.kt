@@ -755,49 +755,6 @@ class PlaybackCoordinatorTest {
     }
 
     @Test
-    fun bothEngineStartFailuresReachLegacyObservers() {
-        val engine = FakePlaybackEngine()
-        val coordinator = PlaybackCoordinator(engine)
-        var standardFailed = false
-        var polyrhythmFailed = false
-        coordinator.delegate = object : MetronomeAudioEngineDelegate {
-            override fun metronomeBeatFired(
-                isBeat: Boolean,
-                beatInterval: Float,
-                beatTimeNanos: Long
-            ) = Unit
-
-            override fun metronomeStartFailed() {
-                standardFailed = true
-            }
-        }
-        coordinator.polyrhythmDelegate = object : PolyrhythmAudioEngineDelegate {
-            override fun polyrhythmBeatFired(
-                beatFired: Boolean,
-                rhythmFired: Boolean,
-                beatIndex: Int,
-                rhythmIndex: Int,
-                stepTimeNanos: Long,
-                beatDurationNanos: Long,
-                rhythmDurationNanos: Long
-            ) = Unit
-
-            override fun polyrhythmStartFailed() {
-                polyrhythmFailed = true
-            }
-        }
-        try {
-            coordinator.metronomeStartFailed()
-            coordinator.polyrhythmStartFailed()
-
-            assertTrue(standardFailed)
-            assertTrue(polyrhythmFailed)
-        } finally {
-            coordinator.release()
-        }
-    }
-
-    @Test
     fun concurrentIntentsUseOneControlContextAndOneActiveMode() {
         val engine = FakePlaybackEngine()
         val coordinator = PlaybackCoordinator(engine)
