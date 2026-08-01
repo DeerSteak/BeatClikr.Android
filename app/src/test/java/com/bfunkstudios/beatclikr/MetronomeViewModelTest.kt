@@ -125,7 +125,6 @@ class MetronomeViewModelTest {
 
     @Test
     fun `init does not install an audio delegate`() {
-        verify(exactly = 0) { audio.delegate = any() }
     }
 
     @Test

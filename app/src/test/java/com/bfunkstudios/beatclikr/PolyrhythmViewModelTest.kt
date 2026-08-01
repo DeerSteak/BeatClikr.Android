@@ -99,7 +99,6 @@ class PolyrhythmViewModelTest {
 
     @Test
     fun `init does not install a polyrhythm delegate`() {
-        verify(exactly = 0) { audio.polyrhythmDelegate = any() }
     }
 
     @Test

@@ -11,8 +11,6 @@ interface PlaybackObservation {
 }
 
 interface IAudioPlayerService {
-    var delegate: MetronomeAudioEngineDelegate?
-    var polyrhythmDelegate: PolyrhythmAudioEngineDelegate?
     var isMuted: Boolean
     var soundBank: SoundBank
     fun setupAudioPlayer(beatResourceId: Int, rhythmResourceId: Int)

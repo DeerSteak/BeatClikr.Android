@@ -118,24 +118,6 @@ sealed interface PlaybackIntentOutcome {
     ) : PlaybackIntentOutcome
 }
 
-sealed interface PlaybackTimingEvent {
-    data class StandardTiming(
-        val isBeat: Boolean,
-        val beatInterval: Float,
-        val beatTimeNanos: Long
-    ) : PlaybackTimingEvent
-
-    data class PolyrhythmTiming(
-        val beatFired: Boolean,
-        val rhythmFired: Boolean,
-        val beatIndex: Int,
-        val rhythmIndex: Int,
-        val stepTimeNanos: Long,
-        val beatDurationNanos: Long,
-        val rhythmDurationNanos: Long
-    ) : PlaybackTimingEvent
-}
-
 sealed interface PlaybackControlEvent {
     data class IntentCompleted(
         val commandSequence: Long,
@@ -303,10 +285,6 @@ class PlaybackCoordinator(
 ) : IAudioPlayerService, MetronomeAudioEngineDelegate, PolyrhythmAudioEngineDelegate,
     PlaybackEngineTransportObserver, PlaybackObservation, PlaybackLifecycleObservation {
     private val mutableOwnership = MutableStateFlow(PlaybackOwnershipSnapshot())
-    private val mutableTimingEvents = MutableSharedFlow<PlaybackTimingEvent>(
-        extraBufferCapacity = TIMING_EVENT_CAPACITY,
-        onBufferOverflow = BufferOverflow.DROP_OLDEST
-    )
     private val mutableControlEvents = MutableSharedFlow<PlaybackControlEvent>(
         replay = CONTROL_EVENT_CAPACITY,
         onBufferOverflow = BufferOverflow.DROP_OLDEST
@@ -344,7 +322,6 @@ class PlaybackCoordinator(
     private var released = false
 
     val ownership: StateFlow<PlaybackOwnershipSnapshot> = mutableOwnership
-    val timingEvents: SharedFlow<PlaybackTimingEvent> = mutableTimingEvents
     val controlEvents: SharedFlow<PlaybackControlEvent> = mutableControlEvents
     override val transportState: StateFlow<PlaybackTransportState> = mutableTransportState
     override val lifecycleCheckpoint: StateFlow<PlaybackLifecycleCheckpoint> =
@@ -385,12 +362,6 @@ class PlaybackCoordinator(
             acknowledgedLifecycleSequence = sequence
         }
     }
-
-    @Volatile
-    override var delegate: MetronomeAudioEngineDelegate? = null
-
-    @Volatile
-    override var polyrhythmDelegate: PolyrhythmAudioEngineDelegate? = null
 
     init {
         engine.soundPreparationObserver = ::onSoundPreparation
@@ -571,8 +542,6 @@ class PlaybackCoordinator(
         }
         executor.shutdown()
         eventDrainScheduler.shutdownNow()
-        delegate = null
-        polyrhythmDelegate = null
     }
 
     override fun metronomeBeatFired(
@@ -581,10 +550,6 @@ class PlaybackCoordinator(
         beatTimeNanos: Long
     ) {
         onControlContext(::publishRenderedEvents)
-        mutableTimingEvents.tryEmit(
-            PlaybackTimingEvent.StandardTiming(isBeat, beatInterval, beatTimeNanos)
-        )
-        delegate?.metronomeBeatFired(isBeat, beatInterval, beatTimeNanos)
     }
 
     override fun polyrhythmBeatFired(
@@ -597,34 +562,6 @@ class PlaybackCoordinator(
         rhythmDurationNanos: Long
     ) {
         onControlContext(::publishRenderedEvents)
-        mutableTimingEvents.tryEmit(
-            PlaybackTimingEvent.PolyrhythmTiming(
-                beatFired,
-                rhythmFired,
-                beatIndex,
-                rhythmIndex,
-                stepTimeNanos,
-                beatDurationNanos,
-                rhythmDurationNanos
-            )
-        )
-        polyrhythmDelegate?.polyrhythmBeatFired(
-            beatFired,
-            rhythmFired,
-            beatIndex,
-            rhythmIndex,
-            stepTimeNanos,
-            beatDurationNanos,
-            rhythmDurationNanos
-        )
-    }
-
-    override fun polyrhythmStartFailed() {
-        polyrhythmDelegate?.polyrhythmStartFailed()
-    }
-
-    override fun metronomeStartFailed() {
-        delegate?.metronomeStartFailed()
     }
 
     override fun engineStarted(evidence: PlaybackEngineStartEvidence) {
@@ -1698,7 +1635,6 @@ class PlaybackCoordinator(
 
     private companion object {
         const val LIFECYCLE_JOURNAL_CAPACITY = 4_096
-        const val TIMING_EVENT_CAPACITY = 64
         const val CONTROL_EVENT_CAPACITY = 64
         const val TRANSPORT_EVENT_CAPACITY = 64
         const val NANOS_PER_SECOND = 1_000_000_000L

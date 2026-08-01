@@ -17,7 +17,6 @@ import java.util.concurrent.TimeUnit
 
 interface MetronomeAudioEngineDelegate {
     fun metronomeBeatFired(isBeat: Boolean, beatInterval: Float, beatTimeNanos: Long = 0L)
-    fun metronomeStartFailed()
 }
 
 interface PolyrhythmAudioEngineDelegate {
@@ -30,8 +29,6 @@ interface PolyrhythmAudioEngineDelegate {
         beatDurationNanos: Long = 0L,
         rhythmDurationNanos: Long = 0L
     )
-
-    fun polyrhythmStartFailed()
 }
 
 sealed interface AudioEngineStartResult {
@@ -238,7 +235,6 @@ class MetronomeAudioEngine(private val context: Context) {
             )
             framePolyrhythmActive = frameAudioActive
             if (!frameAudioActive) {
-                polyrhythmEngine.delegate?.polyrhythmStartFailed()
                 abandonAudioFocus()
                 sessionId?.let {
                     completion?.invoke(it, AudioEngineStartResult.StreamFailed)
@@ -610,7 +606,6 @@ class MetronomeAudioEngine(private val context: Context) {
         )
         framePolyrhythmActive = false
         if (!frameAudioActive) {
-            this.delegate?.metronomeStartFailed()
             this.delegate = null
             abandonAudioFocus()
             sessionId?.let {
