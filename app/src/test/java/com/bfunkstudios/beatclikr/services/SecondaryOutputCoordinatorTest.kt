@@ -171,11 +171,30 @@ class SecondaryOutputCoordinatorTest {
         verify(exactly = 0) { flashlight.turnFlashlightOn() }
     }
 
+    @Test
+    fun deliveryGapStopsEffectsAndSkipsCatchUpEvent() {
+        every { prefs.useVibration } returns true
+        coordinator.applyCommittedEvent(rendered(roleIndex = 0, sequence = 1))
+        scheduler.runNext()
+
+        coordinator.applyCommittedEvent(rendered(roleIndex = 1, sequence = 4))
+
+        assertEquals(
+            CommittedEventDeliveryGap(expectedSequence = 2, observedSequence = 4),
+            coordinator.committedEventDeliveryGap.value
+        )
+        assertEquals(0, scheduler.tasks.size)
+        verify(exactly = 1) { haptics.playBeatHaptic() }
+        verify { haptics.cancel() }
+        verify { flashlight.turnFlashlightOff() }
+    }
+
     private fun rendered(
         roleIndex: Int,
-        presentationNanos: Long? = null
+        presentationNanos: Long? = null,
+        sequence: Long = 1
     ) = PlaybackCommittedEvent.Rendered(
-        1,
+        sequence,
         sessionId,
         1,
         MusicalEventRole.STANDARD,

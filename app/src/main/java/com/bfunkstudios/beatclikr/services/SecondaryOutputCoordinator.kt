@@ -25,6 +25,7 @@ data class SecondaryOutputFailure(
 
 interface SecondaryOutputObservation {
     val secondaryOutputFailure: StateFlow<SecondaryOutputFailure?>
+    val committedEventDeliveryGap: StateFlow<CommittedEventDeliveryGap?>
 }
 
 fun interface SecondaryOutputScheduler {
@@ -54,9 +55,15 @@ class SecondaryOutputCoordinator(
     private val started = AtomicBoolean(false)
     private val pulseGeneration = AtomicLong(0)
     private val mutableFailure = MutableStateFlow<SecondaryOutputFailure?>(null)
+    private val mutableDeliveryGap = MutableStateFlow<CommittedEventDeliveryGap?>(null)
+    private val committedEventCursor = CommittedEventDeliveryCursor(
+        playback.committedEvents.replayCache.lastOrNull()?.sequence ?: 0L
+    )
 
     @Volatile private var visible = false
     override val secondaryOutputFailure: StateFlow<SecondaryOutputFailure?> = mutableFailure
+    override val committedEventDeliveryGap: StateFlow<CommittedEventDeliveryGap?> =
+        mutableDeliveryGap
 
     fun start() {
         if (!started.compareAndSet(false, true)) return
@@ -86,6 +93,15 @@ class SecondaryOutputCoordinator(
     }
 
     internal fun applyCommittedEvent(event: PlaybackCommittedEvent) {
+        when (val delivery = committedEventCursor.accept(event)) {
+            CommittedEventDeliveryResult.Accepted -> Unit
+            CommittedEventDeliveryResult.Duplicate -> return
+            is CommittedEventDeliveryResult.Gap -> {
+                mutableDeliveryGap.value = delivery.detail
+                stopEffects()
+                return
+            }
+        }
         val rendered = event as? PlaybackCommittedEvent.Rendered ?: return
         val playing = playback.transportState.value as? PlaybackTransportState.Playing ?: return
         if (!visible || rendered.sessionId != playing.context.sessionId) return

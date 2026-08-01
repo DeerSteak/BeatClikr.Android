@@ -587,6 +587,35 @@ class MetronomeViewModelTest {
         assertEquals(0f, viewModel.beatPulse)
     }
 
+    @Test
+    fun `committed event gap clears visual state and skips catch-up event`() {
+        val playing = standardPlaying()
+        transportState.value = playing
+        committedEvents.tryEmit(rendered(1, playing, roleIndex = 0))
+        assertEquals(MetronomeConstants.ICON_SCALE_MAX, viewModel.iconScale)
+
+        committedEvents.tryEmit(rendered(4, playing, roleIndex = 0))
+
+        assertEquals(2L, viewModel.committedEventDeliveryLoss)
+        assertEquals(MetronomeConstants.ICON_SCALE_MIN, viewModel.iconScale)
+        assertEquals(0f, viewModel.beatPulse)
+    }
+
+    private fun rendered(
+        sequence: Long,
+        playing: PlaybackTransportState.Playing,
+        roleIndex: Int
+    ) = PlaybackCommittedEvent.Rendered(
+        sequence,
+        playing.context.sessionId,
+        sequence,
+        MusicalEventRole.STANDARD,
+        0,
+        false,
+        EventPresentation.Unavailable,
+        roleIndex
+    )
+
     // --- Tap tempo ---
 
     @Test
