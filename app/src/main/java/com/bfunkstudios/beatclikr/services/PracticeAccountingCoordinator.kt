@@ -13,6 +13,9 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -22,7 +25,7 @@ class PracticeAccountingCoordinator internal constructor(
     private val lifecycle: PlaybackLifecycleObservation,
     private val repository: PracticeHistoryRepository,
     private val scope: CoroutineScope,
-    private val elapsedRealtimeNanos: () -> Long,
+    private val monotonicNanos: () -> Long,
     private val currentDayIdentity: () -> PracticeDayIdentity,
     private val checkpointIntervalMillis: Long
 ) {
@@ -44,6 +47,9 @@ class PracticeAccountingCoordinator internal constructor(
     private var acknowledgedSequence = 0L
     private var active: ActivePeriod? = null
     private val accountingMutex = Mutex()
+    private val mutableDiagnostic = MutableStateFlow<PracticeAccountingDiagnostic?>(null)
+
+    val diagnostic: StateFlow<PracticeAccountingDiagnostic?> = mutableDiagnostic.asStateFlow()
 
     @Synchronized
     fun start() {
@@ -81,12 +87,27 @@ class PracticeAccountingCoordinator internal constructor(
 
     private suspend fun drainTransitions() {
         val batch = lifecycle.lifecycleTransitionsAfter(acknowledgedSequence)
-        check(batch.gap == null) { "Practice lifecycle journal gap: ${batch.gap}" }
+        batch.gap?.let {
+            recoverFromGap(it, batch.checkpoint.latestTransitionSequence)
+            return
+        }
         batch.transitions.forEach { transition ->
             applyTransition(transition)
             acknowledgedSequence = transition.sequence
             lifecycle.acknowledgeLifecycleTransitionsThrough(transition.sequence)
         }
+    }
+
+    private suspend fun recoverFromGap(gap: PlaybackLifecycleGap, checkpointSequence: Long) {
+        repository.applyAccountingUpdate(null, null, 0, 0, idleCheckpoint(checkpointSequence))
+        active = null
+        acknowledgedSequence = checkpointSequence
+        lifecycle.acknowledgeLifecycleTransitionsThrough(checkpointSequence)
+        mutableDiagnostic.value = PracticeAccountingDiagnostic.LifecycleJournalGap(
+            gap.requestedAfterSequence,
+            gap.oldestAvailableSequence,
+            checkpointSequence
+        )
     }
 
     private suspend fun applyTransition(transition: PlaybackStateTransition) {
@@ -150,7 +171,7 @@ class PracticeAccountingCoordinator internal constructor(
 
     private suspend fun checkpointCurrentPeriod() {
         val period = active ?: return
-        val elapsedNow = elapsedRealtimeNanos()
+        val elapsedNow = monotonicNanos()
         val elapsed = (elapsedNow - period.checkpointElapsedNanos).coerceAtLeast(0)
         val updated = period.copy(checkpointElapsedNanos = elapsedNow)
         active = updated
@@ -192,4 +213,12 @@ class PracticeAccountingCoordinator internal constructor(
     private companion object {
         const val DEFAULT_CHECKPOINT_INTERVAL_MILLIS = 5_000L
     }
+}
+
+sealed interface PracticeAccountingDiagnostic {
+    data class LifecycleJournalGap(
+        val requestedAfterSequence: Long,
+        val oldestAvailableSequence: Long,
+        val resynchronizedSequence: Long
+    ) : PracticeAccountingDiagnostic
 }

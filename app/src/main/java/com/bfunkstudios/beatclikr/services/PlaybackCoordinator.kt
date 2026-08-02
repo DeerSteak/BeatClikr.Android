@@ -290,7 +290,7 @@ class PlaybackCoordinator(
         Executors.newSingleThreadScheduledExecutor { runnable ->
             Thread(runnable, "PlaybackCoordinatorEvents")
         },
-    private val elapsedRealtimeNanos: () -> Long = System::nanoTime,
+    private val monotonicNanos: () -> Long = System::nanoTime,
     private val wallClockMillis: () -> Long = System::currentTimeMillis,
     private val timeZoneIdentifier: () -> String = { ZoneId.systemDefault().id }
 ) : IAudioPlayerService, MetronomeAudioEngineDelegate, PolyrhythmAudioEngineDelegate,
@@ -1401,7 +1401,7 @@ class PlaybackCoordinator(
             nextTransitionSequence++,
             previous,
             next,
-            elapsedRealtimeNanos(),
+            monotonicNanos(),
             wallClockMillis(),
             timeZoneIdentifier()
         )

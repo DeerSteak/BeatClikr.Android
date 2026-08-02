@@ -14,8 +14,6 @@ data class PracticeAccountingCheckpoint(
     @ColumnInfo(name = "active_item_id") val activeItemId: String? = null,
     @ColumnInfo(name = "last_checkpoint_elapsed_nanos")
     val lastCheckpointElapsedNanos: Long? = null,
-    @ColumnInfo(name = "last_checkpoint_wall_millis")
-    val lastCheckpointWallMillis: Long? = null,
     @ColumnInfo(name = "period_counted") val periodCounted: Boolean = false
 ) {
     companion object {

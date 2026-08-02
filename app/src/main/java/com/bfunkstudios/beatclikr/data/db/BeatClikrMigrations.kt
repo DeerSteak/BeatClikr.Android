@@ -101,7 +101,6 @@ object BeatClikrMigrations {
                 active_playback_session_id INTEGER,
                 active_item_id TEXT,
                 last_checkpoint_elapsed_nanos INTEGER,
-                last_checkpoint_wall_millis INTEGER,
                 period_counted INTEGER NOT NULL
             )""".trimIndent()
         )

@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 5,
-    "identityHash": "e2566ac4ee1c8ee566515bfcc8af02c8",
+    "identityHash": "2c3bff9ad8ccd116b9a923db3d9da1ab",
     "entities": [
       {
         "tableName": "songs",
@@ -347,7 +347,7 @@
       },
       {
         "tableName": "practice_accounting_checkpoint",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER NOT NULL, `acknowledged_lifecycle_sequence` INTEGER NOT NULL, `active_playback_session_id` INTEGER, `active_item_id` TEXT, `last_checkpoint_elapsed_nanos` INTEGER, `last_checkpoint_wall_millis` INTEGER, `period_counted` INTEGER NOT NULL, PRIMARY KEY(`id`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER NOT NULL, `acknowledged_lifecycle_sequence` INTEGER NOT NULL, `active_playback_session_id` INTEGER, `active_item_id` TEXT, `last_checkpoint_elapsed_nanos` INTEGER, `period_counted` INTEGER NOT NULL, PRIMARY KEY(`id`))",
         "fields": [
           {
             "fieldPath": "id",
@@ -377,11 +377,6 @@
             "affinity": "INTEGER"
           },
           {
-            "fieldPath": "lastCheckpointWallMillis",
-            "columnName": "last_checkpoint_wall_millis",
-            "affinity": "INTEGER"
-          },
-          {
             "fieldPath": "periodCounted",
             "columnName": "period_counted",
             "affinity": "INTEGER",
@@ -398,7 +393,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'e2566ac4ee1c8ee566515bfcc8af02c8')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '2c3bff9ad8ccd116b9a923db3d9da1ab')"
     ]
   }
 }

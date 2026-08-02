@@ -15,6 +15,7 @@ import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.advanceTimeBy
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -161,6 +162,35 @@ class PracticeAccountingCoordinatorTest {
         assertEquals(0L, repository.checkpoint?.acknowledgedLifecycleSequence)
     }
 
+    @Test
+    fun lifecycleJournalGapClosesAuthorityPublishesDiagnosticAndContinuesCollecting() = runTest {
+        val lifecycle = FakeLifecycle()
+        val repository = FakeRepository()
+        val coordinator = PracticeAccountingCoordinator(lifecycle, repository, backgroundScope)
+        coordinator.start()
+        runCurrent()
+        val item = PracticeItemSnapshot.metronome()
+        lifecycle.publish(transition(1, PlaybackTransportState.Idle, playing(1, item), 1_000))
+        runCurrent()
+
+        lifecycle.forceGap(10, PlaybackTransportState.Idle, 8)
+        runCurrent()
+
+        assertNull(repository.checkpoint?.activePlaybackSessionId)
+        assertEquals(10L, repository.checkpoint?.acknowledgedLifecycleSequence)
+        assertEquals(10L, lifecycle.acknowledged)
+        assertTrue(
+            coordinator.diagnostic.value is PracticeAccountingDiagnostic.LifecycleJournalGap
+        )
+
+        lifecycle.publish(transition(11, PlaybackTransportState.Idle, playing(2, item), 20_000))
+        runCurrent()
+
+        assertEquals(2, repository.updates.count { it.periodIncrement == 1 })
+        assertEquals(11L, lifecycle.acknowledged)
+        assertEquals(2L, repository.checkpoint?.activePlaybackSessionId)
+    }
+
     private fun transition(
         sequence: Long,
         from: PlaybackTransportState,
@@ -211,6 +241,7 @@ class PracticeAccountingCoordinatorTest {
             PlaybackLifecycleCheckpoint(0, PlaybackTransportState.Idle)
         )
         var acknowledged = 0L
+        private var gap: PlaybackLifecycleGap? = null
 
         fun publish(transition: PlaybackStateTransition) {
             journal += transition
@@ -220,13 +251,24 @@ class PracticeAccountingCoordinatorTest {
             )
         }
 
+        fun forceGap(
+            sequence: Long,
+            state: PlaybackTransportState,
+            oldestAvailableSequence: Long
+        ) {
+            gap = PlaybackLifecycleGap(acknowledged, oldestAvailableSequence)
+            lifecycleCheckpoint.value = PlaybackLifecycleCheckpoint(sequence, state)
+        }
+
         override fun lifecycleTransitionsAfter(sequence: Long) = PlaybackLifecycleBatch(
             journal.filter { it.sequence > sequence },
-            lifecycleCheckpoint.value
+            lifecycleCheckpoint.value,
+            gap
         )
 
         override fun acknowledgeLifecycleTransitionsThrough(sequence: Long) {
             acknowledged = sequence
+            gap = null
         }
     }
 

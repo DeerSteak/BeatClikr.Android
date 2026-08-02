@@ -314,7 +314,8 @@ private fun PracticedSongRow(song: PracticedSong) {
     ) {
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = song.title,
+                text = reservedPracticeTitleResource(song.songId)?.let { stringResource(it) }
+                    ?: song.title,
                 style = MaterialTheme.typography.bodyLarge,
                 fontWeight = FontWeight.Medium
             )
@@ -345,6 +346,13 @@ private fun PracticedSongRow(song: PracticedSong) {
             )
         }
     }
+}
+
+@androidx.annotation.StringRes
+internal fun reservedPracticeTitleResource(songId: String): Int? = when (songId) {
+    PracticedSong.METRONOME_SONG_ID -> R.string.instant_metronome
+    PracticedSong.POLYRHYTHM_SONG_ID -> R.string.polyrhythm
+    else -> null
 }
 
 @Composable
