@@ -1,6 +1,3 @@
-<<<<<<< Updated upstream
-JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home" ANDROID_HOME="$HOME/Library/Android/sdk" ./gradlew --no-daemon :app:testDebugUnitTest --tests 'com.bfunkstudios.beatclikr.music.PureCoreQualificationTest'
-=======
 # Agent Instructions
 
 - Keep inline comments and docstrings concise, with no more than two lines.
@@ -37,4 +34,4 @@ Run the normal full local verification with:
 JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home" ANDROID_HOME="$HOME/Library/Android/sdk" ./gradlew --no-daemon :app:testDebugUnitTest :app:lintDebug :app:assembleBenchmark
 ```
 
-The qualification suite is a JVM test and requires no emulator, physical device, proprietary WAV files, or timing sleeps. >>>>>>> Stashed changes
+The qualification suite is a JVM test and requires no emulator, physical device, proprietary WAV files, or timing sleeps.
