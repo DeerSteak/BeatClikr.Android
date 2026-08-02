@@ -1,6 +1,7 @@
 package com.bfunkstudios.beatclikr.services
 
 import androidx.annotation.Keep
+import com.bfunkstudios.beatclikr.data.PracticeItemSnapshot
 
 @Keep
 @JvmInline
@@ -43,7 +44,12 @@ data class PlaybackSessionContext(
     val audibleSounds: ActiveSoundConfiguration? = null,
     val route: AudioOutputRoute? = null,
     val backend: AudioBackendType? = null,
-    val startOrigin: PlaybackStartOrigin
+    val startOrigin: PlaybackStartOrigin,
+    val practiceItem: PracticeItemSnapshot = when (mode) {
+        PlaybackMode.STANDARD -> PracticeItemSnapshot.metronome()
+        PlaybackMode.POLYRHYTHM -> PracticeItemSnapshot.polyrhythm()
+        PlaybackMode.NONE -> error("Playback session requires an active mode")
+    }
 ) {
     init {
         require(mode != PlaybackMode.NONE) { "Playback session requires an active mode" }

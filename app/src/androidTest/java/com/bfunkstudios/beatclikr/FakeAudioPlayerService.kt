@@ -2,6 +2,7 @@ package com.bfunkstudios.beatclikr
 
 import com.bfunkstudios.beatclikr.data.SoundBank
 import com.bfunkstudios.beatclikr.data.SoundFile
+import com.bfunkstudios.beatclikr.data.PracticeItemSnapshot
 import com.bfunkstudios.beatclikr.services.FrameAudioMetricsSnapshot
 import com.bfunkstudios.beatclikr.services.ActiveSoundConfiguration
 import com.bfunkstudios.beatclikr.services.AudioBackendType
@@ -40,7 +41,8 @@ class FakeAudioPlayerService : IAudioPlayerService, PlaybackObservation {
         bpm: Float,
         subdivisions: Int,
         accentPattern: List<Boolean>?,
-        alternateSixteenth: Boolean
+        alternateSixteenth: Boolean,
+        practiceItem: PracticeItemSnapshot
     ) {
         startCount++
         transportState.value = preparing(
@@ -58,8 +60,9 @@ class FakeAudioPlayerService : IAudioPlayerService, PlaybackObservation {
         bpm: Float,
         subdivisions: Int,
         accentPattern: List<Boolean>?,
-        alternateSixteenth: Boolean
-    ) = startMetronome(bpm, subdivisions, accentPattern, alternateSixteenth)
+        alternateSixteenth: Boolean,
+        practiceItem: PracticeItemSnapshot
+    ) = startMetronome(bpm, subdivisions, accentPattern, alternateSixteenth, practiceItem)
     override fun stopIfCurrent(expectedSessionId: PlaybackSessionId) {
         val current = transportState.value as? PlaybackTransportState.SessionState ?: return
         if (current.context.sessionId != expectedSessionId) return
@@ -75,7 +78,12 @@ class FakeAudioPlayerService : IAudioPlayerService, PlaybackObservation {
         accentPattern: List<Boolean>?,
         alternateSixteenth: Boolean
     ) {}
-    override fun startPolyrhythm(bpm: Float, beats: Int, against: Int) {
+    override fun startPolyrhythm(
+        bpm: Float,
+        beats: Int,
+        against: Int,
+        practiceItem: PracticeItemSnapshot
+    ) {
         polyrhythmStartCount++
         transportState.value = preparing(
             PlaybackMode.POLYRHYTHM,

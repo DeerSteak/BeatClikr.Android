@@ -2,6 +2,7 @@ package com.bfunkstudios.beatclikr.services
 
 import com.bfunkstudios.beatclikr.data.SoundBank
 import com.bfunkstudios.beatclikr.data.SoundFile
+import com.bfunkstudios.beatclikr.data.PracticeItemSnapshot
 import java.util.Collections
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
@@ -16,6 +17,33 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class PlaybackCoordinatorTest {
+
+    @Test
+    fun playingLifecycleRetainsTheRequestedPracticeIdentity() {
+        val coordinator = PlaybackCoordinator(FakePlaybackEngine())
+        val item = PracticeItemSnapshot(
+            "song-42",
+            "Identity",
+            "Artist",
+            120f,
+            4,
+            null
+        )
+        try {
+            coordinator.submit(PlaybackIntent.StartStandard(120f, 4, null, false, item))
+            assertTrue(coordinator.awaitControlIdle())
+
+            val playing = coordinator.transportState.value as PlaybackTransportState.Playing
+            assertEquals(item, playing.context.practiceItem)
+            val lifecyclePlaying = coordinator.lifecycleTransitionsAfter(0).transitions
+                .map { it.to }
+                .filterIsInstance<PlaybackTransportState.Playing>()
+                .single()
+            assertEquals(item, lifecyclePlaying.context.practiceItem)
+        } finally {
+            coordinator.release()
+        }
+    }
 
     @Test
     fun explicitStandardReplacementCreatesNewSessionAtRequestedConfiguration() {

@@ -2,6 +2,7 @@ package com.bfunkstudios.beatclikr.services
 
 import com.bfunkstudios.beatclikr.data.SoundBank
 import com.bfunkstudios.beatclikr.data.SoundFile
+import com.bfunkstudios.beatclikr.data.PracticeItemSnapshot
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 
@@ -18,13 +19,15 @@ interface IAudioPlayerService {
         bpm: Float,
         subdivisions: Int,
         accentPattern: List<Boolean>? = null,
-        alternateSixteenth: Boolean = false
+        alternateSixteenth: Boolean = false,
+        practiceItem: PracticeItemSnapshot = PracticeItemSnapshot.metronome()
     )
     fun replaceMetronome(
         bpm: Float,
         subdivisions: Int,
         accentPattern: List<Boolean>? = null,
-        alternateSixteenth: Boolean = false
+        alternateSixteenth: Boolean = false,
+        practiceItem: PracticeItemSnapshot = PracticeItemSnapshot.metronome()
     )
     fun stopIfCurrent(expectedSessionId: PlaybackSessionId)
     fun stopPlayback()
@@ -34,7 +37,12 @@ interface IAudioPlayerService {
         accentPattern: List<Boolean>? = null,
         alternateSixteenth: Boolean = false
     )
-    fun startPolyrhythm(bpm: Float, beats: Int, against: Int)
+    fun startPolyrhythm(
+        bpm: Float,
+        beats: Int,
+        against: Int,
+        practiceItem: PracticeItemSnapshot = PracticeItemSnapshot.polyrhythm()
+    )
     fun prewarmAudioTrack()
     fun prepareAudioTrackSounds(soundFiles: Collection<SoundFile>)
     fun getFrameAudioMetricsSnapshot(): FrameAudioMetricsSnapshot?

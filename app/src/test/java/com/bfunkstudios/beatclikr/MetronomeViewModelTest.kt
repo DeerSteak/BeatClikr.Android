@@ -82,7 +82,7 @@ class MetronomeViewModelTest {
         every { prefs.rampIncrement } returns 2
         every { prefs.rampInterval } returns 8
         every { prefs.muteMetronome } returns false
-        every { audio.startMetronome(any(), any(), any(), any()) } answers {
+        every { audio.startMetronome(any(), any(), any(), any(), any()) } answers {
             transportState.value = standardPreparing()
         }
         every { audio.stopIfCurrent(PlaybackSessionId(1)) } answers {
@@ -540,13 +540,21 @@ class MetronomeViewModelTest {
         viewModel.playSong(song)
 
         verify(exactly = 0) { audio.updateTempo(any(), any(), any(), any()) }
-        verify(exactly = 1) { audio.replaceMetronome(140f, 2, any(), any()) }
+        verify(exactly = 1) {
+            audio.replaceMetronome(
+                140f,
+                2,
+                any(),
+                any(),
+                match { it.itemId == song.id.toString() && it.title == "Next" }
+            )
+        }
     }
 
     @Test
     fun `playing another song adopts replacement session ownership`() {
         viewModel.start()
-        every { audio.replaceMetronome(any(), any(), any(), any()) } answers {
+        every { audio.replaceMetronome(any(), any(), any(), any(), any()) } answers {
             transportState.value = standardPreparing().copy(
                 context = standardPreparing().context.copy(sessionId = PlaybackSessionId(2))
             )

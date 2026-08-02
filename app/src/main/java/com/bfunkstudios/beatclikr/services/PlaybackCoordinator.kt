@@ -2,6 +2,7 @@ package com.bfunkstudios.beatclikr.services
 
 import com.bfunkstudios.beatclikr.data.SoundBank
 import com.bfunkstudios.beatclikr.data.SoundFile
+import com.bfunkstudios.beatclikr.data.PracticeItemSnapshot
 import com.bfunkstudios.beatclikr.music.MusicalEventRole
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
@@ -9,6 +10,7 @@ import java.util.concurrent.RejectedExecutionException
 import java.util.concurrent.ScheduledExecutorService
 import java.util.concurrent.ScheduledFuture
 import java.util.concurrent.TimeUnit
+import java.time.ZoneId
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -50,13 +52,15 @@ sealed interface PlaybackIntent {
         val bpm: Float,
         val subdivisions: Int,
         val accentPattern: List<Boolean>?,
-        val alternateSixteenth: Boolean
+        val alternateSixteenth: Boolean,
+        val practiceItem: PracticeItemSnapshot = PracticeItemSnapshot.metronome()
     ) : PlaybackIntent
     data class ReplaceStandard(
         val bpm: Float,
         val subdivisions: Int,
         val accentPattern: List<Boolean>?,
-        val alternateSixteenth: Boolean
+        val alternateSixteenth: Boolean,
+        val practiceItem: PracticeItemSnapshot = PracticeItemSnapshot.metronome()
     ) : PlaybackIntent
     data class UpdateStandard(
         val bpm: Float,
@@ -67,7 +71,8 @@ sealed interface PlaybackIntent {
     data class StartPolyrhythm(
         val bpm: Float,
         val beats: Int,
-        val against: Int
+        val against: Int,
+        val practiceItem: PracticeItemSnapshot = PracticeItemSnapshot.polyrhythm()
     ) : PlaybackIntent
     data class UpdatePolyrhythm(
         val bpm: Float,
@@ -142,7 +147,10 @@ sealed interface PlaybackControlEvent {
 data class PlaybackStateTransition(
     val sequence: Long,
     val from: PlaybackTransportState,
-    val to: PlaybackTransportState
+    val to: PlaybackTransportState,
+    val occurredAtElapsedNanos: Long,
+    val occurredAtWallMillis: Long,
+    val timeZoneIdentifier: String
 )
 
 sealed interface PlaybackCommittedEvent {
@@ -281,7 +289,10 @@ class PlaybackCoordinator(
     private val eventDrainScheduler: ScheduledExecutorService =
         Executors.newSingleThreadScheduledExecutor { runnable ->
             Thread(runnable, "PlaybackCoordinatorEvents")
-        }
+        },
+    private val elapsedRealtimeNanos: () -> Long = System::nanoTime,
+    private val wallClockMillis: () -> Long = System::currentTimeMillis,
+    private val timeZoneIdentifier: () -> String = { ZoneId.systemDefault().id }
 ) : IAudioPlayerService, MetronomeAudioEngineDelegate, PolyrhythmAudioEngineDelegate,
     PlaybackEngineTransportObserver, PlaybackObservation, PlaybackLifecycleObservation {
     private val mutableOwnership = MutableStateFlow(PlaybackOwnershipSnapshot())
@@ -443,14 +454,16 @@ class PlaybackCoordinator(
         bpm: Float,
         subdivisions: Int,
         accentPattern: List<Boolean>?,
-        alternateSixteenth: Boolean
+        alternateSixteenth: Boolean,
+        practiceItem: PracticeItemSnapshot
     ) {
         submit(
             PlaybackIntent.StartStandard(
                 bpm,
                 subdivisions,
                 accentPattern?.toList(),
-                alternateSixteenth
+                alternateSixteenth,
+                practiceItem
             )
         )
     }
@@ -459,14 +472,16 @@ class PlaybackCoordinator(
         bpm: Float,
         subdivisions: Int,
         accentPattern: List<Boolean>?,
-        alternateSixteenth: Boolean
+        alternateSixteenth: Boolean,
+        practiceItem: PracticeItemSnapshot
     ) {
         submit(
             PlaybackIntent.ReplaceStandard(
                 bpm,
                 subdivisions,
                 accentPattern?.toList(),
-                alternateSixteenth
+                alternateSixteenth,
+                practiceItem
             )
         )
     }
@@ -491,8 +506,13 @@ class PlaybackCoordinator(
         )
     }
 
-    override fun startPolyrhythm(bpm: Float, beats: Int, against: Int) {
-        submit(PlaybackIntent.StartPolyrhythm(bpm, beats, against))
+    override fun startPolyrhythm(
+        bpm: Float,
+        beats: Int,
+        against: Int,
+        practiceItem: PracticeItemSnapshot
+    ) {
+        submit(PlaybackIntent.StartPolyrhythm(bpm, beats, against, practiceItem))
     }
 
     override fun stopPlayback() {
@@ -1377,7 +1397,14 @@ class PlaybackCoordinator(
                     ?: PlaybackMode.NONE
             )
         }
-        val transition = PlaybackStateTransition(nextTransitionSequence++, previous, next)
+        val transition = PlaybackStateTransition(
+            nextTransitionSequence++,
+            previous,
+            next,
+            elapsedRealtimeNanos(),
+            wallClockMillis(),
+            timeZoneIdentifier()
+        )
         recordLifecycleTransition(transition)
         mutableStateTransitions.tryEmit(transition)
         if (previous !is PlaybackTransportState.Playing &&
@@ -1502,7 +1529,8 @@ class PlaybackCoordinator(
                     intent.alternateSixteenth,
                     muted
                 ),
-                startOrigin = PlaybackStartOrigin.USER
+                startOrigin = PlaybackStartOrigin.USER,
+                practiceItem = intent.practiceItem
             )
         }
 
@@ -1520,7 +1548,8 @@ class PlaybackCoordinator(
                     intent.against,
                     muted
                 ),
-                startOrigin = PlaybackStartOrigin.USER
+                startOrigin = PlaybackStartOrigin.USER,
+                practiceItem = intent.practiceItem
             )
         }
     }
@@ -1624,7 +1653,8 @@ class PlaybackCoordinator(
             bpm,
             subdivisions,
             accentPattern?.toList(),
-            alternateSixteenth
+            alternateSixteenth,
+            practiceItem
         )
 
     private inline fun mutateOwnership(

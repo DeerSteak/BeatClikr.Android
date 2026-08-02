@@ -9,6 +9,7 @@ import androidx.lifecycle.ProcessLifecycleOwner
 import com.bfunkstudios.beatclikr.data.IAppPreferences
 import com.bfunkstudios.beatclikr.data.SoundBank
 import com.bfunkstudios.beatclikr.services.IAudioPlayerService
+import com.bfunkstudios.beatclikr.services.PracticeAccountingCoordinator
 import com.bfunkstudios.beatclikr.services.SecondaryOutputCoordinator
 import dagger.hilt.android.HiltAndroidApp
 import javax.inject.Inject
@@ -19,6 +20,7 @@ class BeatClikrApplication : Application() {
     @Inject lateinit var secondaryOutputs: SecondaryOutputCoordinator
     @Inject lateinit var audioPlayerService: IAudioPlayerService
     @Inject lateinit var prefs: IAppPreferences
+    @Inject lateinit var practiceAccounting: PracticeAccountingCoordinator
 
     override fun onCreate() {
         super.onCreate()
@@ -27,6 +29,7 @@ class BeatClikrApplication : Application() {
             audioPlayerService.prepareAudioTrackSounds(prefs.audioTrackSoundCacheSet())
         }
         audioPlayerService.prewarmAudioTrack()
+        practiceAccounting.start()
         secondaryOutputs.start()
         ProcessLifecycleOwner.get().lifecycle.addObserver(
             SecondaryOutputProcessLifecycleObserver(secondaryOutputs, ::stopResources)
