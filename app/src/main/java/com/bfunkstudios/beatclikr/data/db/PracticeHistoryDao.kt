@@ -77,6 +77,15 @@ interface PracticeHistoryDao {
     ) {
         require(durationNanos >= 0)
         require(periodIncrement in 0..1)
+        val existingCheckpoint = getAccountingCheckpoint()
+        val existingSequence = existingCheckpoint?.acknowledgedLifecycleSequence ?: -1L
+        if (checkpoint.acknowledgedLifecycleSequence < existingSequence) return
+        if (checkpoint.acknowledgedLifecycleSequence == existingSequence &&
+            checkpoint.activePlaybackSessionId != null &&
+            (checkpoint.lastCheckpointElapsedNanos ?: Long.MIN_VALUE) <=
+            (existingCheckpoint?.lastCheckpointElapsedNanos ?: Long.MIN_VALUE)) {
+            return
+        }
         if (day != null && item != null) {
             val proposedSession = PracticeSession(
                 date = day.originalTimestampMillis,

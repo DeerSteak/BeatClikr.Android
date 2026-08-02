@@ -28,7 +28,7 @@ class PracticeHistoryRepositoryImpl @Inject constructor(
         checkpoint: PracticeAccountingCheckpoint
     ) {
         dao.applyAccountingUpdate(day, item, durationNanos, periodIncrement, checkpoint)
-        reminderScheduler.rescheduleIfEnabled()
+        runCatching { reminderScheduler.rescheduleIfEnabled() }
     }
 
     companion object {

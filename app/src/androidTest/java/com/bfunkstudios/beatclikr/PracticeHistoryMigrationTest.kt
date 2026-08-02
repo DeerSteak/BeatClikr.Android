@@ -1,6 +1,8 @@
 package com.bfunkstudios.beatclikr
 
 import androidx.room.testing.MigrationTestHelper
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 import androidx.sqlite.db.framework.FrameworkSQLiteOpenHelperFactory
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
@@ -9,6 +11,7 @@ import com.bfunkstudios.beatclikr.data.db.BeatClikrDatabase
 import com.bfunkstudios.beatclikr.data.db.BeatClikrMigrations
 import java.io.IOException
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertThrows
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -44,6 +47,7 @@ class PracticeHistoryMigrationTest {
             insertPractice(FIRST_PRACTICE_ID, FIRST_SESSION_ID, SONG_ID, 2)
             insertPractice(SECOND_PRACTICE_ID, SECOND_SESSION_ID, SONG_ID, 3)
             insertPractice(METRONOME_PRACTICE_ID, FIRST_SESSION_ID, PracticedSong.METRONOME_SONG_ID, 1)
+            insertPractice(POLYRHYTHM_PRACTICE_ID, FIRST_SESSION_ID, PracticedSong.POLYRHYTHM_SONG_ID, 4)
             close()
         }
 
@@ -58,12 +62,70 @@ class PracticeHistoryMigrationTest {
         assertEquals(1, db.longValue("SELECT COUNT(*) FROM playlists"))
         assertEquals(1, db.longValue("SELECT COUNT(*) FROM playlist_entries"))
         assertEquals(1, db.longValue("SELECT COUNT(*) FROM practice_sessions"))
-        assertEquals(2, db.longValue("SELECT COUNT(*) FROM practiced_songs"))
+        assertEquals(3, db.longValue("SELECT COUNT(*) FROM practiced_songs"))
         assertEquals(5, db.longValue("SELECT times_practiced FROM practiced_songs WHERE song_id = '$SONG_ID'"))
         assertEquals(60_000_000_000L, db.longValue("SELECT duration_nanos FROM practiced_songs WHERE song_id = '$SONG_ID'"))
         assertEquals(30_000_000_000L, db.longValue("SELECT duration_nanos FROM practiced_songs WHERE song_id = '${PracticedSong.METRONOME_SONG_ID}'"))
+        assertEquals(4, db.longValue("SELECT times_practiced FROM practiced_songs WHERE song_id = '${PracticedSong.POLYRHYTHM_SONG_ID}'"))
+        assertEquals(30_000_000_000L, db.longValue("SELECT duration_nanos FROM practiced_songs WHERE song_id = '${PracticedSong.POLYRHYTHM_SONG_ID}'"))
         assertEquals("gregorian", db.stringValue("SELECT calendar_identifier FROM practice_sessions"))
         db.close()
+    }
+
+    @Test
+    fun interruptedMigrationRollsBackAndTheNextOpenRecovers() {
+        helper.createDatabase(INTERRUPTED_DATABASE_NAME, 4).apply {
+            insertSession(FIRST_SESSION_ID, 1_700_000_000_000L)
+            insertPractice(FIRST_PRACTICE_ID, FIRST_SESSION_ID, SONG_ID, 1)
+            close()
+        }
+        val interrupted = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE practice_sessions ADD COLUMN interrupted INTEGER NOT NULL DEFAULT 0")
+                error("simulated interruption")
+            }
+        }
+
+        assertThrows(Throwable::class.java) {
+            helper.runMigrationsAndValidate(INTERRUPTED_DATABASE_NAME, 5, true, interrupted)
+        }
+        val recovered = helper.runMigrationsAndValidate(
+            INTERRUPTED_DATABASE_NAME,
+            5,
+            true,
+            BeatClikrMigrations.MIGRATION_4_5
+        )
+        assertEquals(30_000_000_000L, recovered.longValue("SELECT duration_nanos FROM practiced_songs"))
+        recovered.close()
+    }
+
+    @Test
+    fun restoredVersion4DatabaseMigratesWithoutLosingBuiltInHistory() {
+        helper.createDatabase(RESTORED_DATABASE_NAME, 4).apply {
+            insertSession(FIRST_SESSION_ID, 1_700_000_000_000L)
+            insertPractice(METRONOME_PRACTICE_ID, FIRST_SESSION_ID, PracticedSong.METRONOME_SONG_ID, 2)
+            insertPractice(POLYRHYTHM_PRACTICE_ID, FIRST_SESSION_ID, PracticedSong.POLYRHYTHM_SONG_ID, 3)
+            close()
+        }
+
+        val restored = helper.runMigrationsAndValidate(
+            RESTORED_DATABASE_NAME,
+            5,
+            true,
+            BeatClikrMigrations.MIGRATION_4_5
+        )
+        assertEquals(2, restored.longValue("SELECT COUNT(*) FROM practiced_songs"))
+        assertEquals(60_000_000_000L, restored.longValue("SELECT SUM(duration_nanos) FROM practiced_songs"))
+        restored.close()
+    }
+
+    @Test
+    fun downgradeWithoutAnExplicitPolicyIsRejected() {
+        helper.createDatabase(DOWNGRADE_DATABASE_NAME, 5).close()
+
+        assertThrows(Throwable::class.java) {
+            helper.runMigrationsAndValidate(DOWNGRADE_DATABASE_NAME, 4, true)
+        }
     }
 
     private fun androidx.sqlite.db.SupportSQLiteDatabase.insertSession(id: String, date: Long) {
@@ -98,5 +160,9 @@ class PracticeHistoryMigrationTest {
         const val FIRST_PRACTICE_ID = "66666666-6666-6666-6666-666666666666"
         const val SECOND_PRACTICE_ID = "77777777-7777-7777-7777-777777777777"
         const val METRONOME_PRACTICE_ID = "88888888-8888-8888-8888-888888888888"
+        const val POLYRHYTHM_PRACTICE_ID = "99999999-9999-9999-9999-999999999999"
+        const val INTERRUPTED_DATABASE_NAME = "phase-5-interrupted-migration"
+        const val RESTORED_DATABASE_NAME = "phase-5-restored-migration"
+        const val DOWNGRADE_DATABASE_NAME = "phase-5-downgrade-policy"
     }
 }

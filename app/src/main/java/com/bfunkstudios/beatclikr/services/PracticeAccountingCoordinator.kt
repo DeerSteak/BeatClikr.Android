@@ -11,25 +11,54 @@ import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 @Singleton
-class PracticeAccountingCoordinator @Inject constructor(
+class PracticeAccountingCoordinator internal constructor(
     private val lifecycle: PlaybackLifecycleObservation,
     private val repository: PracticeHistoryRepository,
-    @param:ApplicationScope private val scope: CoroutineScope
+    private val scope: CoroutineScope,
+    private val elapsedRealtimeNanos: () -> Long,
+    private val currentDayIdentity: () -> PracticeDayIdentity,
+    private val checkpointIntervalMillis: Long
 ) {
+    @Inject
+    constructor(
+        lifecycle: PlaybackLifecycleObservation,
+        repository: PracticeHistoryRepository,
+        @ApplicationScope scope: CoroutineScope
+    ) : this(
+        lifecycle,
+        repository,
+        scope,
+        System::nanoTime,
+        { PracticeDayIdentity.capture() },
+        DEFAULT_CHECKPOINT_INTERVAL_MILLIS
+    )
+
     private var collectionJob: Job? = null
     private var acknowledgedSequence = 0L
     private var active: ActivePeriod? = null
+    private val accountingMutex = Mutex()
 
     @Synchronized
     fun start() {
         if (collectionJob != null) return
         collectionJob = scope.launch {
             recoverCheckpoint()
-            lifecycle.lifecycleCheckpoint.collect { drainTransitions() }
+            launch {
+                while (true) {
+                    delay(checkpointIntervalMillis)
+                    accountingMutex.withLock { checkpointCurrentPeriod() }
+                }
+            }
+            lifecycle.lifecycleCheckpoint.collect {
+                accountingMutex.withLock { drainTransitions() }
+            }
         }
     }
 
@@ -119,6 +148,21 @@ class PracticeAccountingCoordinator @Inject constructor(
         repository.applyAccountingUpdate(null, null, 0, 0, idleCheckpoint(sequence))
     }
 
+    private suspend fun checkpointCurrentPeriod() {
+        val period = active ?: return
+        val elapsedNow = elapsedRealtimeNanos()
+        val elapsed = (elapsedNow - period.checkpointElapsedNanos).coerceAtLeast(0)
+        val updated = period.copy(checkpointElapsedNanos = elapsedNow)
+        active = updated
+        repository.applyAccountingUpdate(
+            currentDayIdentity(),
+            period.item,
+            elapsed,
+            0,
+            activeCheckpoint(acknowledgedSequence, updated)
+        )
+    }
+
     private fun activeCheckpoint(
         sequence: Long,
         period: ActivePeriod
@@ -144,4 +188,8 @@ class PracticeAccountingCoordinator @Inject constructor(
         val item: PracticeItemSnapshot,
         val checkpointElapsedNanos: Long
     )
+
+    private companion object {
+        const val DEFAULT_CHECKPOINT_INTERVAL_MILLIS = 5_000L
+    }
 }
