@@ -77,7 +77,7 @@ The clauses define the intended completed behavior, not equal delivery priority.
 
 ## Consequences
 
-The shipping Android app currently stops when it leaves the foreground and therefore does not satisfy the iOS-parity background contract. It also lacks one authoritative coordinator, and some ViewModels report playing or record practice before audio focus and audible output are confirmed. Phase 4 closes those playback and lifecycle gaps.
+The shipping Android app currently stops when it leaves the foreground and therefore does not satisfy the iOS-parity background contract. Phase 4 established one authoritative coordinator, audio-confirmed state, session-tagged commands and callbacks, focus ownership, and foreground route policy. Phase 9 remains responsible for background playback and system controls.
 
 The successful screen-off engine instrumentation run is useful feasibility evidence, but Android background playback is not complete until the foreground service, media session, notification controls, focus behavior, navigation behavior, and lifecycle tests satisfy this decision.
 

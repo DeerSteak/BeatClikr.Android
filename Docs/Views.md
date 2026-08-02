@@ -21,7 +21,7 @@ The UI is implemented with Jetpack Compose and Navigation Compose.
 
 Top-level routes cover Instant, Polyrhythm, Library, Playlist, History, and Settings, with a parameterized playlist-detail route. Compact layouts use a bottom navigation bar and place polyrhythm inside the metronome container. Expanded layouts use a navigation rail, expose polyrhythm directly, and limit content width to 840 dp.
 
-Switching directly between instant and polyrhythm stops the other engine. Other routes currently rely on foreground and ViewModel policies for transport ownership.
+Every top-level destination change issues one explicit global playback stop. Switching directly between instant and polyrhythm also stops the interface being hidden. Navigation inside Library and Playlist—including details, editors, pickers, sheets, and focus mode—preserves playback; explicitly playing another song replaces the session at tick zero.
 
 ## Shared components
 

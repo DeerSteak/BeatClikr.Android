@@ -2,7 +2,9 @@
 
 **Audit date:** 2026-07-28  
 **Contract state:** Accepted  
-**Implementation reviewed:** Current working tree
+**Implementation reviewed:** historical pre-remediation tree at `c175888` (2026-07-28)
+
+> Historical snapshot: this file records the gap analysis that initiated remediation. It is not a description of the current implementation; use the authoritative decisions and `Docs/Validation.md` for current behavior and evidence.
 
 ## Purpose
 

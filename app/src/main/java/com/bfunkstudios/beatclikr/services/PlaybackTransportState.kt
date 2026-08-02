@@ -1,5 +1,8 @@
 package com.bfunkstudios.beatclikr.services
 
+import androidx.annotation.Keep
+
+@Keep
 @JvmInline
 value class PlaybackSessionId(val value: Long) {
     init {

@@ -40,4 +40,4 @@ Song, playlist, and practice repositories adapt Room DAOs into flows and suspend
 
 ## Lifecycle policy
 
-Playback is foreground-only. Process and activity lifecycle handling stop audio when the app leaves the foreground; no foreground playback service or media notification exists.
+Playback is foreground-only. A `ProcessLifecycleOwner` stop tears down playback and secondary effects after the process leaves the foreground; an individual Activity stop only clears that window's keep-awake flag. Configuration recreation therefore preserves an active session, while backgrounding or screen-off stops it. No playback foreground service, media session, or media notification exists.
