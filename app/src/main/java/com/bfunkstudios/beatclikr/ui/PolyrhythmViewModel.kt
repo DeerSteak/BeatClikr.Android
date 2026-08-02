@@ -5,6 +5,7 @@ import android.view.Choreographer
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
@@ -14,6 +15,8 @@ import com.bfunkstudios.beatclikr.data.IAppPreferences
 import com.bfunkstudios.beatclikr.data.SoundFile
 import com.bfunkstudios.beatclikr.music.MusicalEventRole
 import com.bfunkstudios.beatclikr.services.CommittedPlaybackConfiguration
+import com.bfunkstudios.beatclikr.services.CommittedEventDeliveryCursor
+import com.bfunkstudios.beatclikr.services.CommittedEventDeliveryResult
 import com.bfunkstudios.beatclikr.services.EventPresentation
 import com.bfunkstudios.beatclikr.services.IAudioPlayerService
 import com.bfunkstudios.beatclikr.services.PlaybackCommittedEvent
@@ -46,6 +49,9 @@ class PolyrhythmViewModel @Inject constructor(
         private set
 
     private var transportState by mutableStateOf(playback.transportState.value)
+    private var ownedSessionId: PlaybackSessionId? =
+        transportState.polyrhythmSessionId()
+    private var awaitingOwnedSession = false
 
     val isPlaying: Boolean
         get() = transportState.isModeActive(PlaybackMode.POLYRHYTHM)
@@ -56,7 +62,7 @@ class PolyrhythmViewModel @Inject constructor(
     val hasVariableOutputLatency: Boolean
         get() = transportState.hasVariableOutputLatency(PlaybackMode.POLYRHYTHM)
 
-    var lastPlaybackFailure by mutableStateOf<String?>(null)
+    var lastPlaybackDiagnostic by mutableStateOf<PlaybackUiDiagnostic?>(null)
         private set
 
     var lastSecondaryOutputFailure by mutableStateOf<String?>(null)
@@ -93,8 +99,11 @@ class PolyrhythmViewModel @Inject constructor(
     private var lastRhythmTimeNanos: Long = 0L
     private var currentRhythmDurationNanos: Long = 0L
     private var projectedSessionId: PlaybackSessionId? = null
-    private var lastCommittedEventSequence =
+    private val committedEventCursor = CommittedEventDeliveryCursor(
         playback.committedEvents.replayCache.lastOrNull()?.sequence ?: 0L
+    )
+    var committedEventDeliveryLoss by mutableLongStateOf(0)
+        private set
 
     init {
         viewModelScope.launch {
@@ -153,6 +162,9 @@ class PolyrhythmViewModel @Inject constructor(
     }
 
     fun start() {
+        val currentSession = transportState.polyrhythmSessionId()
+        ownedSessionId = currentSession
+        awaitingOwnedSession = currentSession == null
         setupPolyrhythm()
         beatPulse = 0f
         rhythmPulse = 0f
@@ -162,7 +174,7 @@ class PolyrhythmViewModel @Inject constructor(
     }
 
     fun stop() {
-        audio.stopPolyrhythm()
+        ownedSessionId?.let(audio::stopIfCurrent)
         stopChoreographerLoop()
         beatPulse = 0f
         rhythmPulse = 0f
@@ -266,9 +278,13 @@ class PolyrhythmViewModel @Inject constructor(
 
     private fun applyTransportState(state: PlaybackTransportState) {
         transportState = state
-        lastPlaybackFailure = (state as? PlaybackTransportState.Failed)
-            ?.reason
-            ?.toString()
+        if (awaitingOwnedSession) {
+            state.polyrhythmSessionId()?.let { sessionId ->
+                ownedSessionId = sessionId
+                awaitingOwnedSession = false
+            }
+        }
+        lastPlaybackDiagnostic = state.updateDiagnostic(lastPlaybackDiagnostic)
         val session = (state as? PlaybackTransportState.SessionState)
             ?.takeIf { it.context.mode == PlaybackMode.POLYRHYTHM }
             ?.context
@@ -285,8 +301,17 @@ class PolyrhythmViewModel @Inject constructor(
     }
 
     private fun applyCommittedEvent(event: PlaybackCommittedEvent) {
-        if (event.sequence <= lastCommittedEventSequence) return
-        lastCommittedEventSequence = event.sequence
+        when (val delivery = committedEventCursor.accept(event)) {
+            CommittedEventDeliveryResult.Accepted -> Unit
+            CommittedEventDeliveryResult.Duplicate -> return
+            is CommittedEventDeliveryResult.Gap -> {
+                committedEventDeliveryLoss += delivery.detail.missingCount
+                stopChoreographerLoop()
+                beatPulse = 0f
+                rhythmPulse = 0f
+                return
+            }
+        }
         val rendered = event as? PlaybackCommittedEvent.Rendered ?: return
         val playing = transportState as? PlaybackTransportState.Playing ?: return
         if (playing.context.mode != PlaybackMode.POLYRHYTHM ||
@@ -316,10 +341,16 @@ class PolyrhythmViewModel @Inject constructor(
 
     override fun onCleared() {
         super.onCleared()
-        stop()
+        stopChoreographerLoop()
     }
 
 }
+
+private fun PlaybackTransportState.polyrhythmSessionId(): PlaybackSessionId? =
+    (this as? PlaybackTransportState.SessionState)
+        ?.context
+        ?.takeIf { it.mode == PlaybackMode.POLYRHYTHM }
+        ?.sessionId
 
 internal fun polyrhythmBeatDurationNanos(bpm: Float): Long =
     (NANOS_PER_MINUTE / bpm.toDouble()).toLong()

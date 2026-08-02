@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 
@@ -25,6 +26,7 @@ class SecondaryOutputCoordinatorTest {
     private lateinit var scheduler: RecordingScheduler
     private lateinit var coordinator: SecondaryOutputCoordinator
     private lateinit var transportState: MutableStateFlow<PlaybackTransportState>
+    private lateinit var committedEvents: MutableSharedFlow<PlaybackCommittedEvent>
     private val sessionId = PlaybackSessionId(7)
 
     @Before
@@ -34,9 +36,10 @@ class SecondaryOutputCoordinatorTest {
         haptics = mockk(relaxed = true)
         scheduler = RecordingScheduler()
         transportState = MutableStateFlow(standardPlaying())
+        committedEvents = MutableSharedFlow(extraBufferCapacity = 4)
         val playback = mockk<PlaybackObservation>()
         every { playback.transportState } returns transportState
-        every { playback.committedEvents } returns MutableSharedFlow()
+        every { playback.committedEvents } returns committedEvents
         coordinator = SecondaryOutputCoordinator(
             playback,
             prefs,
@@ -76,6 +79,9 @@ class SecondaryOutputCoordinatorTest {
         assertEquals(0, scheduler.tasks.size)
         verify { haptics.cancel() }
         verify { flashlight.turnFlashlightOff() }
+
+        applyTransportState(standardPlaying())
+        assertNull(coordinator.committedEventDeliveryGap.value)
     }
 
     @Test
@@ -133,7 +139,7 @@ class SecondaryOutputCoordinatorTest {
         coordinator.applyCommittedEvent(rendered(roleIndex = 0))
         scheduler.runNext()
 
-        applyTransportState(standardPlaying())
+        applyTransportState(standardPlaying(session = PlaybackSessionId(8)))
 
         assertNull(coordinator.secondaryOutputFailure.value)
     }
@@ -162,6 +168,77 @@ class SecondaryOutputCoordinatorTest {
     }
 
     @Test
+    fun failedScheduledRetryMakesOneTerminalOffAttempt() {
+        every { flashlight.turnFlashlightOff() } throws IllegalStateException("first failure") andThenThrows
+            IllegalStateException("retry failure") andThen Unit
+
+        coordinator.stopEffects()
+        scheduler.runNext()
+
+        verify(exactly = 3) { flashlight.turnFlashlightOff() }
+        assertEquals("retry failure", coordinator.secondaryOutputFailure.value?.diagnostic)
+        assertEquals(0, scheduler.tasks.size)
+    }
+
+    @Test
+    fun rejectedPulseOffScheduleAttemptsImmediateOff() {
+        every { prefs.useFlashlight } returns true
+        scheduler.rejectCalls += 2
+
+        coordinator.applyCommittedEvent(rendered(roleIndex = 0))
+        scheduler.runNext()
+
+        verify { flashlight.turnFlashlightOn() }
+        verify { flashlight.turnFlashlightOff() }
+        assertEquals("scheduler rejected call 2", coordinator.secondaryOutputFailure.value?.diagnostic)
+    }
+
+    @Test
+    fun rejectedFailsafeScheduleAttemptsImmediateOff() {
+        every { prefs.useFlashlight } returns true
+        scheduler.rejectCalls += 3
+
+        coordinator.applyCommittedEvent(rendered(roleIndex = 0))
+        scheduler.runNext()
+
+        verify { flashlight.turnFlashlightOn() }
+        verify { flashlight.turnFlashlightOff() }
+        assertEquals("scheduler rejected call 3", coordinator.secondaryOutputFailure.value?.diagnostic)
+    }
+
+    @Test
+    fun rejectedRetryMakesBoundedTerminalOffAttemptWithoutStoppingAudio() {
+        every { prefs.useFlashlight } returns true
+        every { flashlight.turnFlashlightOff() } throws IllegalStateException("camera busy")
+        scheduler.rejectCalls += setOf(2, 3)
+        val playing = transportState.value
+
+        coordinator.applyCommittedEvent(rendered(roleIndex = 0))
+        scheduler.runNext()
+
+        verify { flashlight.turnFlashlightOn() }
+        verify(exactly = 2) { flashlight.turnFlashlightOff() }
+        assertEquals("camera busy", coordinator.secondaryOutputFailure.value?.diagnostic)
+        assertSame(playing, transportState.value)
+        assertEquals(0, scheduler.tasks.size)
+    }
+
+    @Test
+    fun eventScheduleFailureDoesNotCancelLaterCollection() {
+        every { prefs.useVibration } returns true
+        scheduler.rejectCalls += 1
+        coordinator.start()
+
+        committedEvents.tryEmit(rendered(roleIndex = 0, sequence = 1))
+        committedEvents.tryEmit(rendered(roleIndex = 0, sequence = 2))
+        scheduler.runNext()
+
+        assertEquals(SecondaryOutput.SCHEDULER, coordinator.secondaryOutputFailure.value?.output)
+        verify(exactly = 1) { haptics.playBeatHaptic() }
+        assertTrue(transportState.value is PlaybackTransportState.Playing)
+    }
+
+    @Test
     fun disabledOutputsLeaveFailureClear() {
         coordinator.applyCommittedEvent(rendered(roleIndex = 0))
         scheduler.runNext()
@@ -171,11 +248,41 @@ class SecondaryOutputCoordinatorTest {
         verify(exactly = 0) { flashlight.turnFlashlightOn() }
     }
 
+    @Test
+    fun deliveryGapStopsEffectsAndSkipsCatchUpEvent() {
+        every { prefs.useVibration } returns true
+        coordinator.applyCommittedEvent(rendered(roleIndex = 0, sequence = 1))
+        scheduler.runNext()
+
+        coordinator.applyCommittedEvent(rendered(roleIndex = 1, sequence = 4))
+
+        assertEquals(
+            CommittedEventDeliveryGap(expectedSequence = 2, observedSequence = 4),
+            coordinator.committedEventDeliveryGap.value
+        )
+        assertEquals(0, scheduler.tasks.size)
+        verify(exactly = 1) { haptics.playBeatHaptic() }
+        verify { haptics.cancel() }
+        verify { flashlight.turnFlashlightOff() }
+    }
+
+    @Test
+    fun replacementSessionSuppressesAlreadyScheduledPulse() {
+        every { prefs.useVibration } returns true
+        coordinator.applyCommittedEvent(rendered(roleIndex = 0))
+
+        applyTransportState(standardPlaying(session = PlaybackSessionId(8)))
+        scheduler.runNext()
+
+        verify(exactly = 0) { haptics.playBeatHaptic() }
+    }
+
     private fun rendered(
         roleIndex: Int,
-        presentationNanos: Long? = null
+        presentationNanos: Long? = null,
+        sequence: Long = 1
     ) = PlaybackCommittedEvent.Rendered(
-        1,
+        sequence,
         sessionId,
         1,
         MusicalEventRole.STANDARD,
@@ -194,10 +301,11 @@ class SecondaryOutputCoordinatorTest {
 
     private fun standardPlaying(
         configuration: CommittedPlaybackConfiguration.Standard =
-            CommittedPlaybackConfiguration.Standard(120f, 4, null, false, false)
+            CommittedPlaybackConfiguration.Standard(120f, 4, null, false, false),
+        session: PlaybackSessionId = sessionId
     ) = PlaybackTransportState.Playing(
         PlaybackSessionContext(
-            sessionId,
+            session,
             PlaybackMode.STANDARD,
             configuration,
             audibleSounds = ActiveSoundConfiguration(
@@ -215,8 +323,14 @@ class SecondaryOutputCoordinatorTest {
         data class Task(val delayNanos: Long, val action: () -> Unit)
 
         val tasks = mutableListOf<Task>()
+        val rejectCalls = mutableSetOf<Int>()
+        private var scheduleCalls = 0
 
         override fun schedule(delayNanos: Long, task: () -> Unit) {
+            scheduleCalls += 1
+            if (scheduleCalls in rejectCalls) {
+                throw IllegalStateException("scheduler rejected call $scheduleCalls")
+            }
             tasks += Task(delayNanos, task)
         }
 

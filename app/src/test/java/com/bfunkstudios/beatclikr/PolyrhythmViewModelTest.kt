@@ -14,14 +14,15 @@ import com.bfunkstudios.beatclikr.services.CommittedPlaybackConfiguration
 import com.bfunkstudios.beatclikr.services.EventPresentation
 import com.bfunkstudios.beatclikr.services.PlaybackCommittedEvent
 import com.bfunkstudios.beatclikr.services.PlaybackMode
+import com.bfunkstudios.beatclikr.services.PlaybackFailureReason
 import com.bfunkstudios.beatclikr.services.PlaybackObservation
-import com.bfunkstudios.beatclikr.services.PlaybackPrerequisites
 import com.bfunkstudios.beatclikr.services.PlaybackSessionContext
 import com.bfunkstudios.beatclikr.services.PlaybackSessionId
 import com.bfunkstudios.beatclikr.services.PlaybackStartOrigin
 import com.bfunkstudios.beatclikr.services.PlaybackTransportState
 import com.bfunkstudios.beatclikr.services.SecondaryOutputObservation
 import com.bfunkstudios.beatclikr.ui.PolyrhythmViewModel
+import com.bfunkstudios.beatclikr.ui.PlaybackUiDiagnostic
 import com.bfunkstudios.beatclikr.ui.polyrhythmBeatDurationNanos
 import com.bfunkstudios.beatclikr.ui.polyrhythmRhythmDurationNanos
 import io.mockk.every
@@ -77,7 +78,7 @@ class PolyrhythmViewModelTest {
         every { audio.startPolyrhythm(any(), any(), any()) } answers {
             transportState.value = polyrhythmPreparing()
         }
-        every { audio.stopPolyrhythm() } answers {
+        every { audio.stopIfCurrent(PlaybackSessionId(2)) } answers {
             transportState.value = PlaybackTransportState.Idle
         }
         viewModel = PolyrhythmViewModel(audio, playback, prefs, secondaryOutputs)
@@ -98,7 +99,6 @@ class PolyrhythmViewModelTest {
 
     @Test
     fun `init does not install a polyrhythm delegate`() {
-        verify(exactly = 0) { audio.polyrhythmDelegate = any() }
     }
 
     @Test
@@ -118,7 +118,6 @@ class PolyrhythmViewModelTest {
                 configuration =
                     CommittedPlaybackConfiguration.Standard(120f, 4, null, false, false)
             ),
-            PlaybackPrerequisites.READY
         )
 
         assertTrue(viewModel.controlsEnabled)
@@ -131,6 +130,21 @@ class PolyrhythmViewModelTest {
         )
 
         assertTrue(viewModel.hasVariableOutputLatency)
+    }
+
+    @Test
+    fun `successful polyrhythm start clears retained failure`() {
+        transportState.value = PlaybackTransportState.Failed(
+            polyrhythmPreparing().context,
+            PlaybackFailureReason.RouteUnavailable
+        )
+        assertEquals(
+            PlaybackUiDiagnostic.Failure(PlaybackFailureReason.RouteUnavailable),
+            viewModel.lastPlaybackDiagnostic
+        )
+
+        transportState.value = polyrhythmPlaying()
+        assertEquals(null, viewModel.lastPlaybackDiagnostic)
     }
 
     @Test
@@ -157,6 +171,35 @@ class PolyrhythmViewModelTest {
     }
 
     @Test
+    fun `committed event gap clears pulses and skips catch-up event`() {
+        val playing = polyrhythmPlaying()
+        transportState.value = playing
+        committedEvents.tryEmit(rendered(1, playing, MusicalEventRole.POLYRHYTHM_BEAT))
+        assertTrue(viewModel.beatPulse > 0f)
+
+        committedEvents.tryEmit(rendered(4, playing, MusicalEventRole.POLYRHYTHM_RHYTHM))
+
+        assertEquals(2L, viewModel.committedEventDeliveryLoss)
+        assertEquals(0f, viewModel.beatPulse)
+        assertEquals(0f, viewModel.rhythmPulse)
+    }
+
+    private fun rendered(
+        sequence: Long,
+        playing: PlaybackTransportState.Playing,
+        role: MusicalEventRole
+    ) = PlaybackCommittedEvent.Rendered(
+        sequence,
+        playing.context.sessionId,
+        sequence,
+        role,
+        0,
+        false,
+        EventPresentation.Unavailable,
+        roleIndex = 0
+    )
+
+    @Test
     fun `polyrhythm pulse durations follow each voice period`() {
         val configuration = CommittedPlaybackConfiguration.Polyrhythm(120f, 3, 2, false)
 
@@ -177,7 +220,7 @@ class PolyrhythmViewModelTest {
         viewModel.start()
         viewModel.stop()
         assertFalse(viewModel.isPlaying)
-        verify { audio.stopPolyrhythm() }
+        verify { audio.stopIfCurrent(PlaybackSessionId(2)) }
     }
 
     @Test
@@ -299,7 +342,6 @@ class PolyrhythmViewModelTest {
                 CommittedPlaybackConfiguration.Polyrhythm(120f, 3, 2, false),
                 startOrigin = PlaybackStartOrigin.USER
             ),
-            PlaybackPrerequisites.READY
         )
 
     private fun polyrhythmPlaying(): PlaybackTransportState.Playing =
@@ -310,7 +352,7 @@ class PolyrhythmViewModelTest {
                     SoundFile.CLICK_HI,
                     SoundFile.CLICK_LO
                 ),
-                route = AudioOutputRoute.UNKNOWN,
+                route = AudioOutputRoute.BUILT_IN,
                 backend = AudioBackendType.AUDIO_TRACK
             )
         )

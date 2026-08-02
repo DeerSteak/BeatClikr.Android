@@ -14,7 +14,8 @@ import kotlinx.coroutines.launch
 
 enum class SecondaryOutput {
     HAPTIC,
-    TORCH
+    TORCH,
+    SCHEDULER
 }
 
 data class SecondaryOutputFailure(
@@ -25,6 +26,7 @@ data class SecondaryOutputFailure(
 
 interface SecondaryOutputObservation {
     val secondaryOutputFailure: StateFlow<SecondaryOutputFailure?>
+    val committedEventDeliveryGap: StateFlow<CommittedEventDeliveryGap?>
 }
 
 fun interface SecondaryOutputScheduler {
@@ -54,14 +56,28 @@ class SecondaryOutputCoordinator(
     private val started = AtomicBoolean(false)
     private val pulseGeneration = AtomicLong(0)
     private val mutableFailure = MutableStateFlow<SecondaryOutputFailure?>(null)
+    private val mutableDeliveryGap = MutableStateFlow<CommittedEventDeliveryGap?>(null)
+    private val committedEventCursor = CommittedEventDeliveryCursor(
+        playback.committedEvents.replayCache.lastOrNull()?.sequence ?: 0L
+    )
 
     @Volatile private var visible = false
     override val secondaryOutputFailure: StateFlow<SecondaryOutputFailure?> = mutableFailure
+    override val committedEventDeliveryGap: StateFlow<CommittedEventDeliveryGap?> =
+        mutableDeliveryGap
 
     fun start() {
         if (!started.compareAndSet(false, true)) return
-        scope.launch { playback.transportState.collect(::applyTransportState) }
-        scope.launch { playback.committedEvents.collect(::applyCommittedEvent) }
+        scope.launch {
+            playback.transportState.collect { state ->
+                runSecondaryCollection("transport collection") { applyTransportState(state) }
+            }
+        }
+        scope.launch {
+            playback.committedEvents.collect { event ->
+                runSecondaryCollection("event collection") { applyCommittedEvent(event) }
+            }
+        }
     }
 
     fun setVisible(isVisible: Boolean) {
@@ -73,19 +89,29 @@ class SecondaryOutputCoordinator(
         val generation = pulseGeneration.incrementAndGet()
         runOutput(SecondaryOutput.HAPTIC, "cancel") { haptics.cancel() }
         if (!runOutput(SecondaryOutput.TORCH, "off") { flashlight.turnFlashlightOff() }) {
-            scheduleTorchOff(generation, TORCH_FAILSAFE_NANOS, "stop failsafe off")
+            scheduleTerminalTorchOff(generation, "stop failsafe off")
         }
     }
 
     internal fun applyTransportState(state: PlaybackTransportState) {
         if (state is PlaybackTransportState.Playing) {
             mutableFailure.value = null
+            mutableDeliveryGap.value = null
         } else {
             stopEffects()
         }
     }
 
     internal fun applyCommittedEvent(event: PlaybackCommittedEvent) {
+        when (val delivery = committedEventCursor.accept(event)) {
+            CommittedEventDeliveryResult.Accepted -> Unit
+            CommittedEventDeliveryResult.Duplicate -> return
+            is CommittedEventDeliveryResult.Gap -> {
+                mutableDeliveryGap.value = delivery.detail
+                stopEffects()
+                return
+            }
+        }
         val rendered = event as? PlaybackCommittedEvent.Rendered ?: return
         val playing = playback.transportState.value as? PlaybackTransportState.Playing ?: return
         if (!visible || rendered.sessionId != playing.context.sessionId) return
@@ -94,7 +120,9 @@ class SecondaryOutputCoordinator(
             ?.minus(nanoTime())
             ?.coerceAtLeast(0)
             ?: 0
-        scheduler.schedule(delay) { dispatch(rendered) }
+        scheduleOutput(SecondaryOutput.SCHEDULER, "event dispatch", delay) {
+            dispatch(rendered)
+        }
     }
 
     private fun dispatch(event: PlaybackCommittedEvent.Rendered) {
@@ -123,23 +151,92 @@ class SecondaryOutputCoordinator(
             flashlight.turnFlashlightOn()
         }
         if (!enabled) {
-            if (!runOutput(SecondaryOutput.TORCH, "failsafe off") {
-                    flashlight.turnFlashlightOff()
-                }) {
-                scheduleTorchOff(generation, TORCH_FAILSAFE_NANOS, "retry failsafe off")
-            }
+            recoverTorchOff(generation, "on failure recovery")
             return
         }
-        scheduleTorchOff(generation, TORCH_PULSE_NANOS, "pulse off")
-        scheduleTorchOff(generation, TORCH_FAILSAFE_NANOS, "failsafe off")
+        if (!scheduleTorchOff(generation, TORCH_PULSE_NANOS, "pulse off")) {
+            recoverTorchOff(generation, "pulse schedule recovery")
+            return
+        }
+        if (!scheduleTorchOff(generation, TORCH_FAILSAFE_NANOS, "failsafe off")) {
+            recoverTorchOff(generation, "failsafe schedule recovery")
+        }
     }
 
-    private fun scheduleTorchOff(generation: Long, delayNanos: Long, operation: String) {
-        scheduler.schedule(delayNanos) {
-            if (pulseGeneration.get() == generation) {
-                runOutput(SecondaryOutput.TORCH, operation) { flashlight.turnFlashlightOff() }
+    private fun scheduleTorchOff(
+        generation: Long,
+        delayNanos: Long,
+        operation: String
+    ): Boolean = scheduleOutput(SecondaryOutput.TORCH, "$operation schedule", delayNanos) {
+        if (pulseGeneration.get() == generation) {
+            runOutput(SecondaryOutput.TORCH, operation) { flashlight.turnFlashlightOff() }
+        }
+    }
+
+    private fun recoverTorchOff(generation: Long, operation: String) {
+        if (runOutput(SecondaryOutput.TORCH, operation) { flashlight.turnFlashlightOff() }) return
+        scheduleTerminalTorchOff(generation, "$operation retry")
+    }
+
+    private fun scheduleTerminalTorchOff(generation: Long, operation: String) {
+        val scheduled = scheduleOutput(
+            SecondaryOutput.TORCH,
+            "$operation schedule",
+            TORCH_FAILSAFE_NANOS
+        ) {
+            if (pulseGeneration.get() == generation &&
+                !runOutput(SecondaryOutput.TORCH, operation) {
+                    flashlight.turnFlashlightOff()
+                }) {
+                runOutput(SecondaryOutput.TORCH, "$operation terminal") {
+                    flashlight.turnFlashlightOff()
+                }
             }
         }
+        if (!scheduled) {
+            runOutput(SecondaryOutput.TORCH, "$operation terminal") {
+                flashlight.turnFlashlightOff()
+            }
+        }
+    }
+
+    private fun scheduleOutput(
+        output: SecondaryOutput,
+        operation: String,
+        delayNanos: Long,
+        task: () -> Unit
+    ): Boolean = try {
+        scheduler.schedule(delayNanos) {
+            try {
+                task()
+            } catch (failure: Exception) {
+                publishFailure(output, operation, failure)
+            }
+        }
+        true
+    } catch (failure: Exception) {
+        publishFailure(output, operation, failure)
+        false
+    }
+
+    private fun runSecondaryCollection(operation: String, action: () -> Unit) {
+        try {
+            action()
+        } catch (failure: Exception) {
+            publishFailure(SecondaryOutput.SCHEDULER, operation, failure)
+        }
+    }
+
+    private fun publishFailure(
+        output: SecondaryOutput,
+        operation: String,
+        failure: Exception
+    ) {
+        mutableFailure.value = SecondaryOutputFailure(
+            output,
+            operation,
+            failure.message ?: failure::class.java.simpleName
+        )
     }
 
     private fun runOutput(
@@ -150,11 +247,7 @@ class SecondaryOutputCoordinator(
         action()
         true
     } catch (failure: Exception) {
-        mutableFailure.value = SecondaryOutputFailure(
-            output,
-            operation,
-            failure.message ?: failure::class.java.simpleName
-        )
+        publishFailure(output, operation, failure)
         false
     }
 

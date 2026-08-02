@@ -1,6 +1,7 @@
 package com.bfunkstudios.beatclikr.services
 
 import android.media.AudioManager
+import androidx.annotation.VisibleForTesting
 import com.bfunkstudios.beatclikr.data.SoundBank
 import com.bfunkstudios.beatclikr.data.SoundFile
 import com.bfunkstudios.beatclikr.music.PlaybackInputResult
@@ -74,7 +75,6 @@ class FrameAudioEngine(
     )
 
     private var frameSession: AudioTrackFrameSession? = null
-    private var nextSessionID = 1L
     private val renderedEvents = RenderedEventRing(RENDERED_EVENT_CAPACITY)
 
     @Volatile
@@ -194,6 +194,11 @@ class FrameAudioEngine(
         soundSelection.includeAndPrepare(soundFiles)
     }
 
+    fun adoptPreparedSounds(completion: (Boolean) -> Unit): Boolean {
+        val sounds = soundSelection.active ?: return false
+        return frameSession?.updateSounds(sounds, completion) == true
+    }
+
     fun setFrameMuted(muted: Boolean) {
         frameSession?.setMuted(muted)
     }
@@ -247,7 +252,7 @@ class FrameAudioEngine(
         alternateSixteenth: Boolean,
         muted: Boolean,
         startDelayMillis: Long,
-        sessionId: PlaybackSessionId? = null
+        sessionId: PlaybackSessionId
     ): Boolean = startFramePublication(
         FramePlaybackPublicationBoundary.standard(
             bpm = bpm,
@@ -268,7 +273,7 @@ class FrameAudioEngine(
         against: Int,
         muted: Boolean,
         startDelayMillis: Long,
-        sessionId: PlaybackSessionId? = null
+        sessionId: PlaybackSessionId
     ): Boolean = startFramePublication(
         FramePlaybackPublicationBoundary.polyrhythm(
             bpm = bpm,
@@ -302,6 +307,14 @@ class FrameAudioEngine(
 
     fun currentRoute(): AudioOutputRoute =
         frameSession?.currentRoute() ?: AudioOutputRoute.UNKNOWN
+
+    @VisibleForTesting
+    internal fun reportRouteChangeForTesting(
+        previous: AudioOutputRoute,
+        current: AudioOutputRoute
+    ) {
+        frameSession().reportRouteChangeForTesting(previous, current)
+    }
 
     fun drainRenderedEvents(afterCaptureSequence: Long): FrameAudioRenderedEventBatch {
         val metrics = metricsSnapshot()
@@ -350,12 +363,8 @@ class FrameAudioEngine(
             routeChangeObserver = routeChangeObserver
         ).also { frameSession = it }
 
-    private fun nextOrigin(sessionId: PlaybackSessionId?): SessionOrigin {
-        val value = sessionId?.value ?: nextSessionID
-        val origin = SessionOrigin(SessionID(value), 0)
-        nextSessionID = maxOf(nextSessionID, Math.incrementExact(value))
-        return origin
-    }
+    private fun nextOrigin(sessionId: PlaybackSessionId): SessionOrigin =
+        SessionOrigin(SessionID(sessionId.value), 0)
 
     private fun resolveOutputFramesPerBuffer(): Int {
         val value = audioManager

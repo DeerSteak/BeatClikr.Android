@@ -38,6 +38,7 @@ enum class AudioOutputRoute {
     BLUETOOTH,
     HDMI,
     REMOTE,
+    OTHER,
     UNKNOWN
 }
 

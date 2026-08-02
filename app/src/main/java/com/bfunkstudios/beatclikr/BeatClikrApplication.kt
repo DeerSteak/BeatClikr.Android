@@ -28,16 +28,9 @@ class BeatClikrApplication : Application() {
         }
         audioPlayerService.prewarmAudioTrack()
         secondaryOutputs.start()
-        ProcessLifecycleOwner.get().lifecycle.addObserver(object : DefaultLifecycleObserver {
-            override fun onStart(owner: LifecycleOwner) {
-                secondaryOutputs.setVisible(true)
-            }
-
-            override fun onStop(owner: LifecycleOwner) {
-                secondaryOutputs.setVisible(false)
-                stopResources()
-            }
-        })
+        ProcessLifecycleOwner.get().lifecycle.addObserver(
+            SecondaryOutputProcessLifecycleObserver(secondaryOutputs, ::stopResources)
+        )
 
         @Suppress("DEPRECATION")
         registerComponentCallbacks(object : ComponentCallbacks2 {
@@ -51,8 +44,7 @@ class BeatClikrApplication : Application() {
     }
 
     private fun stopResources() {
-        audioPlayerService.stopMetronome()
-        audioPlayerService.stopPolyrhythm()
+        audioPlayerService.stopPlayback()
         secondaryOutputs.stopEffects()
     }
 
@@ -64,4 +56,18 @@ class BeatClikrApplication : Application() {
         playlistBeatSound,
         playlistRhythmSound
     )
+}
+
+internal class SecondaryOutputProcessLifecycleObserver(
+    private val secondaryOutputs: SecondaryOutputCoordinator,
+    private val onInactive: () -> Unit
+) : DefaultLifecycleObserver {
+    override fun onStart(owner: LifecycleOwner) {
+        secondaryOutputs.setVisible(true)
+    }
+
+    override fun onStop(owner: LifecycleOwner) {
+        secondaryOutputs.setVisible(false)
+        onInactive()
+    }
 }

@@ -3,6 +3,7 @@ package com.bfunkstudios.beatclikr.services
 import android.media.AudioManager
 import android.os.Handler
 import android.os.HandlerThread
+import androidx.annotation.VisibleForTesting
 import com.bfunkstudios.beatclikr.music.PolyrhythmConfiguration
 import com.bfunkstudios.beatclikr.music.StandardMetronomeConfiguration
 import java.util.concurrent.CountDownLatch
@@ -272,6 +273,16 @@ class AudioTrackFrameSession(
         }
     }
 
+    fun updateSounds(
+        sounds: ActivePreparedSounds,
+        completion: (Boolean) -> Unit
+    ): Boolean {
+        if (released || !renderRunning) return false
+        return handler.post {
+            completion(renderRunning && owner.updateSounds(sounds))
+        }
+    }
+
     @Synchronized
     fun release(): Boolean {
         if (released) return true
@@ -282,6 +293,14 @@ class AudioTrackFrameSession(
     }
 
     fun currentRoute(): AudioOutputRoute = owner.route
+
+    @VisibleForTesting
+    internal fun reportRouteChangeForTesting(
+        previous: AudioOutputRoute,
+        current: AudioOutputRoute
+    ) {
+        owner.reportRouteChangeForTesting(previous, current)
+    }
 
     fun snapshot(): AudioTrackFrameSessionSnapshot {
         var before: Int

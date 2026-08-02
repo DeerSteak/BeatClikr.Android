@@ -11,6 +11,21 @@ import org.junit.Test
 class PlaybackCoordinatorArchitectureTest {
 
     @Test
+    fun engineEntryPointsRequireSessionOwnership() {
+        val engine = locateMainSource("services/MetronomeAudioEngine.kt").readText()
+        val frameEngine = locateMainSource("services/FrameAudioEngine.kt").readText()
+
+        assertFalse(
+            engine.contains("delegate: MetronomeAudioEngineDelegate,\n        sessionId: PlaybackSessionId?")
+        )
+        assertFalse(engine.contains("fun startPolyrhythm(\n        sessionId: PlaybackSessionId?"))
+        assertFalse(engine.contains("fun stopMetronome()"))
+        assertFalse(engine.contains("fun stopPolyrhythm()"))
+        assertTrue(engine.contains("fun stopSession(sessionId: PlaybackSessionId"))
+        assertFalse(frameEngine.contains("sessionId: PlaybackSessionId?"))
+    }
+
+    @Test
     fun productionBindingExposesCoordinatorInsteadOfConcreteEngineOwner() {
         val module = locateMainSource("di/AppModule.kt").readText()
 
@@ -22,6 +37,53 @@ class PlaybackCoordinatorArchitectureTest {
             )
         )
         assertFalse(module.contains("AudioPlayerService.getInstance"))
+    }
+
+    @Test
+    fun productionEnginePortExposesOnlySessionAwareTransportMutation() {
+        val coordinator = locateMainSource("services/PlaybackCoordinator.kt").readText()
+        val port = coordinator.substringAfter("interface PlaybackEnginePort {")
+            .substringBefore("sealed interface PlaybackEngineUpdateResult")
+        val service = locateMainSource("services/AudioPlayerService.kt").readText()
+
+        assertFalse(coordinator.contains("interface PlaybackEnginePort : IAudioPlayerService"))
+        listOf(
+            "fun startMetronome(",
+            "fun stopMetronome(",
+            "fun updateTempo(",
+            "fun startPolyrhythm(",
+            "fun stopPolyrhythm("
+        ).forEach { sessionless ->
+            assertFalse("Engine port exposes $sessionless", port.contains(sessionless))
+            assertFalse("Production adapter exposes $sessionless", service.contains(sessionless))
+        }
+        assertTrue(port.contains("fun beginStandardSession("))
+        assertTrue(port.contains("fun stopSession(sessionId: PlaybackSessionId"))
+    }
+
+    @Test
+    fun focusLossCanOnlyPublishSessionTaggedCoordinatorInput() {
+        val engine = locateMainSource("services/MetronomeAudioEngine.kt").readText()
+        val listener = engine.substringAfter("private val focusListener")
+            .substringBefore("private val audioFocusRequest")
+
+        assertTrue(listener.contains("activeCoordinatorSessionId"))
+        assertTrue(listener.contains("playbackInterruptionObserver?.invoke("))
+        assertTrue(listener.contains("PlaybackInterruptionReason.AudioFocusLost"))
+        assertFalse(listener.contains("stopMetronome()"))
+        assertFalse(listener.contains("stopPolyrhythm()"))
+    }
+
+    @Test
+    fun viewModelCleanupCannotMutateTransport() {
+        val metronome = locateMainSource("ui/MetronomeViewModel.kt").readText()
+        val polyrhythm = locateMainSource("ui/PolyrhythmViewModel.kt").readText()
+
+        listOf(metronome, polyrhythm).forEach { source ->
+            val cleanup = source.substringAfter("override fun onCleared()")
+                .substringBefore("\n    }")
+            assertFalse(cleanup.contains("audio."))
+        }
     }
 
     @Test
@@ -53,30 +115,6 @@ class PlaybackCoordinatorArchitectureTest {
     }
 
     @Test
-    fun engineFailureCallbacksAreCompilerRequiredAndForwarded() {
-        val engine = locateMainSource("services/MetronomeAudioEngine.kt").readText()
-        val service = locateMainSource("services/AudioPlayerService.kt").readText()
-        val coordinator = locateMainSource("services/PlaybackCoordinator.kt").readText()
-
-        assertTrue(engine.contains("fun metronomeStartFailed()\\n".replace("\\n", "\n")))
-        assertTrue(engine.contains("fun polyrhythmStartFailed()\\n".replace("\\n", "\n")))
-        assertFalse(engine.contains("fun metronomeStartFailed() {}"))
-        assertFalse(engine.contains("fun polyrhythmStartFailed() {}"))
-        assertTrue(service.contains("override fun metronomeStartFailed()"))
-        assertTrue(coordinator.contains("override fun metronomeStartFailed()"))
-        assertTrue(coordinator.contains("override fun polyrhythmStartFailed()"))
-    }
-
-    @Test
-    fun timingTrafficCannotEvictControlOutcomes() {
-        val source = locateMainSource("services/PlaybackCoordinator.kt").readText()
-
-        assertTrue(source.contains("val timingEvents: SharedFlow<PlaybackTimingEvent>"))
-        assertTrue(source.contains("val controlEvents: SharedFlow<PlaybackControlEvent>"))
-        assertFalse(source.contains("SharedFlow<PlaybackCoordinatorEvent>"))
-    }
-
-    @Test
     fun legacyOwnershipModeIsProjectedOnlyFromTransportTransitions() {
         val source = locateMainSource("services/PlaybackCoordinator.kt").readText()
         val transition = source.substringAfter("private fun transitionTo(")
@@ -95,8 +133,6 @@ class PlaybackCoordinatorArchitectureTest {
             assertTrue(source.contains("private val playback: PlaybackObservation"))
             assertTrue(source.contains("playback.transportState.collect"))
             assertTrue(source.contains("playback.committedEvents.collect"))
-            assertFalse(source.contains("audio.delegate ="))
-            assertFalse(source.contains("audio.polyrhythmDelegate ="))
             assertFalse(source.contains("recordMetronomePractice"))
             assertFalse(source.contains("recordPolyrhythmPractice"))
             assertFalse(source.contains("recordSongPlayed"))

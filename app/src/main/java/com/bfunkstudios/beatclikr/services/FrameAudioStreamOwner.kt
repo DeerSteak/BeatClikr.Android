@@ -5,6 +5,7 @@ import com.bfunkstudios.beatclikr.music.DeadlineRecoveryState
 import com.bfunkstudios.beatclikr.music.FrameEventTimeline
 import com.bfunkstudios.beatclikr.music.PolyrhythmConfiguration
 import com.bfunkstudios.beatclikr.music.StandardMetronomeConfiguration
+import androidx.annotation.VisibleForTesting
 
 fun interface PcmFrameRendererFactory {
     fun create(properties: AudioBackendStreamProperties): PublishedPcmFrameRenderer?
@@ -124,6 +125,15 @@ class FrameAudioStreamOwner(
 
     val route: AudioOutputRoute
         get() = backend.currentRoute()
+
+    @VisibleForTesting
+    internal fun reportRouteChangeForTesting(
+        previous: AudioOutputRoute,
+        current: AudioOutputRoute
+    ) {
+        check(backend is AudioTrackRenderBackend)
+        backend.reportRouteChangeForTesting(previous, current)
+    }
 
     var lastMixDurationNanos: Long = 0L
         private set
@@ -258,6 +268,12 @@ class FrameAudioStreamOwner(
 
     fun updatePolyrhythm(configuration: PolyrhythmConfiguration): Boolean {
         return updateTimeline { polyrhythmUpdater?.update(configuration, nextFrame) }
+    }
+
+    fun updateSounds(sounds: ActivePreparedSounds): Boolean {
+        val frameRenderer = renderer as? FramePcmRenderer ?: return false
+        frameRenderer.replaceWaveforms(RenderWaveforms(sounds.beat, sounds.rhythm))
+        return true
     }
 
     private inline fun updateTimeline(replacement: () -> FrameEventTimeline?): Boolean {

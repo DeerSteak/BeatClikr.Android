@@ -43,6 +43,9 @@ The clauses define the intended completed behavior, not equal delivery priority.
 
 - **PL-017:** Built-in speaker, analog or USB-C wired output, and USB audio interfaces are local routes eligible for the low-latency acceptance budgets when Android reports a stable output stream.
 - **PL-018:** A route change stops the current session, records the reason, releases the old stream, and requires explicit user restart after the new route is ready.
+- Focus and route readiness use one production model: session-tagged start results reject unavailable focus or output, and session-tagged interruptions stop an active session. There is no parallel prerequisite state channel.
+- `AudioOutputRoute.UNKNOWN` means that no usable routed device is available. A usable device whose Android type is not classified is `OTHER`, and may enter `Playing` without inheriting a named route's latency claim.
+- A known active route becoming `UNKNOWN` is `RouteUnavailable`; a transition between two usable routes is `RouteChanged(previous, current)`.
 - **PL-019:** Bluetooth playback is supported as a convenience route, but BeatClikr does not promise deterministic end-to-end Bluetooth latency.
 - **PL-020:** Bluetooth tests still require stable musical phase, no application-generated missing or doubled events, and no catch-up bursts.
 - **PL-021:** The UI identifies Bluetooth as latency-variable when it is the active route. It does not imply that speaker measurements apply to Bluetooth.
@@ -55,6 +58,15 @@ The clauses define the intended completed behavior, not equal delivery priority.
 - **PL-025:** Haptic and flash effects are foreground-only and stop when the visible app becomes inactive even while audio continues.
 - **PL-026:** Disabling, denying, or stopping a secondary output does not alter audio phase.
 - **PL-027:** Secondary-output failure is surfaced without stopping otherwise healthy audio unless continuing would violate safety or platform policy.
+- Secondary-output visibility follows `ProcessLifecycleOwner` at the `STARTED` boundary. Effects are disabled when no Activity is started, including ordinary backgrounding and screen-off; configuration changes do not produce a process stop.
+- Multi-window, the notification shade, and transient system or permission overlays retain effects while BeatClikr remains started. A fully obscuring transition that stops the last Activity disables effects; audio lifecycle remains a separate policy.
+- Torch scheduling uses a pulse-off path plus a failsafe. Registration failure triggers an immediate off attempt, then at most one scheduled retry and one terminal immediate attempt; failures remain visible without changing playback.
+
+### Event delivery
+
+- Lifecycle transitions use a lossless in-process journal and current checkpoint, separate from rendered events. The single durable Phase 5 consumer acknowledges persisted sequences so the coordinator can prune them; reads behind that acknowledgement fail explicitly. A 4,096-transition safety cap prevents unbounded growth before a consumer exists and reports an explicit gap if exceeded.
+- Rendered events use a bounded recent-history stream. Visual and secondary-output consumers detect sequence gaps, reset transient output, and skip the first post-gap event rather than producing catch-up bursts.
+- Diagnostics may inspect bounded replay as best-effort history. Renderer-ring loss remains `RecordsDropped`; downstream stream loss is reported independently by each consumer's delivery cursor.
 
 ### Navigation
 
@@ -65,7 +77,7 @@ The clauses define the intended completed behavior, not equal delivery priority.
 
 ## Consequences
 
-The shipping Android app currently stops when it leaves the foreground and therefore does not satisfy the iOS-parity background contract. It also lacks one authoritative coordinator, and some ViewModels report playing or record practice before audio focus and audible output are confirmed. Phase 4 closes those playback and lifecycle gaps.
+The shipping Android app currently stops when it leaves the foreground and therefore does not satisfy the iOS-parity background contract. Phase 4 established one authoritative coordinator, audio-confirmed state, session-tagged commands and callbacks, focus ownership, and foreground route policy. Phase 9 remains responsible for background playback and system controls.
 
 The successful screen-off engine instrumentation run is useful feasibility evidence, but Android background playback is not complete until the foreground service, media session, notification controls, focus behavior, navigation behavior, and lifecycle tests satisfy this decision.
 

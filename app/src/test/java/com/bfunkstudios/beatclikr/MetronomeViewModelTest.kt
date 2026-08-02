@@ -18,14 +18,16 @@ import com.bfunkstudios.beatclikr.services.EventPresentation
 import com.bfunkstudios.beatclikr.services.IAudioPlayerService
 import com.bfunkstudios.beatclikr.services.PlaybackCommittedEvent
 import com.bfunkstudios.beatclikr.services.PlaybackMode
+import com.bfunkstudios.beatclikr.services.PlaybackFailureReason
+import com.bfunkstudios.beatclikr.services.PlaybackInterruptionReason
 import com.bfunkstudios.beatclikr.services.PlaybackObservation
-import com.bfunkstudios.beatclikr.services.PlaybackPrerequisites
 import com.bfunkstudios.beatclikr.services.PlaybackSessionContext
 import com.bfunkstudios.beatclikr.services.PlaybackSessionId
 import com.bfunkstudios.beatclikr.services.PlaybackStartOrigin
 import com.bfunkstudios.beatclikr.services.PlaybackTransportState
 import com.bfunkstudios.beatclikr.services.SecondaryOutputObservation
 import com.bfunkstudios.beatclikr.ui.MetronomeViewModel
+import com.bfunkstudios.beatclikr.ui.PlaybackUiDiagnostic
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
@@ -83,7 +85,7 @@ class MetronomeViewModelTest {
         every { audio.startMetronome(any(), any(), any(), any()) } answers {
             transportState.value = standardPreparing()
         }
-        every { audio.stopMetronome() } answers {
+        every { audio.stopIfCurrent(PlaybackSessionId(1)) } answers {
             transportState.value = PlaybackTransportState.Idle
         }
         viewModel = MetronomeViewModel(audio, playback, prefs, secondaryOutputs)
@@ -123,7 +125,6 @@ class MetronomeViewModelTest {
 
     @Test
     fun `init does not install an audio delegate`() {
-        verify(exactly = 0) { audio.delegate = any() }
     }
 
     @Test
@@ -142,7 +143,6 @@ class MetronomeViewModelTest {
                 mode = PlaybackMode.POLYRHYTHM,
                 configuration = CommittedPlaybackConfiguration.Polyrhythm(120f, 3, 2, false)
             ),
-            PlaybackPrerequisites.READY
         )
 
         assertTrue(viewModel.controlsEnabled)
@@ -158,13 +158,47 @@ class MetronomeViewModelTest {
     }
 
     @Test
+    fun `diagnostic survives idle and clears after successful start`() {
+        val failed = PlaybackTransportState.Failed(
+            standardPreparing().context,
+            PlaybackFailureReason.AudioFocusUnavailable
+        )
+        transportState.value = failed
+        assertEquals(
+            PlaybackUiDiagnostic.Failure(PlaybackFailureReason.AudioFocusUnavailable),
+            viewModel.lastPlaybackDiagnostic
+        )
+
+        transportState.value = PlaybackTransportState.Idle
+        assertEquals(
+            PlaybackUiDiagnostic.Failure(PlaybackFailureReason.AudioFocusUnavailable),
+            viewModel.lastPlaybackDiagnostic
+        )
+
+        transportState.value = standardPlaying()
+        assertEquals(null, viewModel.lastPlaybackDiagnostic)
+    }
+
+    @Test
+    fun `route interruption remains visible after teardown`() {
+        val reason = PlaybackInterruptionReason.RouteUnavailable(AudioOutputRoute.BUILT_IN)
+        transportState.value = PlaybackTransportState.Interrupted(
+            standardPlaying().context,
+            reason
+        )
+        transportState.value = PlaybackTransportState.Idle
+
+        assertEquals(PlaybackUiDiagnostic.Interruption(reason), viewModel.lastPlaybackDiagnostic)
+    }
+
+    @Test
     fun `rapid toggle sequence submits one command per user intent`() {
         viewModel.togglePlayPause()
         viewModel.togglePlayPause()
         viewModel.togglePlayPause()
 
         verify(exactly = 2) { audio.startMetronome(any(), any(), any(), any()) }
-        verify(exactly = 1) { audio.stopMetronome() }
+        verify(exactly = 1) { audio.stopIfCurrent(PlaybackSessionId(1)) }
         assertTrue(viewModel.isPlaying)
     }
 
@@ -176,7 +210,6 @@ class MetronomeViewModelTest {
                 CommittedPlaybackConfiguration.Standard(120f, 4, null, false, false),
                 startOrigin = PlaybackStartOrigin.USER
             ),
-            PlaybackPrerequisites.READY
         )
 
     private fun standardPlaying(): PlaybackTransportState.Playing =
@@ -187,7 +220,7 @@ class MetronomeViewModelTest {
                     SoundFile.CLICK_HI,
                     SoundFile.CLICK_LO
                 ),
-                route = AudioOutputRoute.UNKNOWN,
+                route = AudioOutputRoute.BUILT_IN,
                 backend = AudioBackendType.AUDIO_TRACK
             )
         )
@@ -405,11 +438,32 @@ class MetronomeViewModelTest {
     }
 
     @Test
-    fun `stop calls audio stopMetronome`() {
+    fun `stop submits owner scoped session stop`() {
         viewModel.start()
         viewModel.stop()
-        verify { audio.stopMetronome() }
+        verify { audio.stopIfCurrent(PlaybackSessionId(1)) }
         assertFalse(viewModel.isPlaying)
+    }
+
+    @Test
+    fun `obsolete view model stop keeps its original session identity`() {
+        viewModel.start()
+        transportState.value = standardPreparing().copy(
+            context = standardPreparing().context.copy(sessionId = PlaybackSessionId(2))
+        )
+
+        viewModel.stop()
+
+        verify { audio.stopIfCurrent(PlaybackSessionId(1)) }
+        verify(exactly = 0) { audio.stopIfCurrent(PlaybackSessionId(2)) }
+    }
+
+    @Test
+    fun `top level navigation uses intentional global stop`() {
+        viewModel.stopPlaybackForTopLevelNavigation()
+
+        verify { audio.stopPlayback() }
+        verify(exactly = 0) { audio.stopIfCurrent(PlaybackSessionId(1)) }
     }
 
     // --- Mute ---
@@ -486,7 +540,23 @@ class MetronomeViewModelTest {
         viewModel.playSong(song)
 
         verify(exactly = 0) { audio.updateTempo(any(), any(), any(), any()) }
-        verify(exactly = 1) { audio.startMetronome(140f, 2, any(), any()) }
+        verify(exactly = 1) { audio.replaceMetronome(140f, 2, any(), any()) }
+    }
+
+    @Test
+    fun `playing another song adopts replacement session ownership`() {
+        viewModel.start()
+        every { audio.replaceMetronome(any(), any(), any(), any()) } answers {
+            transportState.value = standardPreparing().copy(
+                context = standardPreparing().context.copy(sessionId = PlaybackSessionId(2))
+            )
+        }
+        val song = Song(title = "Next", artist = "Artist", beatsPerMinute = 140f, beatsPerMeasure = 4, groove = Groove.Eighth, liveSequence = null, rehearsalSequence = null)
+
+        viewModel.playSong(song)
+        viewModel.stop()
+
+        verify { audio.stopIfCurrent(PlaybackSessionId(2)) }
     }
 
     // --- Beat fired ---
@@ -515,6 +585,35 @@ class MetronomeViewModelTest {
         viewModel.stop()
         assertEquals(0f, viewModel.beatPulse)
     }
+
+    @Test
+    fun `committed event gap clears visual state and skips catch-up event`() {
+        val playing = standardPlaying()
+        transportState.value = playing
+        committedEvents.tryEmit(rendered(1, playing, roleIndex = 0))
+        assertEquals(MetronomeConstants.ICON_SCALE_MAX, viewModel.iconScale)
+
+        committedEvents.tryEmit(rendered(4, playing, roleIndex = 0))
+
+        assertEquals(2L, viewModel.committedEventDeliveryLoss)
+        assertEquals(MetronomeConstants.ICON_SCALE_MIN, viewModel.iconScale)
+        assertEquals(0f, viewModel.beatPulse)
+    }
+
+    private fun rendered(
+        sequence: Long,
+        playing: PlaybackTransportState.Playing,
+        roleIndex: Int
+    ) = PlaybackCommittedEvent.Rendered(
+        sequence,
+        playing.context.sessionId,
+        sequence,
+        MusicalEventRole.STANDARD,
+        0,
+        false,
+        EventPresentation.Unavailable,
+        roleIndex
+    )
 
     // --- Tap tempo ---
 

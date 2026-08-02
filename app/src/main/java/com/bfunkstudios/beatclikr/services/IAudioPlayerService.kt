@@ -11,8 +11,6 @@ interface PlaybackObservation {
 }
 
 interface IAudioPlayerService {
-    var delegate: MetronomeAudioEngineDelegate?
-    var polyrhythmDelegate: PolyrhythmAudioEngineDelegate?
     var isMuted: Boolean
     var soundBank: SoundBank
     fun setupAudioPlayer(beatResourceId: Int, rhythmResourceId: Int)
@@ -22,7 +20,14 @@ interface IAudioPlayerService {
         accentPattern: List<Boolean>? = null,
         alternateSixteenth: Boolean = false
     )
-    fun stopMetronome()
+    fun replaceMetronome(
+        bpm: Float,
+        subdivisions: Int,
+        accentPattern: List<Boolean>? = null,
+        alternateSixteenth: Boolean = false
+    )
+    fun stopIfCurrent(expectedSessionId: PlaybackSessionId)
+    fun stopPlayback()
     fun updateTempo(
         bpm: Float,
         subdivisions: Int,
@@ -30,7 +35,6 @@ interface IAudioPlayerService {
         alternateSixteenth: Boolean = false
     )
     fun startPolyrhythm(bpm: Float, beats: Int, against: Int)
-    fun stopPolyrhythm()
     fun prewarmAudioTrack()
     fun prepareAudioTrackSounds(soundFiles: Collection<SoundFile>)
     fun getFrameAudioMetricsSnapshot(): FrameAudioMetricsSnapshot?

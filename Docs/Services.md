@@ -4,7 +4,9 @@ Services isolate audio, device feedback, reminder scheduling, and repository beh
 
 ## Audio services
 
-`AudioPlayerService` is the application-facing implementation of `IAudioPlayerService`. It owns `MetronomeAudioEngine`, forwards delegate events, and exposes standard and polyrhythm setup, start, stop, sound-bank, and metrics operations.
+`PlaybackCoordinator` implements the application command port `IAudioPlayerService` and read-only `PlaybackObservation`. UI and secondary outputs observe transport state and renderer-originated `committedEvents`; no application-facing timing delegate or provisional timing flow remains.
+
+`AudioPlayerService` owns `MetronomeAudioEngine` behind `PlaybackEnginePort`. Every engine and frame-engine start/stop entry point requires session identity, so stale owners cannot issue sessionless teardown. Engine timing delegates remain only below that port to prompt committed-event draining; `AudioPlayerService` owns this compatibility seam, which Phase 9 should remove if event draining becomes entirely scheduler-driven.
 
 `MetronomeAudioEngine` manages audio focus, one-shot visual scheduling, frame-audio publication, and the polyrhythm visual engine. `PolyrhythmTimingEngine` advances two visual rhythms on a shared monotonic timeline. `FrameAudioEngine` owns prepared sound selection and frame-session publication; `AudioTrackFrameSession` drives the streaming backend. `PcmFileCache` reads versioned generated PCM while `SoundBankPreparer` decodes and validates Android raw resources on the control context.
 
@@ -24,7 +26,7 @@ Audio events are positioned by absolute frames inside render blocks. Secondary-o
 
 - `HapticFeedbackService` emits optional vibration feedback and supports explicit cancellation.
 - `FlashlightService` checks for torch support and controls the camera flash.
-- `SecondaryOutputCoordinator` consumes session-guarded committed audio events, schedules presentation-relative effects, and exposes retained typed failures independently of audio transport.
+- `SecondaryOutputCoordinator` consumes session-guarded committed audio events, schedules presentation-relative effects, and exposes retained typed failures independently of audio transport. Scheduler and hardware failures are isolated; torch pulses retain bounded off recovery, and process `STARTED` visibility gates foreground-only effects.
 
 Haptic and torch effects are foreground-only. Torch-on is paired with a 40 ms pulse-off and a separate 250 ms failsafe; stop, interruption, failure, and lifecycle exit invalidate pending work and force both outputs off. Platform and hardware latency remain independent, so these effects are not evidence of acoustic alignment.
 
@@ -38,4 +40,4 @@ Song, playlist, and practice repositories adapt Room DAOs into flows and suspend
 
 ## Lifecycle policy
 
-Playback is foreground-only. Process and activity lifecycle handling stop audio when the app leaves the foreground; no foreground playback service or media notification exists.
+Playback is foreground-only. A `ProcessLifecycleOwner` stop tears down playback and secondary effects after the process leaves the foreground; an individual Activity stop only clears that window's keep-awake flag. Configuration recreation therefore preserves an active session, while backgrounding or screen-off stops it. No playback foreground service, media session, or media notification exists.

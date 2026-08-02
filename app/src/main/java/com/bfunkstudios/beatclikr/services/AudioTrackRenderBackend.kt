@@ -7,6 +7,7 @@ import android.media.AudioTimestamp
 import android.media.AudioTrack
 import android.media.AudioDeviceInfo
 import android.media.AudioRouting
+import androidx.annotation.VisibleForTesting
 
 class AudioTrackRenderBackend(
     private val audioManager: AudioManager? = null,
@@ -163,6 +164,14 @@ class AudioTrackRenderBackend(
 
     override fun currentRoute(): AudioOutputRoute = currentRoute
 
+    @VisibleForTesting
+    internal fun reportRouteChangeForTesting(
+        previous: AudioOutputRoute,
+        current: AudioOutputRoute
+    ) {
+        routeChangeObserver(previous, current)
+    }
+
     @Suppress("DEPRECATION")
     private fun buildTrack(request: AudioBackendOpenRequest): AudioTrack {
         val channelMask = when (request.preferredChannelCount) {
@@ -234,7 +243,7 @@ class AudioTrackRenderBackend(
         AudioDeviceInfo.TYPE_HDMI_ARC,
         AudioDeviceInfo.TYPE_HDMI_EARC -> AudioOutputRoute.HDMI
         AudioDeviceInfo.TYPE_REMOTE_SUBMIX -> AudioOutputRoute.REMOTE
-        else -> AudioOutputRoute.UNKNOWN
+        else -> if (this == null) AudioOutputRoute.UNKNOWN else AudioOutputRoute.OTHER
     }
 
     private companion object {

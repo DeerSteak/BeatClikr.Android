@@ -1,6 +1,9 @@
 package com.bfunkstudios.beatclikr
 
 import android.content.Context
+import android.content.pm.ActivityInfo
+import android.content.res.Configuration
+import android.view.WindowManager
 import androidx.room.Room
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
@@ -8,11 +11,15 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.lifecycle.Lifecycle
 import com.bfunkstudios.beatclikr.data.IAppPreferences
+import com.bfunkstudios.beatclikr.data.Playlist
+import com.bfunkstudios.beatclikr.data.PlaylistEntry
 import com.bfunkstudios.beatclikr.data.PlaylistRepository
 import com.bfunkstudios.beatclikr.data.PlaylistRepositoryImpl
 import com.bfunkstudios.beatclikr.data.PracticeHistoryRepository
 import com.bfunkstudios.beatclikr.data.PracticeHistoryRepositoryImpl
+import com.bfunkstudios.beatclikr.data.Song
 import com.bfunkstudios.beatclikr.data.SongRepository
 import com.bfunkstudios.beatclikr.data.SongRepositoryImpl
 import com.bfunkstudios.beatclikr.data.db.BeatClikrDatabase
@@ -26,6 +33,11 @@ import com.bfunkstudios.beatclikr.services.IFlashlightService
 import com.bfunkstudios.beatclikr.services.IHapticFeedbackService
 import com.bfunkstudios.beatclikr.services.IPracticeReminderScheduler
 import com.bfunkstudios.beatclikr.services.PlaybackObservation
+import com.bfunkstudios.beatclikr.services.AudioOutputRoute
+import com.bfunkstudios.beatclikr.services.PlaybackFailureReason
+import com.bfunkstudios.beatclikr.services.PlaybackInterruptionReason
+import com.bfunkstudios.beatclikr.services.PlaybackMode
+import com.bfunkstudios.beatclikr.services.PlaybackTransportState
 import com.bfunkstudios.beatclikr.services.SecondaryOutputCoordinator
 import com.bfunkstudios.beatclikr.services.SecondaryOutputObservation
 import dagger.Module
@@ -39,9 +51,14 @@ import dagger.hilt.components.SingletonComponent
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.runBlocking
+import java.util.Locale
+import org.junit.After
 import org.junit.Before
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
+import org.junit.Assume.assumeTrue
 import org.junit.Rule
 import org.junit.Test
 import javax.inject.Inject
@@ -58,6 +75,8 @@ class InstantMetronomeViewTest {
     val composeRule = createAndroidComposeRule<MainActivity>()
 
     @Inject lateinit var audio: IAudioPlayerService
+    @Inject lateinit var playlistDao: PlaylistDao
+    @Inject lateinit var songDao: SongDao
 
     @Module
     @InstallIn(SingletonComponent::class)
@@ -130,6 +149,13 @@ class InstantMetronomeViewTest {
     @Before
     fun setUp() {
         hiltRule.inject()
+    }
+
+    @After
+    fun restoreOrientation() {
+        composeRule.activityRule.scenario.onActivity {
+            it.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+        }
     }
 
     private val activity get() = composeRule.activity
@@ -207,6 +233,147 @@ class InstantMetronomeViewTest {
     }
 
     @Test
+    fun bluetoothWarningTracksAuthoritativeRouteInBothModes() {
+        val fake = audio as FakeAudioPlayerService
+        fake.publishPlaying(PlaybackMode.STANDARD, AudioOutputRoute.BLUETOOTH)
+        composeRule.onNodeWithTag("bluetooth_latency_warning").assertIsDisplayed()
+        composeRule.onNodeWithContentDescription(
+            activity.getString(R.string.bluetooth_latency_warning)
+        ).assertIsDisplayed()
+
+        fake.publishPlaying(PlaybackMode.STANDARD, AudioOutputRoute.BUILT_IN)
+        composeRule.onNodeWithTag("bluetooth_latency_warning").assertDoesNotExist()
+
+        composeRule.onNodeWithTag("metronome_mode_polyrhythm").performClick()
+        fake.publishPlaying(PlaybackMode.POLYRHYTHM, AudioOutputRoute.BLUETOOTH)
+        composeRule.onNodeWithTag("bluetooth_latency_warning").assertIsDisplayed()
+
+        fake.stopPlayback()
+        composeRule.onNodeWithTag("bluetooth_latency_warning").assertDoesNotExist()
+    }
+
+    @Test
+    fun playbackDiagnosticsAreVisibleAndSuccessfulStartClearsThem() {
+        val fake = audio as FakeAudioPlayerService
+        val cases = listOf(
+            PlaybackFailureReason.AudioFocusUnavailable to R.string.playback_focus_unavailable,
+            PlaybackFailureReason.RouteUnavailable to R.string.playback_route_unavailable,
+            PlaybackFailureReason.StreamStart("stream start rejected") to
+                R.string.playback_stream_start_failed,
+            PlaybackFailureReason.Engine("RENDER: INTERNAL_ERROR") to
+                R.string.playback_engine_failed
+        )
+        cases.forEach { (reason, message) ->
+            fake.publishFailed(PlaybackMode.STANDARD, reason)
+            composeRule.onNodeWithText(activity.getString(message)).assertIsDisplayed()
+        }
+
+        fake.publishInterrupted(
+            PlaybackMode.STANDARD,
+            PlaybackInterruptionReason.RouteChanged(
+                AudioOutputRoute.BUILT_IN,
+                AudioOutputRoute.USB
+            )
+        )
+        composeRule.onNodeWithText(
+            activity.getString(
+                R.string.playback_route_changed,
+                activity.getString(R.string.audio_route_built_in),
+                activity.getString(R.string.audio_route_usb)
+            )
+        ).assertIsDisplayed()
+
+        fake.publishPlaying(PlaybackMode.STANDARD)
+        composeRule.onNodeWithTag("playback_diagnostic").assertDoesNotExist()
+
+        composeRule.onNodeWithTag("metronome_mode_polyrhythm").performClick()
+        fake.publishFailed(PlaybackMode.POLYRHYTHM, PlaybackFailureReason.RouteUnavailable)
+        composeRule.onNodeWithText(
+            activity.getString(R.string.playback_route_unavailable)
+        ).assertIsDisplayed()
+        fake.publishPlaying(PlaybackMode.POLYRHYTHM)
+        composeRule.onNodeWithTag("playback_diagnostic").assertDoesNotExist()
+    }
+
+    @Test
+    fun spanishRouteChangeMessageUsesLocalizedRouteLabels() {
+        val configuration = Configuration(activity.resources.configuration).apply {
+            setLocale(Locale.forLanguageTag("es"))
+        }
+        val localized = activity.createConfigurationContext(configuration)
+        val message = localized.getString(
+            R.string.playback_route_changed,
+            localized.getString(R.string.audio_route_built_in),
+            localized.getString(R.string.audio_route_bluetooth)
+        )
+
+        assertEquals(
+            "La reproducción se detuvo porque la salida de audio cambió de " +
+                "altavoz integrado a Bluetooth.",
+            message
+        )
+        assertFalse(message.contains("BUILT_IN"))
+    }
+
+    @Test
+    fun keepScreenOnRequiresPreferenceVisibilityAndPlaying() {
+        val fake = audio as FakeAudioPlayerService
+        fake.publishPlaying(PlaybackMode.STANDARD)
+        composeRule.waitForIdle()
+        assertFalse(activity.isKeepingScreenOn())
+
+        FakeAppPreferences.instance.keepScreenAwake = true
+        composeRule.activityRule.scenario.recreate()
+        composeRule.waitForIdle()
+        composeRule.waitUntil { activity.isKeepingScreenOn() }
+
+        fake.startMetronome(120f, 4, null, false)
+        composeRule.waitUntil { !activity.isKeepingScreenOn() }
+
+        fake.publishPlaying(PlaybackMode.STANDARD)
+        composeRule.waitUntil { activity.isKeepingScreenOn() }
+
+        val playing = fake.transportState.value as PlaybackTransportState.Playing
+        fake.transportState.value = PlaybackTransportState.Stopping(playing.context)
+        composeRule.waitUntil { !activity.isKeepingScreenOn() }
+
+        fake.publishPlaying(PlaybackMode.STANDARD)
+        fake.publishInterrupted(
+            PlaybackMode.STANDARD,
+            PlaybackInterruptionReason.AudioFocusLost
+        )
+        composeRule.waitUntil { !activity.isKeepingScreenOn() }
+
+        fake.publishPlaying(PlaybackMode.STANDARD)
+        composeRule.waitUntil { activity.isKeepingScreenOn() }
+
+        val resumedActivity = activity
+        composeRule.activityRule.scenario.moveToState(Lifecycle.State.CREATED)
+        composeRule.waitUntil { !resumedActivity.isKeepingScreenOn() }
+
+        composeRule.activityRule.scenario.moveToState(Lifecycle.State.RESUMED)
+        composeRule.waitUntil { activity.isKeepingScreenOn() }
+
+        fake.publishFailed(
+            PlaybackMode.STANDARD,
+            PlaybackFailureReason.Engine("render failed")
+        )
+        composeRule.waitUntil { !activity.isKeepingScreenOn() }
+    }
+
+    @Test
+    fun keepScreenOnSurvivesRecreationOnlyForPlayingSession() {
+        val fake = audio as FakeAudioPlayerService
+        FakeAppPreferences.instance.keepScreenAwake = true
+        fake.publishPlaying(PlaybackMode.STANDARD)
+        composeRule.activityRule.scenario.recreate()
+        composeRule.waitUntil { activity.isKeepingScreenOn() }
+
+        fake.stopPlayback()
+        composeRule.waitUntil { !activity.isKeepingScreenOn() }
+    }
+
+    @Test
     fun quarterSubdivisionDisplaysOnLaunch() {
         composeRule.onNodeWithText(activity.getString(R.string.subdivision_quarter)).assertIsDisplayed()
     }
@@ -255,6 +422,124 @@ class InstantMetronomeViewTest {
     }
 
     @Test
+    fun compactTopLevelDestinationsIssueOneGlobalStopForEveryPlaybackKind() {
+        val destinations = listOf(
+            R.string.tab_library,
+            R.string.tab_playlist,
+            R.string.tab_history,
+            R.string.tab_settings
+        )
+
+        assertTopLevelStopMatrix(destinations)
+        destinations.forEach { destination ->
+            navigateTo(destination)
+            assertOneStopWhenNavigatingTo(R.string.tab_instant, PlaybackMode.STANDARD)
+        }
+    }
+
+    @Test
+    fun expandedTopLevelDestinationsIssueOneGlobalStopForEveryPlaybackKind() {
+        activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+        val enteredLandscape = runCatching {
+            composeRule.waitUntil(10_000) {
+                activity.resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+            }
+        }.isSuccess
+        assumeTrue(enteredLandscape)
+        assumeTrue(activity.resources.configuration.screenWidthDp >= 600)
+        composeRule.onNodeWithContentDescription(
+            activity.getString(R.string.polyrhythm),
+            useUnmergedTree = true
+        ).assertIsDisplayed()
+        val destinations = listOf(
+            R.string.polyrhythm,
+            R.string.tab_library,
+            R.string.tab_playlist,
+            R.string.tab_history,
+            R.string.tab_settings
+        )
+
+        assertTopLevelStopMatrix(destinations)
+        destinations.forEach { destination ->
+            navigateTo(destination)
+            assertOneStopWhenNavigatingTo(R.string.tab_instant, PlaybackMode.STANDARD)
+        }
+    }
+
+    @Test
+    fun compactModeReplacementStopsHiddenModeOnceAndStartsAtFreshSession() {
+        val fake = audio as FakeAudioPlayerService
+        composeRule.onNodeWithText(activity.getString(R.string.play)).performClick()
+        val standardSession = fake.currentSessionId()
+
+        composeRule.onNodeWithTag("metronome_mode_polyrhythm").performClick()
+        composeRule.onNodeWithText(activity.getString(R.string.play)).performClick()
+
+        assertEquals(1, fake.stopCount)
+        assertEquals(1, fake.polyrhythmStartCount)
+        assertNotEquals(standardSession, fake.currentSessionId())
+    }
+
+    @Test
+    fun internalEditorsPickersSheetsAndFocusNavigationDoNotStopPlayback() {
+        val fake = audio as FakeAudioPlayerService
+        val song = Song.instantSong().copy(title = "Internal Navigation Song")
+        val playlist = Playlist(name = "Internal Navigation Playlist")
+        runBlocking {
+            songDao.upsert(song)
+            playlistDao.upsertPlaylist(playlist)
+            playlistDao.upsertEntry(
+                PlaylistEntry(playlistId = playlist.id, songId = song.id, sequence = 0)
+            )
+        }
+
+        navigateTo(R.string.tab_library)
+        fake.publishPlaying(PlaybackMode.STANDARD)
+        fake.resetCallCounts()
+        composeRule.onNodeWithContentDescription(activity.getString(R.string.add_song)).performClick()
+        composeRule.onNodeWithText(activity.getString(R.string.song_detail)).assertIsDisplayed()
+        assertEquals(0, fake.stopCount + fake.polyrhythmStopCount)
+        composeRule.onNodeWithText(activity.getString(R.string.cancel)).performClick()
+
+        fake.stopPlayback()
+        fake.resetCallCounts()
+        navigateTo(R.string.tab_playlist)
+        fake.publishPlaying(PlaybackMode.STANDARD)
+        fake.resetCallCounts()
+        composeRule.onNodeWithText(playlist.name).performClick()
+        composeRule.onNodeWithText(song.title).assertIsDisplayed()
+        assertEquals(0, fake.stopCount + fake.polyrhythmStopCount)
+
+        composeRule.onNodeWithContentDescription(activity.getString(R.string.add_song)).performClick()
+        composeRule.onNodeWithText(activity.getString(R.string.add_song)).assertIsDisplayed()
+        assertEquals(0, fake.stopCount + fake.polyrhythmStopCount)
+        composeRule.onNodeWithTag("playlist_song_picker_${song.id}").performClick()
+
+        composeRule.onNodeWithText(activity.getString(R.string.edit)).performClick()
+        assertEquals(0, fake.stopCount + fake.polyrhythmStopCount)
+        composeRule.onNodeWithText(activity.getString(R.string.done)).performClick()
+        composeRule.onNodeWithContentDescription(activity.getString(R.string.focus_view)).performClick()
+        assertEquals(0, fake.stopCount + fake.polyrhythmStopCount)
+    }
+
+    @Test
+    fun librarySongToTopLevelDestinationIssuesExactlyOneGlobalStop() {
+        val fake = audio as FakeAudioPlayerService
+        val song = Song.instantSong().copy(title = "Top Level Navigation Song")
+        runBlocking { songDao.upsert(song) }
+
+        navigateTo(R.string.tab_library)
+        composeRule.onNodeWithText(song.title).performClick()
+        fake.publishPlaying(PlaybackMode.STANDARD)
+        fake.resetCallCounts()
+
+        navigateTo(R.string.tab_playlist)
+
+        assertEquals(1, fake.stopCount)
+        assertEquals(PlaybackTransportState.Idle, fake.transportState.value)
+    }
+
+    @Test
     fun alwaysUseDarkThemeSettingPersists() {
         composeRule.onNodeWithText(activity.getString(R.string.settings)).performClick()
         composeRule.onNodeWithText(activity.getString(R.string.appearance)).assertIsDisplayed()
@@ -262,4 +547,38 @@ class InstantMetronomeViewTest {
 
         assertFalse(FakeAppPreferences.instance.alwaysUseDarkTheme)
     }
+
+    private fun MainActivity.isKeepingScreenOn(): Boolean =
+        window.attributes.flags and WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON != 0
+
+    private fun assertTopLevelStopMatrix(destinations: List<Int>) {
+        destinations.forEach { destination ->
+            listOf(PlaybackMode.STANDARD, PlaybackMode.POLYRHYTHM).forEach { mode ->
+                assertOneStopWhenNavigatingTo(destination, mode)
+                navigateTo(R.string.tab_instant)
+            }
+        }
+    }
+
+    private fun assertOneStopWhenNavigatingTo(destination: Int, mode: PlaybackMode) {
+        val fake = audio as FakeAudioPlayerService
+        fake.resetCallCounts()
+        fake.publishPlaying(mode)
+
+        navigateTo(destination)
+
+        assertEquals(1, fake.stopCount + fake.polyrhythmStopCount)
+        assertEquals(PlaybackTransportState.Idle, fake.transportState.value)
+    }
+
+    private fun navigateTo(title: Int) {
+        composeRule.onNodeWithContentDescription(
+            activity.getString(title),
+            useUnmergedTree = true
+        ).performClick()
+        composeRule.waitForIdle()
+    }
+
+    private fun FakeAudioPlayerService.currentSessionId() =
+        (transportState.value as PlaybackTransportState.SessionState).context.sessionId
 }

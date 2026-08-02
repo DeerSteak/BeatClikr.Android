@@ -17,6 +17,7 @@ import com.bfunkstudios.beatclikr.services.HapticFeedbackService
 import com.bfunkstudios.beatclikr.services.IAudioPlayerService
 import com.bfunkstudios.beatclikr.services.PlaybackCoordinator
 import com.bfunkstudios.beatclikr.services.PlaybackObservation
+import com.bfunkstudios.beatclikr.services.PlaybackLifecycleObservation
 import com.bfunkstudios.beatclikr.services.PlaybackEnginePort
 import com.bfunkstudios.beatclikr.services.IFlashlightService
 import com.bfunkstudios.beatclikr.services.IHapticFeedbackService
@@ -55,7 +56,16 @@ abstract class AppModule {
 
         @Provides @Singleton
         fun providePlaybackEngine(@ApplicationContext context: Context): PlaybackEnginePort =
-            AudioPlayerService(context)
+            debugPlaybackEngine(context) ?: AudioPlayerService(context)
+
+        private fun debugPlaybackEngine(context: Context): PlaybackEnginePort? {
+            if (!com.bfunkstudios.beatclikr.BuildConfig.DEBUG) return null
+            return runCatching {
+                Class.forName("com.bfunkstudios.beatclikr.ProcessDeathTestEngine")
+                    .getMethod("create", Context::class.java)
+                    .invoke(null, context) as? PlaybackEnginePort
+            }.getOrNull()
+        }
 
         @Provides @Singleton
         fun providePlaybackCoordinator(engine: PlaybackEnginePort): PlaybackCoordinator =
@@ -68,6 +78,11 @@ abstract class AppModule {
         @Provides @Singleton
         fun providePlaybackObservation(coordinator: PlaybackCoordinator): PlaybackObservation =
             coordinator
+
+        @Provides
+        fun providePlaybackLifecycleObservation(
+            coordinator: PlaybackCoordinator
+        ): PlaybackLifecycleObservation = coordinator
 
         @Provides @Singleton
         fun provideFlashlightService(@ApplicationContext context: Context): IFlashlightService =

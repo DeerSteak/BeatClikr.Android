@@ -29,11 +29,14 @@ class ActiveOutputRouteTrackerTest {
     }
 
     @Test
-    fun transientUnknownDoesNotHideTheNextRealRouteChange() {
+    fun knownRouteBecomingUnknownReportsUnavailableWithoutPoisoningLastRoute() {
         val tracker = ActiveOutputRouteTracker()
         tracker.begin(AudioOutputRoute.BUILT_IN)
 
-        assertNull(tracker.observe(AudioOutputRoute.UNKNOWN))
+        assertEquals(
+            PlaybackInterruptionReason.RouteUnavailable(AudioOutputRoute.BUILT_IN),
+            tracker.observe(AudioOutputRoute.UNKNOWN)
+        )
         assertEquals(
             PlaybackInterruptionReason.RouteChanged(
                 AudioOutputRoute.BUILT_IN,
@@ -50,5 +53,14 @@ class ActiveOutputRouteTrackerTest {
         tracker.clear()
 
         assertNull(tracker.observe(AudioOutputRoute.WIRED))
+    }
+
+    @Test
+    fun initialUnknownAndUnclassifiedUsableRouteDoNotInterrupt() {
+        val tracker = ActiveOutputRouteTracker()
+
+        assertNull(tracker.observe(AudioOutputRoute.UNKNOWN))
+        assertNull(tracker.observe(AudioOutputRoute.OTHER))
+        assertNull(tracker.observe(AudioOutputRoute.OTHER))
     }
 }
