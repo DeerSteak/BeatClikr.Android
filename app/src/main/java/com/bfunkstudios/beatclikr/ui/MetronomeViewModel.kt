@@ -15,6 +15,7 @@ import com.bfunkstudios.beatclikr.data.BeatPattern
 import com.bfunkstudios.beatclikr.data.ClickerType
 import com.bfunkstudios.beatclikr.data.Groove
 import com.bfunkstudios.beatclikr.data.IAppPreferences
+import com.bfunkstudios.beatclikr.data.PracticeItemSnapshot
 import com.bfunkstudios.beatclikr.data.Song
 import com.bfunkstudios.beatclikr.data.SoundFile
 import com.bfunkstudios.beatclikr.services.CommittedPlaybackConfiguration
@@ -303,19 +304,26 @@ class MetronomeViewModel @Inject constructor(
         val bpm = currentSong.beatsPerMinute
         val subdivisions = getSubdivisionValue()
         val accentPattern = computeAccentPattern()
+        val practiceItem = if (clickerType == ClickerType.INSTANT) {
+            PracticeItemSnapshot.metronome()
+        } else {
+            PracticeItemSnapshot.fromSong(currentSong)
+        }
         if (replaceCurrentSession) {
             audio.replaceMetronome(
                 bpm,
                 subdivisions,
                 accentPattern,
-                prefs.sixteenthAlternate
+                prefs.sixteenthAlternate,
+                practiceItem
             )
         } else {
             audio.startMetronome(
                 bpm,
                 subdivisions,
                 accentPattern,
-                prefs.sixteenthAlternate
+                prefs.sixteenthAlternate,
+                practiceItem
             )
         }
     }

@@ -33,6 +33,7 @@ import com.bfunkstudios.beatclikr.services.IFlashlightService
 import com.bfunkstudios.beatclikr.services.IHapticFeedbackService
 import com.bfunkstudios.beatclikr.services.IPracticeReminderScheduler
 import com.bfunkstudios.beatclikr.services.PlaybackObservation
+import com.bfunkstudios.beatclikr.services.PlaybackLifecycleObservation
 import com.bfunkstudios.beatclikr.services.AudioOutputRoute
 import com.bfunkstudios.beatclikr.services.PlaybackFailureReason
 import com.bfunkstudios.beatclikr.services.PlaybackInterruptionReason
@@ -89,6 +90,10 @@ class InstantMetronomeViewTest {
 
         @Provides
         fun providePlaybackObservation(fake: FakeAudioPlayerService): PlaybackObservation = fake
+
+        @Provides @Singleton
+        fun providePlaybackLifecycleObservation(): PlaybackLifecycleObservation =
+            FakePlaybackLifecycleObservation()
 
         @Provides @Singleton
         fun provideFlashlight(): IFlashlightService = FakeFlashlightService()

@@ -4,7 +4,12 @@ import kotlinx.coroutines.flow.Flow
 
 interface PracticeHistoryRepository {
     fun getAllSessions(): Flow<List<PracticeSessionWithSongs>>
-    suspend fun recordSongPlayed(song: Song)
-    suspend fun recordMetronomePractice()
-    suspend fun recordPolyrhythmPractice()
+    suspend fun getAccountingCheckpoint(): PracticeAccountingCheckpoint?
+    suspend fun applyAccountingUpdate(
+        day: PracticeDayIdentity?,
+        item: PracticeItemSnapshot?,
+        durationNanos: Long,
+        periodIncrement: Int,
+        checkpoint: PracticeAccountingCheckpoint
+    )
 }

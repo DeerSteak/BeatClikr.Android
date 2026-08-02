@@ -314,7 +314,8 @@ private fun PracticedSongRow(song: PracticedSong) {
     ) {
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = song.title,
+                text = reservedPracticeTitleResource(song.songId)?.let { stringResource(it) }
+                    ?: song.title,
                 style = MaterialTheme.typography.bodyLarge,
                 fontWeight = FontWeight.Medium
             )
@@ -324,6 +325,13 @@ private fun PracticedSongRow(song: PracticedSong) {
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
+        Text(
+            text = formattedPracticeDuration(song.durationNanos),
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = FontWeight.Bold,
+            textAlign = TextAlign.End
+        )
+        Spacer(modifier = Modifier.width(8.dp))
         if (song.timesPracticed > 1) {
             Text(
                 text = "×${song.timesPracticed}",
@@ -339,3 +347,29 @@ private fun PracticedSongRow(song: PracticedSong) {
         }
     }
 }
+
+@androidx.annotation.StringRes
+internal fun reservedPracticeTitleResource(songId: String): Int? = when (songId) {
+    PracticedSong.METRONOME_SONG_ID -> R.string.instant_metronome
+    PracticedSong.POLYRHYTHM_SONG_ID -> R.string.polyrhythm
+    else -> null
+}
+
+@Composable
+private fun formattedPracticeDuration(durationNanos: Long): String =
+    when (val display = PracticeDurationFormatter.components(durationNanos)) {
+        is PracticeDurationDisplay.HoursMinutes -> stringResource(
+            R.string.practice_duration_hours_minutes,
+            display.hours,
+            display.minutes
+        )
+        is PracticeDurationDisplay.MinutesSeconds -> stringResource(
+            R.string.practice_duration_minutes_seconds,
+            display.minutes,
+            display.seconds
+        )
+        is PracticeDurationDisplay.Seconds -> stringResource(
+            R.string.practice_duration_seconds,
+            display.seconds
+        )
+    }

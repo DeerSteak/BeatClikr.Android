@@ -11,6 +11,7 @@ import com.bfunkstudios.beatclikr.data.PracticeHistoryRepositoryImpl
 import com.bfunkstudios.beatclikr.data.SongRepository
 import com.bfunkstudios.beatclikr.data.SongRepositoryImpl
 import com.bfunkstudios.beatclikr.data.db.BeatClikrDatabase
+import com.bfunkstudios.beatclikr.data.db.BeatClikrMigrations
 import com.bfunkstudios.beatclikr.services.AudioPlayerService
 import com.bfunkstudios.beatclikr.services.FlashlightService
 import com.bfunkstudios.beatclikr.services.HapticFeedbackService
@@ -114,6 +115,7 @@ abstract class AppModule {
         @Provides @Singleton
         fun provideDatabase(@ApplicationContext context: Context): BeatClikrDatabase =
             Room.databaseBuilder(context, BeatClikrDatabase::class.java, "beatclikr.db")
+                .addMigrations(BeatClikrMigrations.MIGRATION_4_5)
                 .fallbackToDestructiveMigrationFrom(true, 1, 2, 3)
                 .build()
 

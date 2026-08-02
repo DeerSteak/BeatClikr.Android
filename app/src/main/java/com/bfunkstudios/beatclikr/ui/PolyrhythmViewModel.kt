@@ -12,6 +12,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.bfunkstudios.beatclikr.constants.MetronomeConstants
 import com.bfunkstudios.beatclikr.data.IAppPreferences
+import com.bfunkstudios.beatclikr.data.PracticeItemSnapshot
 import com.bfunkstudios.beatclikr.data.SoundFile
 import com.bfunkstudios.beatclikr.music.MusicalEventRole
 import com.bfunkstudios.beatclikr.services.CommittedPlaybackConfiguration
@@ -170,7 +171,7 @@ class PolyrhythmViewModel @Inject constructor(
         rhythmPulse = 0f
         audio.isMuted = prefs.muteMetronome
         audio.soundBank = prefs.soundBank
-        audio.startPolyrhythm(bpm, beats, against)
+        audio.startPolyrhythm(bpm, beats, against, PracticeItemSnapshot.polyrhythm())
     }
 
     fun stop() {

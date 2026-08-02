@@ -15,7 +15,10 @@ import java.util.UUID
         childColumns = ["session_id"],
         onDelete = ForeignKey.CASCADE
     )],
-    indices = [Index("session_id")]
+    indices = [
+        Index("session_id"),
+        Index(value = ["session_id", "song_id"], unique = true)
+    ]
 )
 data class PracticedSong(
     @PrimaryKey val id: UUID = UUID.randomUUID(),
@@ -26,7 +29,8 @@ data class PracticedSong(
     @ColumnInfo(name = "beats_per_measure") val beatsPerMeasure: Int?,
     val groove: Groove?,
     @ColumnInfo(name = "times_practiced") val timesPracticed: Int = 1,
-    @ColumnInfo(name = "song_id") val songId: String
+    @ColumnInfo(name = "song_id") val songId: String,
+    @ColumnInfo(name = "duration_nanos") val durationNanos: Long = 0L
 ) {
     companion object {
         const val METRONOME_SONG_ID = "beatclikr.metronome"
