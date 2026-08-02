@@ -5,13 +5,21 @@ import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
 import com.bfunkstudios.beatclikr.data.Playlist
 import com.bfunkstudios.beatclikr.data.PlaylistEntry
+import com.bfunkstudios.beatclikr.data.PracticeAccountingCheckpoint
 import com.bfunkstudios.beatclikr.data.PracticedSong
 import com.bfunkstudios.beatclikr.data.PracticeSession
 import com.bfunkstudios.beatclikr.data.Song
 
 @Database(
-    entities = [Song::class, Playlist::class, PlaylistEntry::class, PracticeSession::class, PracticedSong::class],
-    version = 4,
+    entities = [
+        Song::class,
+        Playlist::class,
+        PlaylistEntry::class,
+        PracticeSession::class,
+        PracticedSong::class,
+        PracticeAccountingCheckpoint::class
+    ],
+    version = 5,
     exportSchema = true
 )
 @TypeConverters(Converters::class)
