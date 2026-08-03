@@ -35,10 +35,7 @@ class MetronomeAudioEngine(private val context: Context) : PlaybackEnginePort {
     private var beatResourceId: Int? = null
     private var rhythmResourceId: Int? = null
 
-    private var isPlaying: Boolean = false
-    private var frameAudioActive = false
-    private var framePolyrhythmActive = false
-    private var polyrhythmPlaying = false
+    private var activeMode = PlaybackMode.NONE
     private var audioFocusHeld = false
     private val activeOutputRoute = ActiveOutputRouteTracker()
     @Volatile
@@ -138,7 +135,13 @@ class MetronomeAudioEngine(private val context: Context) : PlaybackEnginePort {
     override fun beginStandardSession(
         sessionId: PlaybackSessionId,
         configuration: ValidatedStandardConfiguration
-    ) = startMetronome(configuration, sessionId, ::publishStartResult)
+    ) {
+        handler.post {
+            startSession(sessionId, PlaybackMode.STANDARD, ::publishStartResult) {
+                startStandard(configuration, firstBeatDelayMs, sessionId)
+            }
+        }
+    }
 
     override fun beginPolyrhythmSession(
         sessionId: PlaybackSessionId,
@@ -153,16 +156,6 @@ class MetronomeAudioEngine(private val context: Context) : PlaybackEnginePort {
         }
     }
 
-    private fun startMetronome(
-        configuration: ValidatedStandardConfiguration,
-        sessionId: PlaybackSessionId,
-        completion: (PlaybackSessionId, AudioEngineStartResult) -> Unit
-    ) {
-        handler.post {
-            doStart(configuration, sessionId, completion)
-        }
-    }
-
     private fun startPolyrhythm(
         sessionId: PlaybackSessionId,
         configuration: ValidatedPolyrhythmConfiguration,
@@ -170,63 +163,55 @@ class MetronomeAudioEngine(private val context: Context) : PlaybackEnginePort {
     ) {
         handler.post {
             val engine = getOrCreateFrameAudioEngine()
-            if (polyrhythmPlaying) {
-                if (frameAudioActive && framePolyrhythmActive) {
-                    engine.updatePolyrhythm(configuration)
-                }
+            if (activeMode == PlaybackMode.POLYRHYTHM) {
+                engine.updatePolyrhythm(configuration)
                 return@post
             }
-            if (!requestAudioFocus()) {
-                completion(sessionId, AudioEngineStartResult.AudioFocusUnavailable)
-                return@post
+            startSession(sessionId, PlaybackMode.POLYRHYTHM, completion, engine) {
+                startPolyrhythm(configuration, firstBeatDelayMs, sessionId)
             }
-            activeCoordinatorSessionId = sessionId
-            if (frameAudioActive) engine.stop()
-            frameAudioActive = engine.startPolyrhythm(
-                configuration,
-                firstBeatDelayMs,
-                sessionId
-            )
-            framePolyrhythmActive = frameAudioActive
-            if (!frameAudioActive) {
-                abandonAudioFocus()
-                completion(sessionId, AudioEngineStartResult.StreamFailed)
-                return@post
-            }
-            val evidence = engine.startEvidence()
-            if (evidence == null) {
-                engine.stop()
-                frameAudioActive = false
-                framePolyrhythmActive = false
-                activeCoordinatorSessionId = null
-                abandonAudioFocus()
-                completion(sessionId, AudioEngineStartResult.StreamFailed)
-                return@post
-            }
-            activeOutputRoute.begin(evidence.route)
-            polyrhythmPlaying = true
-            completion(sessionId, AudioEngineStartResult.Started(evidence))
         }
     }
 
-    fun stopSession(sessionId: PlaybackSessionId, mode: PlaybackMode, completion: () -> Unit) {
+    private fun startSession(
+        sessionId: PlaybackSessionId,
+        mode: PlaybackMode,
+        completion: (PlaybackSessionId, AudioEngineStartResult) -> Unit,
+        engine: FrameAudioEngine = getOrCreateFrameAudioEngine(),
+        start: FrameAudioEngine.() -> Boolean
+    ) {
+        if (!requestAudioFocus()) {
+            completion(sessionId, AudioEngineStartResult.AudioFocusUnavailable)
+            return
+        }
+        activeCoordinatorSessionId = sessionId
+        if (activeMode != PlaybackMode.NONE) engine.stop()
+        if (!engine.start()) {
+            abandonAudioFocus()
+            completion(sessionId, AudioEngineStartResult.StreamFailed)
+            return
+        }
+        val evidence = engine.startEvidence()
+        if (evidence == null) {
+            engine.stop()
+            activeCoordinatorSessionId = null
+            abandonAudioFocus()
+            completion(sessionId, AudioEngineStartResult.StreamFailed)
+            return
+        }
+        activeOutputRoute.begin(evidence.route)
+        activeMode = mode
+        completion(sessionId, AudioEngineStartResult.Started(evidence))
+    }
+
+    fun stopSession(sessionId: PlaybackSessionId, _mode: PlaybackMode, completion: () -> Unit) {
         handler.post {
             if (activeCoordinatorSessionId != sessionId) {
                 completion()
                 return@post
             }
-            when (mode) {
-                PlaybackMode.STANDARD -> {
-                    isPlaying = false
-                }
-                PlaybackMode.POLYRHYTHM -> {
-                    polyrhythmPlaying = false
-                }
-                PlaybackMode.NONE -> Unit
-            }
+            activeMode = PlaybackMode.NONE
             frameAudioEngine?.stop()
-            frameAudioActive = false
-            framePolyrhythmActive = false
             activeCoordinatorSessionId = null
             activeOutputRoute.clear()
             abandonAudioFocus()
@@ -304,48 +289,28 @@ class MetronomeAudioEngine(private val context: Context) : PlaybackEnginePort {
         sessionId: PlaybackSessionId,
         configuration: ValidatedStandardConfiguration,
         completion: (PlaybackEngineUpdateResult) -> Unit
-    ) {
-        handler.post {
-            val rejection = when {
-                activeCoordinatorSessionId != sessionId -> PlaybackCoordinatorFailureCode.STALE_SESSION
-                !isPlaying || !frameAudioActive -> PlaybackCoordinatorFailureCode.MODE_MISMATCH
-                framePolyrhythmActive -> PlaybackCoordinatorFailureCode.MODE_MISMATCH
-                else -> null
-            }
-            if (rejection != null) {
-                completion(PlaybackEngineUpdateResult.Rejected(sessionId, rejection))
-                return@post
-            }
-            try {
-                val accepted = requireNotNull(frameAudioEngine).updateStandard(configuration)
-                if (!accepted) {
-                    completion(
-                        PlaybackEngineUpdateResult.Rejected(
-                            sessionId,
-                            PlaybackCoordinatorFailureCode.RENDERER_REJECTED
-                        )
-                    )
-                    return@post
-                }
-                completion(PlaybackEngineUpdateResult.Accepted(sessionId))
-            } catch (failure: IllegalArgumentException) {
-                completion(updateFailure(sessionId, PlaybackCoordinatorFailureCode.INVALID_INPUT, failure))
-            } catch (failure: Throwable) {
-                completion(updateFailure(sessionId, PlaybackCoordinatorFailureCode.ENGINE_FAILURE, failure))
-            }
-        }
+    ) = updateSession(sessionId, PlaybackMode.STANDARD, completion) {
+        updateStandard(configuration)
     }
 
     override fun updatePolyrhythmSession(
         sessionId: PlaybackSessionId,
         configuration: ValidatedPolyrhythmConfiguration,
         completion: (PlaybackEngineUpdateResult) -> Unit
+    ) = updateSession(sessionId, PlaybackMode.POLYRHYTHM, completion) {
+        updatePolyrhythm(configuration)
+    }
+
+    private fun updateSession(
+        sessionId: PlaybackSessionId,
+        expectedMode: PlaybackMode,
+        completion: (PlaybackEngineUpdateResult) -> Unit,
+        update: FrameAudioEngine.() -> Boolean
     ) {
         handler.post {
             val rejection = when {
                 activeCoordinatorSessionId != sessionId -> PlaybackCoordinatorFailureCode.STALE_SESSION
-                !polyrhythmPlaying || !frameAudioActive || !framePolyrhythmActive ->
-                    PlaybackCoordinatorFailureCode.MODE_MISMATCH
+                activeMode != expectedMode -> PlaybackCoordinatorFailureCode.MODE_MISMATCH
                 else -> null
             }
             if (rejection != null) {
@@ -353,7 +318,7 @@ class MetronomeAudioEngine(private val context: Context) : PlaybackEnginePort {
                 return@post
             }
             try {
-                val accepted = requireNotNull(frameAudioEngine).updatePolyrhythm(configuration)
+                val accepted = requireNotNull(frameAudioEngine).update()
                 if (!accepted) {
                     completion(
                         PlaybackEngineUpdateResult.Rejected(
@@ -385,7 +350,7 @@ class MetronomeAudioEngine(private val context: Context) : PlaybackEnginePort {
     override fun release() {
         val latch = CountDownLatch(1)
         handler.post {
-            isPlaying = false
+            activeMode = PlaybackMode.NONE
             frameAudioEngine?.release()
             frameAudioEngine = null
             transportObserver = null
@@ -421,46 +386,6 @@ class MetronomeAudioEngine(private val context: Context) : PlaybackEnginePort {
             @Suppress("DEPRECATION")
             audioManager.abandonAudioFocus(focusListener)
         }
-    }
-
-    private fun doStart(
-        configuration: ValidatedStandardConfiguration,
-        sessionId: PlaybackSessionId,
-        completion: (PlaybackSessionId, AudioEngineStartResult) -> Unit
-    ) {
-        if (!requestAudioFocus()) {
-            completion(sessionId, AudioEngineStartResult.AudioFocusUnavailable)
-            return
-        }
-        activeCoordinatorSessionId = sessionId
-
-        polyrhythmPlaying = false
-
-        val engine = getOrCreateFrameAudioEngine()
-        if (frameAudioActive) engine.stop()
-        frameAudioActive = engine.startStandard(
-            configuration,
-            firstBeatDelayMs,
-            sessionId
-        )
-        framePolyrhythmActive = false
-        if (!frameAudioActive) {
-            abandonAudioFocus()
-            completion(sessionId, AudioEngineStartResult.StreamFailed)
-            return
-        }
-        val evidence = engine.startEvidence()
-        if (evidence == null) {
-            engine.stop()
-            frameAudioActive = false
-            activeCoordinatorSessionId = null
-            abandonAudioFocus()
-            completion(sessionId, AudioEngineStartResult.StreamFailed)
-            return
-        }
-        activeOutputRoute.begin(evidence.route)
-        this.isPlaying = true
-        completion(sessionId, AudioEngineStartResult.Started(evidence))
     }
 
     private fun getOrCreateFrameAudioEngine(): FrameAudioEngine {

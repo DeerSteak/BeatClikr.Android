@@ -2,6 +2,12 @@ package com.bfunkstudios.beatclikr.ui
 
 import android.view.Choreographer
 
+internal fun pulseAlpha(frameTimeNanos: Long, startedAtNanos: Long, durationNanos: Long): Float {
+    val progress = ((frameTimeNanos - startedAtNanos).toDouble() / durationNanos).coerceIn(0.0, 1.0)
+    val remaining = 1.0 - progress
+    return (remaining * remaining).toFloat()
+}
+
 internal class ChoreographerPulseLoop(
     private val shouldContinue: () -> Boolean,
     private val onFrame: (Long) -> Unit

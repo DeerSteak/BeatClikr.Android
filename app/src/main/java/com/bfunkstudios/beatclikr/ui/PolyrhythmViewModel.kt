@@ -246,12 +246,6 @@ class PolyrhythmViewModel @Inject constructor(
         }
     }
 
-    private fun pulseAlpha(frameTimeNanos: Long, startedAtNanos: Long, durationNanos: Long): Float {
-        val progress = ((frameTimeNanos - startedAtNanos).toDouble() / durationNanos).coerceIn(0.0, 1.0)
-        val remaining = 1.0 - progress
-        return (remaining * remaining).toFloat()
-    }
-
     private fun applyTransportState(state: PlaybackTransportState) {
         transportState = state
         if (awaitingOwnedSession) {

@@ -1,16 +1,19 @@
 package com.bfunkstudios.beatclikr
 
 import android.util.Log
+import androidx.test.platform.app.InstrumentationRegistry
 import com.bfunkstudios.beatclikr.data.SoundFile
 import com.bfunkstudios.beatclikr.music.PlaybackInputResult
 import com.bfunkstudios.beatclikr.services.ActiveSoundConfiguration
 import com.bfunkstudios.beatclikr.services.FramePlaybackPublicationBoundary
+import com.bfunkstudios.beatclikr.services.FrameAudioMetricsSnapshot
 import com.bfunkstudios.beatclikr.services.MetronomeAudioEngine
 import com.bfunkstudios.beatclikr.services.PlaybackMode
 import com.bfunkstudios.beatclikr.services.PlaybackSessionId
 import com.bfunkstudios.beatclikr.services.RenderedFrameEvent
 import com.bfunkstudios.beatclikr.services.SoundPreparationFailure
 import java.util.concurrent.Executors
+import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.atomic.AtomicReference
@@ -32,6 +35,39 @@ fun MetronomeAudioEngine.getActiveSoundConfiguration(): ActiveSoundConfiguration
 fun MetronomeAudioEngine.getSoundPreparationFailure(): SoundPreparationFailure? =
     soundPreparationFailure()
 
+inline fun withPreparedAudioEngine(
+    prewarm: Boolean = false,
+    block: (MetronomeAudioEngine) -> Unit
+) {
+    val context = InstrumentationRegistry.getInstrumentation().targetContext
+    val engine = MetronomeAudioEngine(context)
+    try {
+        engine.loadSounds(
+            requireNotNull(SoundFile.CLICK_HI.resourceId),
+            requireNotNull(SoundFile.CLICK_LO.resourceId)
+        )
+        if (prewarm) engine.prewarm()
+        block(engine)
+    } finally {
+        engine.release()
+    }
+}
+
+fun awaitFrameAudioMetrics(
+    engine: MetronomeAudioEngine,
+    timeoutMillis: Long = 5_000,
+    accepted: (FrameAudioMetricsSnapshot) -> Boolean
+): FrameAudioMetricsSnapshot {
+    val deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(timeoutMillis)
+    while (System.nanoTime() < deadline) {
+        engine.getFrameAudioMetricsSnapshot()?.let { if (accepted(it)) return it }
+        Thread.sleep(10)
+    }
+    return requireNotNull(engine.getFrameAudioMetricsSnapshot()).also {
+        check(accepted(it)) { "Timed out waiting for frame-audio metrics" }
+    }
+}
+
 class RenderedEventTestSession private constructor(
     private val engine: MetronomeAudioEngine,
     private val sessionId: PlaybackSessionId,
@@ -49,7 +85,10 @@ class RenderedEventTestSession private constructor(
 
     override fun close() {
         polling.shutdownNow()
-        engine.stopSession(sessionId, mode)
+        polling.awaitTermination(1, TimeUnit.SECONDS)
+        val stopped = CountDownLatch(1)
+        engine.stopSession(sessionId, mode, stopped::countDown)
+        check(stopped.await(1, TimeUnit.SECONDS)) { "Timed out stopping rendered-event session" }
         failure.get()?.let { throw AssertionError("Rendered-event polling failed", it) }
     }
 
@@ -57,13 +96,14 @@ class RenderedEventTestSession private constructor(
         try {
             val batch = engine.drainRenderedEvents(captureSequence) ?: return
             captureSequence = batch.events.nextCaptureSequence
-            val records = batch.events.records.filter { it.sessionId == sessionId.value }
-            if (records.isEmpty()) return
-            pendingFrame += records
-            val newestFrame = pendingFrame.maxOf { it.intendedFrame }
-            val complete = pendingFrame.filter { it.intendedFrame < newestFrame }
-            pendingFrame.removeAll { it.intendedFrame < newestFrame }
-            if (complete.isNotEmpty()) onRecords(complete, batch.sampleRate)
+            batch.events.records.forEach { record ->
+                if (record.sessionId != sessionId.value) return@forEach
+                if (pendingFrame.isNotEmpty() && pendingFrame[0].intendedFrame != record.intendedFrame) {
+                    onRecords(pendingFrame.toList(), batch.sampleRate)
+                    pendingFrame.clear()
+                }
+                pendingFrame += record
+            }
         } catch (problem: Throwable) {
             failure.compareAndSet(null, problem)
             Log.e("RenderedEventTest", "Polling failed", problem)

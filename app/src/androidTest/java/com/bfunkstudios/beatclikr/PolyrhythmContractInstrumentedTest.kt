@@ -1,10 +1,7 @@
 package com.bfunkstudios.beatclikr
 
-import android.os.SystemClock
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.LargeTest
-import androidx.test.platform.app.InstrumentationRegistry
-import com.bfunkstudios.beatclikr.data.SoundFile
 import com.bfunkstudios.beatclikr.music.MusicalEventRole
 import com.bfunkstudios.beatclikr.services.FrameAudioMetricsSnapshot
 import com.bfunkstudios.beatclikr.services.MetronomeAudioEngine
@@ -21,12 +18,9 @@ import org.junit.runner.RunWith
 @RunWith(AndroidJUnit4::class)
 class PolyrhythmContractInstrumentedTest {
 
-    private val context
-        get() = InstrumentationRegistry.getInstrumentation().targetContext
-
     @Test
     fun mt012_mt015_mt018_representativeRatiosPreserveSharedOriginEventsAndIndices() {
-        withEngine { engine ->
+        withPreparedAudioEngine(prewarm = true) { engine ->
             EnginePolyrhythmFixtures.representativeRatios.forEach { fixture ->
                 val capture = captureCycle(engine, fixture)
                 val after = requireNotNull(engine.getFrameAudioMetricsSnapshot())
@@ -36,21 +30,6 @@ class PolyrhythmContractInstrumentedTest {
                 assertCycleTiming(fixture, capture.events)
                 assertSoundCounts(fixture, after, expected.size)
             }
-        }
-    }
-
-    private fun withEngine(block: (MetronomeAudioEngine) -> Unit) {
-        val engine = MetronomeAudioEngine(context)
-        try {
-            engine.loadSounds(
-                requireNotNull(SoundFile.CLICK_HI.resourceId),
-                requireNotNull(SoundFile.CLICK_LO.resourceId)
-            )
-            engine.prewarm()
-            Thread.sleep(PREWARM_SETTLE_MILLIS)
-            block(engine)
-        } finally {
-            engine.release()
         }
     }
 
@@ -84,9 +63,10 @@ class PolyrhythmContractInstrumentedTest {
             }
         }
         assertTrue("${fixture.beats}:${fixture.against} timed out", latch.await(TIMEOUT_SECONDS, TimeUnit.SECONDS))
-        awaitRenderedPrefix(engine, fixture, eventCount)
+        awaitFrameAudioMetrics(engine, TIMEOUT_SECONDS * 1_000) {
+            matchingPrefixLength(fixture, it, eventCount) != null
+        }
         session.close()
-        Thread.sleep(STOP_SETTLE_MILLIS)
         return CycleCapture(synchronized(events) { events.toList() })
     }
 
@@ -118,19 +98,6 @@ class PolyrhythmContractInstrumentedTest {
             "${fixture.beats}:${fixture.against} sound roles",
             matchingPrefixLength(fixture, after, minimumEvents) != null
         )
-    }
-
-    private fun awaitRenderedPrefix(
-        engine: MetronomeAudioEngine,
-        fixture: EnginePolyrhythmFixture,
-        minimumEvents: Int
-    ) {
-        val deadline = SystemClock.elapsedRealtime() + TIMEOUT_SECONDS * 1_000
-        while (SystemClock.elapsedRealtime() < deadline) {
-            val metrics = requireNotNull(engine.getFrameAudioMetricsSnapshot())
-            if (matchingPrefixLength(fixture, metrics, minimumEvents) != null) return
-            Thread.sleep(10)
-        }
     }
 
     private fun matchingPrefixLength(
@@ -170,8 +137,6 @@ class PolyrhythmContractInstrumentedTest {
     private companion object {
         const val TEST_BPM = 240f
         const val TIMEOUT_SECONDS = 6L
-        const val PREWARM_SETTLE_MILLIS = 150L
-        const val STOP_SETTLE_MILLIS = 100L
         const val CYCLE_TOLERANCE_NANOS = 100_000L
     }
 }

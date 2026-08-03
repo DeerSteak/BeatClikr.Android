@@ -238,7 +238,7 @@ class PlaybackCoordinator(
     private var pendingReplacement: PendingStart? = null
     private val pendingUpdates = ArrayDeque<PendingUpdate>()
     private var inFlightUpdate: PendingUpdate? = null
-    private var latestSoundRequestSequence = 0L
+    private val soundState = PlaybackSoundState(mutableOwnership.value.requestedSounds)
     @Volatile
     private var controlThread: Thread? = null
     @Volatile
@@ -428,8 +428,9 @@ class PlaybackCoordinator(
             var awaitsEngineAcknowledgement = false
             when (intent) {
                 is PlaybackIntent.SelectSounds -> {
-                    latestSoundRequestSequence = sequence
-                    updateRequestedSounds(beat = intent.beat, rhythm = intent.rhythm)
+                    updateRequestedSounds(
+                        soundState.select(sequence, beat = intent.beat, rhythm = intent.rhythm)
+                    )
                     engine.selectSounds(
                         sequence,
                         requireNotNull(intent.beat.resourceId),
@@ -437,8 +438,7 @@ class PlaybackCoordinator(
                     )
                 }
                 is PlaybackIntent.SelectSoundBank -> {
-                    latestSoundRequestSequence = sequence
-                    updateRequestedSounds(bank = intent.bank)
+                    updateRequestedSounds(soundState.select(sequence, bank = intent.bank))
                     engine.selectSoundBank(sequence, intent.bank)
                 }
                 is PlaybackIntent.SetMuted -> {
@@ -515,7 +515,7 @@ class PlaybackCoordinator(
                 PlaybackIntent.Stop -> applyStop(sequence)
                 PlaybackIntent.Prewarm -> engine.prewarmAudioTrack()
                 is PlaybackIntent.PrepareSounds -> {
-                    latestSoundRequestSequence = sequence
+                    soundState.select(sequence)
                     engine.prepareSounds(sequence, intent.sounds)
                 }
             }
@@ -1195,69 +1195,40 @@ class PlaybackCoordinator(
         data class Rejected(val diagnostic: String) : IntentValidation
     }
 
-    private fun updateRequestedSounds(
-        bank: SoundBank? = null,
-        beat: SoundFile? = null,
-        rhythm: SoundFile? = null
-    ) {
-        mutateOwnership { current ->
-            current.copy(
-                requestedSounds = current.requestedSounds.copy(
-                    bank = bank ?: current.requestedSounds.bank,
-                    beatSound = beat ?: current.requestedSounds.beatSound,
-                    rhythmSound = rhythm ?: current.requestedSounds.rhythmSound
-                )
-            )
-        }
-    }
+    private fun updateRequestedSounds(requested: RequestedSoundConfiguration) =
+        mutateOwnership { it.copy(requestedSounds = requested) }
 
-    @Synchronized
     private fun onSoundPreparation(publication: SoundPreparationPublication) {
         if (released) return
         executeControl("Sound preparation callback failed") {
-            if (publication.requestSequence != null &&
-                publication.requestSequence < latestSoundRequestSequence) {
-                return@executeControl
-            }
             val current = transportState.value as? PlaybackTransportState.Playing
-            if (publication.sessionId != null &&
-                publication.sessionId != current?.context?.sessionId) {
-                return@executeControl
-            }
-            val active = publication.active
-            val failure = publication.failure
-            val requested = ownership.value.requestedSounds
-            val matches = active != null &&
-                active.bank == requested.bank &&
-                active.beatSound == requested.beatSound &&
-                active.rhythmSound == requested.rhythmSound
-            val adopted = matches &&
-                publication.adopted &&
-                publication.sessionId == current?.context?.sessionId
+            val decision = soundState.apply(publication, current?.context?.sessionId)
+                ?: return@executeControl
             mutateOwnership {
                 it.copy(
-                    audibleSounds = if (adopted) active else it.audibleSounds,
-                    soundPreparationFailure = failure
+                    audibleSounds = decision.adopted ?: it.audibleSounds,
+                    soundPreparationFailure = decision.failure
                 )
             }
-            if (adopted) {
-                val adoptedSounds = requireNotNull(active)
+            if (decision.adopted != null) {
                 val adoptedState = requireNotNull(current)
                 transitionTo(
                     adoptedState.copy(
                         context = adoptedState.context.copy(
-                            audibleSounds = adoptedSounds,
+                            audibleSounds = decision.adopted,
                             soundPreparationFailure = null
                         )
                     )
                 )
-            } else if (failure != null && current != null) {
+            } else if (decision.failure != null && current != null) {
                 transitionTo(
-                    current.copy(context = current.context.copy(soundPreparationFailure = failure))
+                    current.copy(
+                        context = current.context.copy(soundPreparationFailure = decision.failure)
+                    )
                 )
             }
-            if (failure != null) {
-                publication.requestSequence?.let { requestSequence ->
+            decision.failure?.let { failure ->
+                decision.requestSequence?.let { requestSequence ->
                     mutableControlEvents.tryEmit(
                         PlaybackControlEvent.SoundPreparationFailed(
                             requestSequence,

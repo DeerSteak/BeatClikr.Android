@@ -1,10 +1,7 @@
 package com.bfunkstudios.beatclikr
 
-import android.os.SystemClock
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.LargeTest
-import androidx.test.platform.app.InstrumentationRegistry
-import com.bfunkstudios.beatclikr.data.SoundFile
 import com.bfunkstudios.beatclikr.services.FrameAudioMetricsSnapshot
 import com.bfunkstudios.beatclikr.services.MetronomeAudioEngine
 import java.util.Collections
@@ -20,12 +17,9 @@ import org.junit.runner.RunWith
 @RunWith(AndroidJUnit4::class)
 class AccentContractInstrumentedTest {
 
-    private val context
-        get() = InstrumentationRegistry.getInstrumentation().targetContext
-
     @Test
     fun mt005_mt008_allOddMeterPatternsPreserveGroupAccentsInBothTimingUnits() {
-        withEngine { engine ->
+        withPreparedAudioEngine(prewarm = true) { engine ->
             AccentContractFixtures.oddMeterSubdivisions.forEach { subdivisions ->
                 AccentContractFixtures.oddMeterPatterns.forEach { fixture ->
                     val capture = capture(
@@ -47,7 +41,7 @@ class AccentContractInstrumentedTest {
 
     @Test
     fun mt009_alternateSixteenthsUseBeatSoundOnEvenTicksAndFeedbackOnTickZero() {
-        withEngine { engine ->
+        withPreparedAudioEngine(prewarm = true) { engine ->
             val capture = capture(
                 engine = engine,
                 subdivisions = 4,
@@ -69,21 +63,6 @@ class AccentContractInstrumentedTest {
                 repeatedRoleCount(expected.map { it.soundRole }, after.queuedClicks, ContractSoundRole.RHYTHM),
                 after.queuedRhythmClicks
             )
-        }
-    }
-
-    private fun withEngine(block: (MetronomeAudioEngine) -> Unit) {
-        val engine = MetronomeAudioEngine(context)
-        try {
-            engine.loadSounds(
-                requireNotNull(SoundFile.CLICK_HI.resourceId),
-                requireNotNull(SoundFile.CLICK_LO.resourceId)
-            )
-            engine.prewarm()
-            Thread.sleep(PREWARM_SETTLE_MILLIS)
-            block(engine)
-        } finally {
-            engine.release()
         }
     }
 
@@ -109,9 +88,8 @@ class AccentContractInstrumentedTest {
             }
         }
         assertTrue("Timed out waiting for accent contract events", latch.await(TIMEOUT_SECONDS, TimeUnit.SECONDS))
-        awaitRenderedClicks(engine, eventCount)
+        awaitFrameAudioMetrics(engine, TIMEOUT_SECONDS * 1_000) { it.queuedClicks >= eventCount }
         session.close()
-        Thread.sleep(STOP_SETTLE_MILLIS)
         return EventCapture(
             scheduledTimes = synchronized(scheduledTimes) { scheduledTimes.toList() },
             beatFlags = synchronized(beatFlags) { beatFlags.toList() }
@@ -151,16 +129,6 @@ class AccentContractInstrumentedTest {
         target: ContractSoundRole
     ): Long = (0 until eventCount).count { roles[(it % roles.size).toInt()] == target }.toLong()
 
-    private fun awaitRenderedClicks(engine: MetronomeAudioEngine, minimum: Int) {
-        val deadline = SystemClock.elapsedRealtime() + TIMEOUT_SECONDS * 1_000
-        while (
-            requireNotNull(engine.getFrameAudioMetricsSnapshot()).queuedClicks < minimum &&
-            SystemClock.elapsedRealtime() < deadline
-        ) {
-            Thread.sleep(10)
-        }
-    }
-
     private data class EventCapture(
         val scheduledTimes: List<Long>,
         val beatFlags: List<Boolean>
@@ -171,8 +139,6 @@ class AccentContractInstrumentedTest {
         const val ALTERNATE_CYCLE_COUNT = 2
         const val ALTERNATE_EVENT_COUNT = 8
         const val TIMEOUT_SECONDS = 6L
-        const val PREWARM_SETTLE_MILLIS = 150L
-        const val STOP_SETTLE_MILLIS = 100L
         const val INTERVAL_TOLERANCE_NANOS = 100_000L
     }
 }

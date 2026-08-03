@@ -375,10 +375,7 @@ class MetronomeViewModel @Inject constructor(
             currentBeatDurationNanos = event.durationNanos
         }
         if (lastBeatTimeNanos == 0L || currentBeatDurationNanos == 0L) return
-        val progress = ((frameTimeNanos - lastBeatTimeNanos).toDouble() / currentBeatDurationNanos)
-            .coerceIn(0.0, 1.0)
-        val remaining = 1.0 - progress
-        beatPulse = (remaining * remaining).toFloat()
+        beatPulse = pulseAlpha(frameTimeNanos, lastBeatTimeNanos, currentBeatDurationNanos)
     }
 
     private fun getSubdivisionValue(): Int = currentSong.groove.subdivisions
