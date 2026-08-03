@@ -24,9 +24,10 @@ class FrameProductionSelectionArchitectureTest {
     @Test
     fun standardUpdatesDoNotStopOrRestartTheFrameStream() {
         val source = locateSource("MetronomeAudioEngine.kt").readText()
-        val updateBody = source.substringAfter("fun updateTempo(").substringBefore("fun release()")
+        val updateBody = source.substringAfter("fun updateStandardSession(")
+            .substringBefore("fun updatePolyrhythmSession(")
 
-        assertTrue(updateBody.contains("engine.updateStandard("))
+        assertTrue(updateBody.contains(".updateStandard("))
         assertFalse(updateBody.contains("engine.stop()"))
         assertFalse(updateBody.contains("engine.startStandard("))
     }

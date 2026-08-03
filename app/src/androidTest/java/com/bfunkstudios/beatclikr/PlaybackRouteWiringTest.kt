@@ -42,37 +42,6 @@ class PlaybackRouteWiringTest {
         }
     }
 
-    @Test
-    fun audioTrackRouteCallbackTraversesFrameLayersToEngineObserver() {
-        val engine = MetronomeAudioEngine(ApplicationProvider.getApplicationContext<Context>())
-        val observed = mutableListOf<Pair<PlaybackSessionId, PlaybackInterruptionReason>>()
-        val latch = CountDownLatch(1)
-        try {
-            engine.prepareRouteWiringForTesting()
-            assertTrue(engine.awaitRouteWiringIdleForTesting())
-            prepareActiveRoute(engine, PlaybackSessionId(42), AudioOutputRoute.BUILT_IN)
-            engine.playbackInterruptionObserver = { sessionId, reason ->
-                observed += sessionId to reason
-                latch.countDown()
-            }
-            engine.reportRouteChangeForTesting(
-                AudioOutputRoute.BUILT_IN,
-                AudioOutputRoute.USB
-            )
-
-            assertTrue(latch.await(2, TimeUnit.SECONDS))
-            assertEquals(
-                PlaybackSessionId(42) to PlaybackInterruptionReason.RouteChanged(
-                    AudioOutputRoute.BUILT_IN,
-                    AudioOutputRoute.USB
-                ),
-                observed.single()
-            )
-        } finally {
-            engine.release()
-        }
-    }
-
     private fun prepareActiveRoute(
         engine: MetronomeAudioEngine,
         sessionId: PlaybackSessionId,

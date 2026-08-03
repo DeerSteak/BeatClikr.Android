@@ -150,7 +150,7 @@ class PlaybackCoordinatorTest {
             engine.transportObserver?.engineStopped(obsolete)
             assertTrue(coordinator.awaitControlIdle())
             assertTrue(coordinator.transportState.value is PlaybackTransportState.Playing)
-            assertEquals(PlaybackMode.POLYRHYTHM, coordinator.ownership.value.activeMode)
+            assertEquals(PlaybackMode.POLYRHYTHM, coordinator.activeMode())
         } finally {
             coordinator.release()
         }
@@ -173,7 +173,7 @@ class PlaybackCoordinatorTest {
                 ),
                 engine.operations
             )
-            assertEquals(PlaybackMode.POLYRHYTHM, coordinator.ownership.value.activeMode)
+            assertEquals(PlaybackMode.POLYRHYTHM, coordinator.activeMode())
         } finally {
             coordinator.release()
         }
@@ -193,7 +193,7 @@ class PlaybackCoordinatorTest {
             assertTrue(coordinator.awaitControlIdle())
 
             assertEquals(listOf("updateStandard"), engine.operations)
-            assertEquals(PlaybackMode.STANDARD, coordinator.ownership.value.activeMode)
+            assertEquals(PlaybackMode.STANDARD, coordinator.activeMode())
             assertTrue(coordinator.ownership.value.muted)
         } finally {
             coordinator.release()
@@ -213,7 +213,7 @@ class PlaybackCoordinatorTest {
             assertTrue(coordinator.awaitControlIdle())
 
             assertEquals(listOf("updatePolyrhythm"), engine.operations)
-            assertEquals(PlaybackMode.POLYRHYTHM, coordinator.ownership.value.activeMode)
+            assertEquals(PlaybackMode.POLYRHYTHM, coordinator.activeMode())
         } finally {
             coordinator.release()
         }
@@ -254,7 +254,7 @@ class PlaybackCoordinatorTest {
             assertTrue(coordinator.awaitControlIdle())
 
             assertEquals(120f, coordinator.standardConfiguration().bpm)
-            assertTrue(coordinator.ownership.value.lastOutcome is PlaybackIntentOutcome.Rejected)
+            assertTrue(coordinator.latestOutcome() is PlaybackIntentOutcome.Rejected)
             coordinator.submit(PlaybackIntent.UpdateStandard(140f, 4, null, false))
             assertTrue(coordinator.awaitControlIdle())
             engine.completeNextUpdate()
@@ -747,7 +747,7 @@ class PlaybackCoordinatorTest {
             )
             assertTrue(coordinator.awaitControlIdle())
 
-            val outcome = coordinator.ownership.value.lastOutcome
+            val outcome = coordinator.latestOutcome()
             assertTrue(outcome is PlaybackIntentOutcome.Rejected)
             assertEquals(sequence, outcome?.commandSequence)
             assertEquals(
@@ -772,10 +772,10 @@ class PlaybackCoordinatorTest {
 
             assertTrue(sequence > 0)
             assertTrue(engine.startEntered.await(2, TimeUnit.SECONDS))
-            assertNull(coordinator.ownership.value.lastOutcome)
+            assertNull(coordinator.outcomeOrNull(sequence))
             engine.allowStart.countDown()
             assertTrue(coordinator.awaitControlIdle())
-            assertTrue(coordinator.ownership.value.lastOutcome is PlaybackIntentOutcome.Accepted)
+            assertTrue(coordinator.outcomeOrNull(sequence) is PlaybackIntentOutcome.Accepted)
         } finally {
             engine.allowStart.countDown()
             coordinator.release()
@@ -812,7 +812,7 @@ class PlaybackCoordinatorTest {
 
             assertEquals(12, sequences.distinct().size)
             assertEquals(1, engine.maximumConcurrentCalls.get())
-            assertTrue(coordinator.ownership.value.activeMode != PlaybackMode.NONE)
+            assertTrue(coordinator.activeMode() != PlaybackMode.NONE)
             assertEquals(setOf("PlaybackCoordinatorControl"), engine.callingThreads)
         } finally {
             callers.shutdownNow()
@@ -829,7 +829,7 @@ class PlaybackCoordinatorTest {
                 PlaybackIntent.StartStandard(Float.NaN, 4, null, false)
             )
             assertTrue(coordinator.awaitControlIdle())
-            val invalid = coordinator.ownership.value.lastOutcome
+            val invalid = coordinator.outcomeOrNull(invalidSequence)
             assertTrue(invalid is PlaybackIntentOutcome.Rejected)
             assertEquals(invalidSequence, invalid?.commandSequence)
             assertEquals(
@@ -843,7 +843,7 @@ class PlaybackCoordinatorTest {
                 PlaybackIntent.StartPolyrhythm(120f, 3, 2)
             )
             assertTrue(coordinator.awaitControlIdle())
-            val failed = coordinator.ownership.value.lastOutcome
+            val failed = coordinator.outcomeOrNull(failedSequence)
             assertTrue(failed is PlaybackIntentOutcome.Rejected)
             assertEquals(failedSequence, failed?.commandSequence)
             assertEquals(
@@ -1995,6 +1995,24 @@ class PlaybackCoordinatorTest {
             }
         )
     }
+
+    private fun PlaybackCoordinator.activeMode(): PlaybackMode =
+        (transportState.value as? PlaybackTransportState.SessionState)
+            ?.context
+            ?.mode
+            ?: PlaybackMode.NONE
+
+    private fun PlaybackCoordinator.latestOutcome(): PlaybackIntentOutcome? =
+        controlEvents.replayCache
+            .filterIsInstance<PlaybackControlEvent.IntentCompleted>()
+            .lastOrNull()
+            ?.outcome
+
+    private fun PlaybackCoordinator.outcomeOrNull(sequence: Long): PlaybackIntentOutcome? =
+        controlEvents.replayCache
+            .filterIsInstance<PlaybackControlEvent.IntentCompleted>()
+            .lastOrNull { it.commandSequence == sequence }
+            ?.outcome
 
     private fun renderedBatch(
         sessionId: PlaybackSessionId,

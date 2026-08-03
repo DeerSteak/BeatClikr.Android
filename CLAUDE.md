@@ -1,3 +1,5 @@
 # CLAUDE.md
 
-@AGENTS.md @PHASE_4_REMEDIATION_PLAN.md
+@AGENTS.md 
+
+Keep responses brief. Just provide a quick bullet list of what's wrong. I don't need a lecture.

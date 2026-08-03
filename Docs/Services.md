@@ -6,7 +6,7 @@ Services isolate audio, device feedback, reminder scheduling, and repository beh
 
 `PlaybackCoordinator` implements the application command port `IAudioPlayerService` and read-only `PlaybackObservation`. UI and secondary outputs observe transport state and renderer-originated `committedEvents`; no application-facing timing delegate or provisional timing flow remains.
 
-`AudioPlayerService` owns `MetronomeAudioEngine` behind `PlaybackEnginePort`. Every engine and frame-engine start/stop entry point requires session identity, so stale owners cannot issue sessionless teardown. Engine timing delegates remain only below that port to prompt committed-event draining; `AudioPlayerService` owns this compatibility seam, which Phase 9 should remove if event draining becomes entirely scheduler-driven.
+`MetronomeAudioEngine` implements `PlaybackEnginePort`. Every coordinator start/stop entry point requires session identity, so stale owners cannot issue sessionless teardown. Engine timing delegates remain below that port to prompt committed-event draining.
 
 `MetronomeAudioEngine` manages audio focus, one-shot visual scheduling, frame-audio publication, and the polyrhythm visual engine. `PolyrhythmTimingEngine` advances two visual rhythms on a shared monotonic timeline. `FrameAudioEngine` owns prepared sound selection and frame-session publication; `AudioTrackFrameSession` drives the streaming backend. `PcmFileCache` reads versioned generated PCM while `SoundBankPreparer` decodes and validates Android raw resources on the control context.
 
@@ -36,7 +36,7 @@ Haptic and torch effects are foreground-only. Torch-on is paired with a 40 ms pu
 
 ## Repositories and preferences
 
-Song, playlist, and practice repositories adapt Room DAOs into flows and suspending mutations. `AppPreferences` implements `IAppPreferences` over SharedPreferences. Transactional playlist/history mutations and safer versioned preference codecs remain planned hardening work.
+Song, playlist, and practice repositories adapt Room DAOs into flows and suspending mutations. `AppPreferences` implements `IAppPreferences` over SharedPreferences. Playlist/history mutations are transactional, and preferences use bounded versioned codecs.
 
 ## Lifecycle policy
 

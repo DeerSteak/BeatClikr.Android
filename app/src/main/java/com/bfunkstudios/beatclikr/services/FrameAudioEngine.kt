@@ -1,7 +1,6 @@
 package com.bfunkstudios.beatclikr.services
 
 import android.media.AudioManager
-import androidx.annotation.VisibleForTesting
 import com.bfunkstudios.beatclikr.data.SoundBank
 import com.bfunkstudios.beatclikr.data.SoundFile
 import com.bfunkstudios.beatclikr.music.PlaybackInputResult
@@ -10,40 +9,40 @@ import com.bfunkstudios.beatclikr.music.SessionOrigin
 
 /** Low-latency metronome output using cached mono PCM files. */
 data class FrameAudioMetricsSnapshot(
-    val backend: AudioBackendType,
-    val route: AudioOutputRoute,
-    val sampleRate: Int,
-    val channelCount: Int,
-    val outputFramesPerBuffer: Int,
-    val bufferFrames: Int,
-    val performanceMode: AudioBackendPerformanceMode,
-    val bufferSizeInBytes: Int,
-    val renderChunkFrames: Int,
-    val estimatedOutputLatencyNanos: Long,
-    val queuedClicks: Long,
-    val queuedBeatClicks: Long,
-    val queuedRhythmClicks: Long,
-    val renderedChunks: Long,
-    val intendedFrames: Long,
-    val renderedFrames: Long,
-    val writtenFrames: Long,
-    val estimatedPresentedFrames: Long?,
-    val mixDurationP50UpperBoundNanos: Long,
-    val mixDurationP95UpperBoundNanos: Long,
-    val mixDurationP99UpperBoundNanos: Long,
-    val maximumMixDurationNanos: Long,
-    val writeDurationP50UpperBoundNanos: Long,
-    val writeDurationP95UpperBoundNanos: Long,
-    val writeDurationP99UpperBoundNanos: Long,
-    val maximumWriteDurationNanos: Long,
-    val routeChangeCount: Long,
-    val deadlineMisses: Long,
-    val droppedEvents: Long,
-    val maxActiveClicks: Int,
-    val underrunCount: Int,
-    val underrunSkippedFrames: Long,
-    val frameCorrelation: AudioFrameCorrelation?,
-    val latestBackendFailure: AudioBackendFailure?
+    val backend: AudioBackendType = AudioBackendType.UNKNOWN,
+    val route: AudioOutputRoute = AudioOutputRoute.UNKNOWN,
+    val sampleRate: Int = 0,
+    val channelCount: Int = 1,
+    val outputFramesPerBuffer: Int = 0,
+    val bufferFrames: Int = 0,
+    val performanceMode: AudioBackendPerformanceMode = AudioBackendPerformanceMode.UNKNOWN,
+    val bufferSizeInBytes: Int = 0,
+    val renderChunkFrames: Int = 0,
+    val estimatedOutputLatencyNanos: Long = 0,
+    val queuedClicks: Long = 0,
+    val queuedBeatClicks: Long = 0,
+    val queuedRhythmClicks: Long = 0,
+    val renderedChunks: Long = 0,
+    val intendedFrames: Long = 0,
+    val renderedFrames: Long = 0,
+    val writtenFrames: Long = 0,
+    val estimatedPresentedFrames: Long? = null,
+    val mixDurationP50UpperBoundNanos: Long = 0,
+    val mixDurationP95UpperBoundNanos: Long = 0,
+    val mixDurationP99UpperBoundNanos: Long = 0,
+    val maximumMixDurationNanos: Long = 0,
+    val writeDurationP50UpperBoundNanos: Long = 0,
+    val writeDurationP95UpperBoundNanos: Long = 0,
+    val writeDurationP99UpperBoundNanos: Long = 0,
+    val maximumWriteDurationNanos: Long = 0,
+    val routeChangeCount: Long = 0,
+    val deadlineMisses: Long = 0,
+    val droppedEvents: Long = 0,
+    val maxActiveClicks: Int = 0,
+    val underrunCount: Int = 0,
+    val underrunSkippedFrames: Long = 0,
+    val frameCorrelation: AudioFrameCorrelation? = null,
+    val latestBackendFailure: AudioBackendFailure? = null
 )
 
 data class FrameAudioStartEvidence(
@@ -147,40 +146,10 @@ class FrameAudioEngine(
             )
         }
         return FrameAudioMetricsSnapshot(
-            backend = AudioBackendType.UNKNOWN,
-            route = AudioOutputRoute.UNKNOWN,
             sampleRate = sampleRate,
-            channelCount = 1,
             outputFramesPerBuffer = outputFramesPerBuffer,
-            bufferFrames = 0,
-            performanceMode = AudioBackendPerformanceMode.UNKNOWN,
-            bufferSizeInBytes = 0,
             renderChunkFrames = outputFramesPerBuffer,
-            estimatedOutputLatencyNanos = estimatedOutputLatencyNanos,
-            queuedClicks = 0,
-            queuedBeatClicks = 0,
-            queuedRhythmClicks = 0,
-            renderedChunks = 0,
-            intendedFrames = 0,
-            renderedFrames = 0,
-            writtenFrames = 0,
-            estimatedPresentedFrames = null,
-            mixDurationP50UpperBoundNanos = 0,
-            mixDurationP95UpperBoundNanos = 0,
-            mixDurationP99UpperBoundNanos = 0,
-            maximumMixDurationNanos = 0,
-            writeDurationP50UpperBoundNanos = 0,
-            writeDurationP95UpperBoundNanos = 0,
-            writeDurationP99UpperBoundNanos = 0,
-            maximumWriteDurationNanos = 0,
-            routeChangeCount = 0,
-            deadlineMisses = 0,
-            droppedEvents = 0,
-            maxActiveClicks = 0,
-            underrunCount = 0,
-            underrunSkippedFrames = 0,
-            frameCorrelation = null,
-            latestBackendFailure = null
+            estimatedOutputLatencyNanos = estimatedOutputLatencyNanos
         )
     }
 
@@ -307,14 +276,6 @@ class FrameAudioEngine(
 
     fun currentRoute(): AudioOutputRoute =
         frameSession?.currentRoute() ?: AudioOutputRoute.UNKNOWN
-
-    @VisibleForTesting
-    internal fun reportRouteChangeForTesting(
-        previous: AudioOutputRoute,
-        current: AudioOutputRoute
-    ) {
-        frameSession().reportRouteChangeForTesting(previous, current)
-    }
 
     fun drainRenderedEvents(afterCaptureSequence: Long): FrameAudioRenderedEventBatch {
         val metrics = metricsSnapshot()

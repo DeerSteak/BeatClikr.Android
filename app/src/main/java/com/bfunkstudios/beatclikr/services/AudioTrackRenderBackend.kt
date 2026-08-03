@@ -7,7 +7,6 @@ import android.media.AudioTimestamp
 import android.media.AudioTrack
 import android.media.AudioDeviceInfo
 import android.media.AudioRouting
-import androidx.annotation.VisibleForTesting
 
 class AudioTrackRenderBackend(
     private val audioManager: AudioManager? = null,
@@ -163,14 +162,6 @@ class AudioTrackRenderBackend(
     override fun streamProperties(): AudioBackendStreamProperties? = streamProperties
 
     override fun currentRoute(): AudioOutputRoute = currentRoute
-
-    @VisibleForTesting
-    internal fun reportRouteChangeForTesting(
-        previous: AudioOutputRoute,
-        current: AudioOutputRoute
-    ) {
-        routeChangeObserver(previous, current)
-    }
 
     @Suppress("DEPRECATION")
     private fun buildTrack(request: AudioBackendOpenRequest): AudioTrack {

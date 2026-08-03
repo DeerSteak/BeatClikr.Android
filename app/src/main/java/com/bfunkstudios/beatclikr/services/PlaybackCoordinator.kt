@@ -30,7 +30,6 @@ data class RequestedSoundConfiguration(
 )
 
 data class PlaybackOwnershipSnapshot(
-    val activeMode: PlaybackMode = PlaybackMode.NONE,
     val muted: Boolean = false,
     val requestedSounds: RequestedSoundConfiguration = RequestedSoundConfiguration(
         SoundBank.ACOUSTIC,
@@ -38,9 +37,7 @@ data class PlaybackOwnershipSnapshot(
         SoundFile.CLICK_LO
     ),
     val audibleSounds: ActiveSoundConfiguration? = null,
-    val soundPreparationFailure: SoundPreparationFailure? = null,
-    val lastCommandSequence: Long = 0,
-    val lastOutcome: PlaybackIntentOutcome? = null
+    val soundPreparationFailure: SoundPreparationFailure? = null
 )
 
 sealed interface PlaybackIntent {
@@ -1025,12 +1022,6 @@ class PlaybackCoordinator(
         intent: PlaybackIntent,
         outcome: PlaybackIntentOutcome
     ) {
-        mutateOwnership {
-            it.copy(
-                lastCommandSequence = sequence,
-                lastOutcome = outcome
-            )
-        }
         mutableControlEvents.tryEmit(
             PlaybackControlEvent.IntentCompleted(sequence, intent, outcome)
         )
@@ -1043,7 +1034,6 @@ class PlaybackCoordinator(
         val currentSession = transportState.value as? PlaybackTransportState.SessionState
         if (expectedSessionId != null &&
             (currentSession?.context?.sessionId != expectedSessionId || pendingReplacement != null)) {
-            mutateOwnership { it.copy(lastCommandSequence = sequence) }
             return
         }
         pendingReplacement = null
@@ -1062,7 +1052,6 @@ class PlaybackCoordinator(
                 engine.stopSession(current.context.sessionId, current.context.mode)
             }
         }
-        mutateOwnership { it.copy(lastCommandSequence = sequence) }
     }
 
     private fun applySystemInput(input: PlaybackSystemInput) {
@@ -1095,7 +1084,6 @@ class PlaybackCoordinator(
                         PlaybackFailureReason.Engine(input.diagnostic)
                     )
                 )
-                mutateOwnership { it.copy(activeMode = PlaybackMode.NONE) }
                 engine.stopSession(current.context.sessionId, current.context.mode)
             }
         }
@@ -1107,7 +1095,6 @@ class PlaybackCoordinator(
     ) {
         publishRenderedEvents(current.context.sessionId, detectRuntimeFailure = false)
         transitionTo(PlaybackTransportState.Interrupted(current.context, reason))
-        mutateOwnership { it.copy(activeMode = PlaybackMode.NONE) }
         engine.stopSession(current.context.sessionId, current.context.mode)
     }
 
@@ -1123,7 +1110,6 @@ class PlaybackCoordinator(
             else -> PlaybackFailureReason.Engine("Playback interrupted during startup: $reason")
         }
         transitionTo(PlaybackTransportState.Failed(current.context, failure))
-        mutateOwnership { it.copy(activeMode = PlaybackMode.NONE) }
         engine.stopSession(current.context.sessionId, current.context.mode)
     }
 
@@ -1164,7 +1150,6 @@ class PlaybackCoordinator(
                     PlaybackFailureReason.Engine("Prepared sounds are unavailable")
                 )
             )
-            mutateOwnership { it.copy(activeMode = PlaybackMode.NONE) }
             return
         }
         val prepared = requested.copy(audibleSounds = sounds)
@@ -1199,7 +1184,6 @@ class PlaybackCoordinator(
                     PlaybackFailureReason.RouteUnavailable
                 )
             )
-            mutateOwnership { it.copy(activeMode = PlaybackMode.NONE) }
             engine.stopSession(current.context.sessionId, current.context.mode)
             return
         }
@@ -1218,9 +1202,7 @@ class PlaybackCoordinator(
         )
         transitionTo(PlaybackTransportState.Playing(committed))
         publishRenderedEvents()
-        mutateOwnership {
-            it.copy(activeMode = committed.mode, audibleSounds = evidence.audibleSounds)
-        }
+        mutateOwnership { it.copy(audibleSounds = evidence.audibleSounds) }
         dispatchNextUpdate()
     }
 
@@ -1233,7 +1215,6 @@ class PlaybackCoordinator(
                 PlaybackFailureReason.AudioFocusUnavailable
             )
         )
-        mutateOwnership { it.copy(activeMode = PlaybackMode.NONE) }
         engine.stopSession(current.context.sessionId, current.context.mode)
     }
 
@@ -1330,7 +1311,6 @@ class PlaybackCoordinator(
                 PlaybackFailureReason.StreamStart(diagnostic)
             )
         )
-        mutateOwnership { it.copy(activeMode = PlaybackMode.NONE) }
         engine.stopSession(current.context.sessionId, current.context.mode)
     }
 
@@ -1343,7 +1323,6 @@ class PlaybackCoordinator(
             return
         }
         if (current !is PlaybackTransportState.Stopping) return
-        mutateOwnership { it.copy(activeMode = PlaybackMode.NONE) }
         val replacement = pendingReplacement
         if (replacement == null) {
             transitionTo(PlaybackTransportState.Idle)
@@ -1399,14 +1378,6 @@ class PlaybackCoordinator(
             eventDrainFuture = null
         }
         mutableTransportState.value = next
-        mutateOwnership {
-            it.copy(
-                activeMode = (next as? PlaybackTransportState.Playing)
-                    ?.context
-                    ?.mode
-                    ?: PlaybackMode.NONE
-            )
-        }
         val transition = PlaybackStateTransition(
             nextTransitionSequence++,
             previous,

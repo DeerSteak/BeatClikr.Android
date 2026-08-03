@@ -12,7 +12,6 @@ import com.bfunkstudios.beatclikr.data.SongRepository
 import com.bfunkstudios.beatclikr.data.SongRepositoryImpl
 import com.bfunkstudios.beatclikr.data.db.BeatClikrDatabase
 import com.bfunkstudios.beatclikr.data.db.BeatClikrMigrations
-import com.bfunkstudios.beatclikr.services.AudioPlayerService
 import com.bfunkstudios.beatclikr.services.FlashlightService
 import com.bfunkstudios.beatclikr.services.HapticFeedbackService
 import com.bfunkstudios.beatclikr.services.IAudioPlayerService
@@ -23,6 +22,7 @@ import com.bfunkstudios.beatclikr.services.PlaybackEnginePort
 import com.bfunkstudios.beatclikr.services.IFlashlightService
 import com.bfunkstudios.beatclikr.services.IHapticFeedbackService
 import com.bfunkstudios.beatclikr.services.IPracticeReminderScheduler
+import com.bfunkstudios.beatclikr.services.MetronomeAudioEngine
 import com.bfunkstudios.beatclikr.services.PracticeReminderScheduler
 import com.bfunkstudios.beatclikr.services.SecondaryOutputCoordinator
 import com.bfunkstudios.beatclikr.services.SecondaryOutputObservation
@@ -57,7 +57,7 @@ abstract class AppModule {
 
         @Provides @Singleton
         fun providePlaybackEngine(@ApplicationContext context: Context): PlaybackEnginePort =
-            debugPlaybackEngine(context) ?: AudioPlayerService(context)
+            debugPlaybackEngine(context) ?: MetronomeAudioEngine(context.applicationContext)
 
         private fun debugPlaybackEngine(context: Context): PlaybackEnginePort? {
             if (!com.bfunkstudios.beatclikr.BuildConfig.DEBUG) return null
