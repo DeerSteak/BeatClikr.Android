@@ -33,3 +33,16 @@ class CommittedEventDeliveryCursor(initialSequence: Long = 0) {
         }
     }
 }
+
+inline fun deliverCommittedEvent(
+    cursor: CommittedEventDeliveryCursor,
+    event: PlaybackCommittedEvent,
+    onGap: (CommittedEventDeliveryGap) -> Unit
+): Boolean = when (val delivery = cursor.accept(event)) {
+    CommittedEventDeliveryResult.Accepted -> true
+    CommittedEventDeliveryResult.Duplicate -> false
+    is CommittedEventDeliveryResult.Gap -> {
+        onGap(delivery.detail)
+        false
+    }
+}

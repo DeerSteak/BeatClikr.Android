@@ -33,8 +33,10 @@ class PreparedPcmWaveform(samples: ShortArray) {
     val size: Int
         get() = storage.size
 
-    /** Copies once when publishing a waveform to a renderer or legacy engine. */
+    /** Returns an isolated copy for callers outside the render pipeline. */
     fun copySamples(): ShortArray = storage.copyOf()
+
+    internal fun sharedSamples(): ShortArray = storage
 }
 
 class PreparedSoundBank private constructor(
@@ -43,8 +45,6 @@ class PreparedSoundBank private constructor(
     private val waveforms: Map<SoundFile, PreparedPcmWaveform>
 ) {
     fun waveform(sound: SoundFile): PreparedPcmWaveform? = waveforms[sound]
-
-    fun contains(sound: SoundFile): Boolean = waveforms.containsKey(sound)
 
     val size: Int
         get() = waveforms.size
@@ -214,8 +214,8 @@ class PreparedSoundSelection(
     }
 
     private fun publish(bank: PreparedSoundBank) {
-        val beat = bank.waveform(requestedBeatSound)?.copySamples()
-        val rhythm = bank.waveform(requestedRhythmSound)?.copySamples()
+        val beat = bank.waveform(requestedBeatSound)?.sharedSamples()
+        val rhythm = bank.waveform(requestedRhythmSound)?.sharedSamples()
         if (beat == null || rhythm == null) {
             val missing = if (beat == null) requestedBeatSound else requestedRhythmSound
             failure = SoundPreparationFailure(

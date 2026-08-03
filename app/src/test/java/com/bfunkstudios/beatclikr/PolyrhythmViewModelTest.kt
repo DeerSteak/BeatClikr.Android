@@ -331,7 +331,7 @@ class PolyrhythmViewModelTest {
 
     @Test
     fun `delegate updates active indexes`() {
-        viewModel.polyrhythmBeatFired(
+        viewModel.applyPolyrhythmEvent(
             beatFired = true,
             rhythmFired = true,
             beatIndex = 1,
@@ -353,7 +353,7 @@ class PolyrhythmViewModelTest {
     @Test
     fun mt024_polyrhythmEventsNeverApplyTempoRamp() {
         repeat(100) { index ->
-            viewModel.polyrhythmBeatFired(
+            viewModel.applyPolyrhythmEvent(
                 beatFired = true,
                 rhythmFired = true,
                 beatIndex = index % viewModel.against,

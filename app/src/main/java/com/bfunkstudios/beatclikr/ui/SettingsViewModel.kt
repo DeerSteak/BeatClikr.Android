@@ -42,6 +42,24 @@ sealed interface ReminderSettingsDialog {
     data class PermissionDenied(val blocked: Boolean) : ReminderSettingsDialog
 }
 
+data class SoundSettingsUiState(
+    val metronomeBeat: SoundFile,
+    val metronomeRhythm: SoundFile,
+    val playlistBeat: SoundFile,
+    val playlistRhythm: SoundFile,
+    val polyrhythmBeat: SoundFile,
+    val polyrhythmRhythm: SoundFile
+)
+
+data class PlaybackSettingsUiState(
+    val useFlashlight: Boolean,
+    val useVibration: Boolean,
+    val alwaysUseDarkTheme: Boolean,
+    val muteMetronome: Boolean,
+    val keepScreenAwake: Boolean,
+    val sixteenthAlternate: Boolean
+)
+
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
     private val prefs: IAppPreferences,
@@ -51,28 +69,29 @@ class SettingsViewModel @Inject constructor(
     private val failureReporter: OperationalFailureReporter = OperationalFailureReporter()
 ) : ViewModel() {
 
-    var useFlashlight by mutableStateOf(prefs.useFlashlight)
+    var playbackSettings by mutableStateOf(
+        PlaybackSettingsUiState(
+            prefs.useFlashlight,
+            prefs.useVibration,
+            prefs.alwaysUseDarkTheme,
+            prefs.muteMetronome,
+            prefs.keepScreenAwake,
+            prefs.sixteenthAlternate
+        )
+    )
         private set
+
+    val useFlashlight get() = playbackSettings.useFlashlight
+    val useVibration get() = playbackSettings.useVibration
+    val alwaysUseDarkTheme get() = playbackSettings.alwaysUseDarkTheme
+    val muteMetronome get() = playbackSettings.muteMetronome
+    val keepScreenAwake get() = playbackSettings.keepScreenAwake
+    val sixteenthAlternate get() = playbackSettings.sixteenthAlternate
 
     val hasFlashlight: Boolean
         get() = flashlight.hasFlashlight
 
     var flashlightDialog by mutableStateOf<FlashlightSettingsDialog?>(null)
-        private set
-
-    var useVibration by mutableStateOf(prefs.useVibration)
-        private set
-
-    var alwaysUseDarkTheme by mutableStateOf(prefs.alwaysUseDarkTheme)
-        private set
-
-    var muteMetronome by mutableStateOf(prefs.muteMetronome)
-        private set
-
-    var keepScreenAwake by mutableStateOf(prefs.keepScreenAwake)
-        private set
-
-    var sixteenthAlternate by mutableStateOf(prefs.sixteenthAlternate)
         private set
 
     var soundBank by mutableStateOf(prefs.soundBank)
@@ -102,23 +121,24 @@ class SettingsViewModel @Inject constructor(
     var reminderDialog by mutableStateOf<ReminderSettingsDialog?>(null)
         private set
 
-    var metronomeBeatSound by mutableStateOf(prefs.instantBeatSound)
+    var soundSettings by mutableStateOf(
+        SoundSettingsUiState(
+            prefs.instantBeatSound,
+            prefs.instantRhythmSound,
+            prefs.playlistBeatSound,
+            prefs.playlistRhythmSound,
+            prefs.polyrhythmBeatSound,
+            prefs.polyrhythmRhythmSound
+        )
+    )
         private set
 
-    var metronomeRhythmSound by mutableStateOf(prefs.instantRhythmSound)
-        private set
-
-    var playlistBeatSound by mutableStateOf(prefs.playlistBeatSound)
-        private set
-
-    var playlistRhythmSound by mutableStateOf(prefs.playlistRhythmSound)
-        private set
-
-    var polyrhythmBeatSound by mutableStateOf(prefs.polyrhythmBeatSound)
-        private set
-
-    var polyrhythmRhythmSound by mutableStateOf(prefs.polyrhythmRhythmSound)
-        private set
+    val metronomeBeatSound get() = soundSettings.metronomeBeat
+    val metronomeRhythmSound get() = soundSettings.metronomeRhythm
+    val playlistBeatSound get() = soundSettings.playlistBeat
+    val playlistRhythmSound get() = soundSettings.playlistRhythm
+    val polyrhythmBeatSound get() = soundSettings.polyrhythmBeat
+    val polyrhythmRhythmSound get() = soundSettings.polyrhythmRhythm
 
     fun diagnosticReport(): String = LocalDiagnostics.render(
         LocalDiagnosticSnapshot(
@@ -132,7 +152,7 @@ class SettingsViewModel @Inject constructor(
     )
 
     fun updateUseFlashlight(value: Boolean) {
-        useFlashlight = value
+        playbackSettings = playbackSettings.copy(useFlashlight = value)
         prefs.useFlashlight = value
     }
 
@@ -165,27 +185,27 @@ class SettingsViewModel @Inject constructor(
     }
 
     fun updateUseVibration(value: Boolean) {
-        useVibration = value
+        playbackSettings = playbackSettings.copy(useVibration = value)
         prefs.useVibration = value
     }
 
     fun updateAlwaysUseDarkTheme(value: Boolean) {
-        alwaysUseDarkTheme = value
+        playbackSettings = playbackSettings.copy(alwaysUseDarkTheme = value)
         prefs.alwaysUseDarkTheme = value
     }
 
     fun updateMuteMetronome(value: Boolean) {
-        muteMetronome = value
+        playbackSettings = playbackSettings.copy(muteMetronome = value)
         prefs.muteMetronome = value
     }
 
     fun updateKeepScreenAwake(value: Boolean) {
-        keepScreenAwake = value
+        playbackSettings = playbackSettings.copy(keepScreenAwake = value)
         prefs.keepScreenAwake = value
     }
 
     fun updateSixteenthAlternate(value: Boolean) {
-        sixteenthAlternate = value
+        playbackSettings = playbackSettings.copy(sixteenthAlternate = value)
         prefs.sixteenthAlternate = value
     }
 
@@ -312,38 +332,46 @@ class SettingsViewModel @Inject constructor(
     }
 
     fun updateMetronomeBeatSound(value: SoundFile) {
-        metronomeBeatSound = value
-        prefs.instantBeatSound = value
-        prepareAudioTrackSoundIfNeeded(value)
+        updateSound(SoundSlot.METRONOME_BEAT, value)
     }
 
     fun updateMetronomeRhythmSound(value: SoundFile) {
-        metronomeRhythmSound = value
-        prefs.instantRhythmSound = value
-        prepareAudioTrackSoundIfNeeded(value)
+        updateSound(SoundSlot.METRONOME_RHYTHM, value)
     }
 
     fun updatePlaylistBeatSound(value: SoundFile) {
-        playlistBeatSound = value
-        prefs.playlistBeatSound = value
-        prepareAudioTrackSoundIfNeeded(value)
+        updateSound(SoundSlot.PLAYLIST_BEAT, value)
     }
 
     fun updatePlaylistRhythmSound(value: SoundFile) {
-        playlistRhythmSound = value
-        prefs.playlistRhythmSound = value
-        prepareAudioTrackSoundIfNeeded(value)
+        updateSound(SoundSlot.PLAYLIST_RHYTHM, value)
     }
 
     fun updatePolyrhythmBeatSound(value: SoundFile) {
-        polyrhythmBeatSound = value
-        prefs.polyrhythmBeatSound = value
-        prepareAudioTrackSoundIfNeeded(value)
+        updateSound(SoundSlot.POLYRHYTHM_BEAT, value)
     }
 
     fun updatePolyrhythmRhythmSound(value: SoundFile) {
-        polyrhythmRhythmSound = value
-        prefs.polyrhythmRhythmSound = value
+        updateSound(SoundSlot.POLYRHYTHM_RHYTHM, value)
+    }
+
+    private fun updateSound(slot: SoundSlot, value: SoundFile) {
+        soundSettings = when (slot) {
+            SoundSlot.METRONOME_BEAT -> soundSettings.copy(metronomeBeat = value)
+            SoundSlot.METRONOME_RHYTHM -> soundSettings.copy(metronomeRhythm = value)
+            SoundSlot.PLAYLIST_BEAT -> soundSettings.copy(playlistBeat = value)
+            SoundSlot.PLAYLIST_RHYTHM -> soundSettings.copy(playlistRhythm = value)
+            SoundSlot.POLYRHYTHM_BEAT -> soundSettings.copy(polyrhythmBeat = value)
+            SoundSlot.POLYRHYTHM_RHYTHM -> soundSettings.copy(polyrhythmRhythm = value)
+        }
+        when (slot) {
+            SoundSlot.METRONOME_BEAT -> prefs.instantBeatSound = value
+            SoundSlot.METRONOME_RHYTHM -> prefs.instantRhythmSound = value
+            SoundSlot.PLAYLIST_BEAT -> prefs.playlistBeatSound = value
+            SoundSlot.PLAYLIST_RHYTHM -> prefs.playlistRhythmSound = value
+            SoundSlot.POLYRHYTHM_BEAT -> prefs.polyrhythmBeatSound = value
+            SoundSlot.POLYRHYTHM_RHYTHM -> prefs.polyrhythmRhythmSound = value
+        }
         prepareAudioTrackSoundIfNeeded(value)
     }
 
@@ -384,5 +412,14 @@ class SettingsViewModel @Inject constructor(
     private fun cancelReminder() {
         runCatching { reminderScheduler.cancel() }
             .onFailure { failureReporter.report(reminderFailure("reminder_cancel")) }
+    }
+
+    private enum class SoundSlot {
+        METRONOME_BEAT,
+        METRONOME_RHYTHM,
+        PLAYLIST_BEAT,
+        PLAYLIST_RHYTHM,
+        POLYRHYTHM_BEAT,
+        POLYRHYTHM_RHYTHM
     }
 }

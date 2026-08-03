@@ -7,7 +7,6 @@ import androidx.test.platform.app.InstrumentationRegistry
 import com.bfunkstudios.beatclikr.data.SoundFile
 import com.bfunkstudios.beatclikr.services.FrameAudioMetricsSnapshot
 import com.bfunkstudios.beatclikr.services.MetronomeAudioEngine
-import com.bfunkstudios.beatclikr.services.PolyrhythmAudioEngineDelegate
 import java.util.Collections
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
@@ -61,7 +60,7 @@ class PolyrhythmContractInstrumentedTest {
         val eventCount = fixture.events.size + 1
         val events = Collections.synchronizedList(mutableListOf<CapturedPolyrhythmEvent>())
         val latch = CountDownLatch(eventCount)
-        engine.polyrhythmDelegate = object : PolyrhythmTestDelegate() {
+        engine.installPolyrhythmTestDelegate(object : PolyrhythmTestDelegate() {
             override fun polyrhythmBeatFired(
                 beatFired: Boolean,
                 rhythmFired: Boolean,
@@ -80,7 +79,7 @@ class PolyrhythmContractInstrumentedTest {
                 )
                 latch.countDown()
             }
-        }
+        })
 
         engine.startPolyrhythm(TEST_BPM, fixture.beats, fixture.against)
         assertTrue("${fixture.beats}:${fixture.against} timed out", latch.await(TIMEOUT_SECONDS, TimeUnit.SECONDS))

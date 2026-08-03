@@ -75,10 +75,6 @@ class FrameAudioEngine(
     private var frameSession: AudioTrackFrameSession? = null
     private val renderedEvents = RenderedEventRing(RENDERED_EVENT_CAPACITY)
 
-    @Volatile
-    var lastFramePublicationFailure: FramePublicationResult.Rejected? = null
-        private set
-
     var soundBank: SoundBank
         get() = soundSelection.requestedBank
         set(value) {
@@ -87,9 +83,6 @@ class FrameAudioEngine(
 
     val lastSoundPreparationFailure: SoundPreparationFailure?
         get() = soundSelection.failure
-
-    val activeSoundBank: SoundBank?
-        get() = soundSelection.active?.bank
 
     val activeSoundConfiguration: ActiveSoundConfiguration?
         get() = soundSelection.active?.configuration
@@ -243,12 +236,8 @@ class FrameAudioEngine(
     private fun startFramePublication(result: FramePublicationResult): Boolean {
         val ready = when (result) {
             is FramePublicationResult.Ready -> result
-            is FramePublicationResult.Rejected -> {
-                lastFramePublicationFailure = result
-                return false
-            }
+            is FramePublicationResult.Rejected -> return false
         }
-        lastFramePublicationFailure = null
         val session = frameSession()
         val started = session.start(ready.factory)
         if (started) {

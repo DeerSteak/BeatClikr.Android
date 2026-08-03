@@ -14,7 +14,5 @@ object MetronomeConstants {
     const val ICON_SCALE_MAX: Float = 1.0f
 
     // Timing (in milliseconds)
-    const val TIMER_CHECK_INTERVAL_MS: Long = 1L // 1ms for high-precision checks
-    const val FIRST_BEAT_DELAY_MS: Long = 67L // 67ms delay to ensure timer starts before first beat
-    const val LOOKAHEAD_TOLERANCE_MS: Long = 2L // 2ms lookahead for beat firing
+    const val FIRST_BEAT_DELAY_MS: Long = 67L
 }

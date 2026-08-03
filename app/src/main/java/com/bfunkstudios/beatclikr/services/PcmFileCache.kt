@@ -33,7 +33,7 @@ class PcmFileCache(
         bank: SoundBank
     ): SoundPreparationResult<PreparedSoundBank> = preparer.prepare(bank, soundFiles)
 
-    fun preparedBank(bank: SoundBank): PreparedSoundBank? = store.current(bank)
+    internal fun preparedBank(bank: SoundBank): PreparedSoundBank? = store.current(bank)
 
     private class FilePreparedWaveformCache(
         private val filesDir: File
@@ -127,7 +127,7 @@ class PcmFileCache(
             const val CACHE_MAGIC = 0x42434B52
             const val HEADER_BYTES = 16
             const val CACHE_PREFIX = "audio_track_pcm_"
-            const val CACHE_DIRECTORY = "audio_track_pcm_v4"
+            const val CACHE_DIRECTORY = CACHE_PREFIX + "v" + SoundBankPreparer.CACHE_VERSION
         }
     }
 }

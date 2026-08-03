@@ -6,9 +6,9 @@ Services isolate audio, device feedback, reminder scheduling, and repository beh
 
 `PlaybackCoordinator` implements the intent-only application command port `IAudioPlayerService` and read-only `PlaybackObservation`. Callers submit typed `PlaybackIntent` values; UI and secondary outputs observe transport state and renderer-originated `committedEvents`.
 
-`MetronomeAudioEngine` implements `PlaybackEnginePort`. Every coordinator start/stop entry point requires session identity, so stale owners cannot issue sessionless teardown. Engine timing delegates remain below that port to prompt committed-event draining.
+`MetronomeAudioEngine` implements `PlaybackEnginePort`. Every coordinator start/stop entry point requires session identity, so stale owners cannot issue sessionless teardown. The coordinator drains renderer-originated events while a session is playing.
 
-`MetronomeAudioEngine` manages audio focus, one-shot visual scheduling, frame-audio publication, and the polyrhythm visual engine. `PolyrhythmTimingEngine` advances two visual rhythms on a shared monotonic timeline. `FrameAudioEngine` owns prepared sound selection and frame-session publication; `AudioTrackFrameSession` drives the streaming backend. `PcmFileCache` reads versioned generated PCM while `SoundBankPreparer` decodes and validates Android raw resources on the control context.
+`MetronomeAudioEngine` manages audio focus, routes, and frame-audio publication. `FrameAudioEngine` owns prepared sound selection and frame-session publication; `AudioTrackFrameSession` drives the streaming backend. `PcmFileCache` reads versioned generated PCM while `SoundBankPreparer` decodes and validates Android raw resources on the control context.
 
 Prepared sound banks are immutable snapshots keyed by sound bank and `SoundFile`. A complete replacement is published atomically only after every required resource succeeds. WAV decoding preserves leading silence, downmixes supported channel layouts to mono, resamples before publication, and returns typed missing, corrupt, empty, or incompatible failures.
 

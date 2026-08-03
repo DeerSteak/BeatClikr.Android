@@ -60,7 +60,7 @@ class SongLibraryViewModel @Inject constructor(
     }
 
     fun currentIndex(songs: List<Song> = uiState.value.songList): Int? =
-        currentSongId?.let { id -> songs.indexOfFirst { it.id == id }.takeIf { it >= 0 } }
+        currentItemIndex(songs, currentSongId, Song::id)
 
     fun currentSongTitle(songs: List<Song> = uiState.value.songList): String? =
         currentIndex(songs)?.let { songs[it].title }
@@ -72,21 +72,19 @@ class SongLibraryViewModel @Inject constructor(
         currentIndex(songs)?.let { it < songs.lastIndex } ?: false
 
     fun playOrResume(songs: List<Song> = uiState.value.songList, onPlaySong: (Song) -> Unit) {
-        val song = currentIndex(songs)?.let { songs[it] } ?: songs.firstOrNull() ?: return
+        val song = resumeItem(songs, currentSongId, Song::id) ?: return
         markSongPlaying(song)
         onPlaySong(song)
     }
 
     fun playPrevious(songs: List<Song> = uiState.value.songList, onPlaySong: (Song) -> Unit) {
-        val index = currentIndex(songs) ?: return
-        val song = songs.getOrNull(index - 1) ?: return
+        val song = adjacentItem(songs, currentSongId, -1, Song::id) ?: return
         markSongPlaying(song)
         onPlaySong(song)
     }
 
     fun playNext(songs: List<Song> = uiState.value.songList, onPlaySong: (Song) -> Unit) {
-        val index = currentIndex(songs) ?: return
-        val song = songs.getOrNull(index + 1) ?: return
+        val song = adjacentItem(songs, currentSongId, 1, Song::id) ?: return
         markSongPlaying(song)
         onPlaySong(song)
     }

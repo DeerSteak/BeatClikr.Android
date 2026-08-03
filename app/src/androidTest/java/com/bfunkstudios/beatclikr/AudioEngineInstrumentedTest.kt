@@ -8,9 +8,7 @@ import androidx.test.platform.app.InstrumentationRegistry
 import com.bfunkstudios.beatclikr.data.SoundBank
 import com.bfunkstudios.beatclikr.data.SoundFile
 import com.bfunkstudios.beatclikr.services.MetronomeAudioEngine
-import com.bfunkstudios.beatclikr.services.MetronomeAudioEngineDelegate
 import com.bfunkstudios.beatclikr.services.PcmFileCache
-import com.bfunkstudios.beatclikr.services.PolyrhythmAudioEngineDelegate
 import com.bfunkstudios.beatclikr.services.SoundPreparationResult
 import java.util.Collections
 import java.util.concurrent.CountDownLatch
@@ -136,7 +134,7 @@ class AudioEngineInstrumentedTest {
         val events = Collections.synchronizedList(mutableListOf<Pair<Boolean, Boolean>>())
         val scheduledTimes = Collections.synchronizedList(mutableListOf<Long>())
         val latch = CountDownLatch(POLYRHYTHM_EVENT_COUNT)
-        engine.polyrhythmDelegate = object : PolyrhythmTestDelegate() {
+        engine.installPolyrhythmTestDelegate(object : PolyrhythmTestDelegate() {
             override fun polyrhythmBeatFired(
                 beatFired: Boolean,
                 rhythmFired: Boolean,
@@ -151,7 +149,7 @@ class AudioEngineInstrumentedTest {
                 scheduledTimes += stepTimeNanos
                 latch.countDown()
             }
-        }
+        })
 
         try {
             engine.loadSounds(requireNotNull(SoundFile.CLICK_HI.resourceId), requireNotNull(SoundFile.CLICK_LO.resourceId))

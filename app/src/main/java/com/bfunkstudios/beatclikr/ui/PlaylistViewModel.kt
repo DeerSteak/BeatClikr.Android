@@ -128,13 +128,12 @@ class PlaylistViewModel @Inject constructor(
         launchDatabase("playlist_add_song") { repository.addEntry(playlistId, songId, count) }
     }
 
-    fun deleteEntry(entry: PlaylistEntryWithSong, entries: List<PlaylistEntryWithSong>) {
+    fun deleteEntry(entry: PlaylistEntryWithSong) {
         launchDatabase("playlist_delete_song") { repository.deleteEntry(entry.entry) }
     }
 
     fun reorderEntries(reorderedEntries: List<PlaylistEntryWithSong>) {
-        val resequenced = reorderedEntries.mapIndexed { i, e -> e.copy(entry = e.entry.copy(sequence = i)) }
-        launchDatabase("playlist_reorder") { repository.reorderEntries(resequenced) }
+        launchDatabase("playlist_reorder") { repository.reorderEntries(reorderedEntries) }
     }
 
     // --- Transport ---
@@ -143,7 +142,7 @@ class PlaylistViewModel @Inject constructor(
         (playlist?.entries ?: emptyList()).sortedBy { it.entry.sequence }
 
     fun currentIndex(entries: List<PlaylistEntryWithSong>): Int? =
-        currentEntryId?.let { id -> entries.indexOfFirst { it.entry.id == id }.takeIf { it >= 0 } }
+        currentItemIndex(entries, currentEntryId) { it.entry.id }
 
     fun currentSongTitle(entries: List<PlaylistEntryWithSong>): String? =
         currentIndex(entries)?.let { entries[it].song.title }
@@ -160,21 +159,19 @@ class PlaylistViewModel @Inject constructor(
     }
 
     fun playOrResume(entries: List<PlaylistEntryWithSong>, onPlay: (Song) -> Unit) {
-        val target = currentIndex(entries)?.let { entries[it] } ?: entries.firstOrNull() ?: return
+        val target = resumeItem(entries, currentEntryId) { it.entry.id } ?: return
         currentEntryId = target.entry.id
         onPlay(target.song)
     }
 
     fun playPrevious(entries: List<PlaylistEntryWithSong>, onPlay: (Song) -> Unit) {
-        val idx = currentIndex(entries) ?: return
-        val entry = entries.getOrNull(idx - 1) ?: return
+        val entry = adjacentItem(entries, currentEntryId, -1) { it.entry.id } ?: return
         currentEntryId = entry.entry.id
         onPlay(entry.song)
     }
 
     fun playNext(entries: List<PlaylistEntryWithSong>, onPlay: (Song) -> Unit) {
-        val idx = currentIndex(entries) ?: return
-        val entry = entries.getOrNull(idx + 1) ?: return
+        val entry = adjacentItem(entries, currentEntryId, 1) { it.entry.id } ?: return
         currentEntryId = entry.entry.id
         onPlay(entry.song)
     }

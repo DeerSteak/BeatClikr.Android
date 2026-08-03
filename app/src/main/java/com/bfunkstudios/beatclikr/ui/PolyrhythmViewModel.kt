@@ -1,7 +1,5 @@
 package com.bfunkstudios.beatclikr.ui
 
-import android.os.SystemClock
-import android.view.Choreographer
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
@@ -18,7 +16,7 @@ import com.bfunkstudios.beatclikr.music.MusicalEventRole
 import com.bfunkstudios.beatclikr.music.PolyrhythmConfiguration
 import com.bfunkstudios.beatclikr.services.CommittedPlaybackConfiguration
 import com.bfunkstudios.beatclikr.services.CommittedEventDeliveryCursor
-import com.bfunkstudios.beatclikr.services.CommittedEventDeliveryResult
+import com.bfunkstudios.beatclikr.services.deliverCommittedEvent
 import com.bfunkstudios.beatclikr.services.EventPresentation
 import com.bfunkstudios.beatclikr.services.IAudioPlayerService
 import com.bfunkstudios.beatclikr.services.PlaybackCommittedEvent
@@ -99,8 +97,6 @@ class PolyrhythmViewModel @Inject constructor(
     val cycleDurationMillis: Int
         get() = (against * (60_000f / bpm)).toInt().coerceAtLeast(1)
 
-    private var choreographer: Choreographer? = null
-    private var choreographerCallback: Choreographer.FrameCallback? = null
     private var lastBeatTimeNanos: Long = 0L
     private var currentBeatDurationNanos: Long = 0L
     private var lastRhythmTimeNanos: Long = 0L
@@ -108,6 +104,12 @@ class PolyrhythmViewModel @Inject constructor(
     private var projectedSessionId: PlaybackSessionId? = null
     private val committedEventCursor = CommittedEventDeliveryCursor(
         playback.committedEvents.replayCache.lastOrNull()?.sequence ?: 0L
+    )
+    private val pulseLoop = ChoreographerPulseLoop(
+        shouldContinue = {
+            isPlaying && (lastBeatTimeNanos != 0L || lastRhythmTimeNanos != 0L)
+        },
+        onFrame = ::updatePulseStates
     )
     var committedEventDeliveryLoss by mutableLongStateOf(0)
         private set
@@ -194,15 +196,14 @@ class PolyrhythmViewModel @Inject constructor(
         currentRhythmDurationNanos = 0L
     }
 
-    fun polyrhythmBeatFired(
+    internal fun applyPolyrhythmEvent(
         beatFired: Boolean,
         rhythmFired: Boolean,
         beatIndex: Int,
         rhythmIndex: Int,
         stepTimeNanos: Long = 0L,
         beatDurationNanos: Long = 0L,
-        rhythmDurationNanos: Long = 0L,
-        presentationIsFrameTime: Boolean = false
+        rhythmDurationNanos: Long = 0L
     ) {
         viewModelScope.launch(Dispatchers.Main) {
             if (beatFired) {
@@ -210,13 +211,9 @@ class PolyrhythmViewModel @Inject constructor(
                 // Show the hit immediately; Choreographer owns the frame-synced decay.
                 beatPulse = 1f
                 if (stepTimeNanos > 0L && beatDurationNanos > 0L) {
-                    lastBeatTimeNanos = if (presentationIsFrameTime) {
-                        stepTimeNanos
-                    } else {
-                        toChoreographerTimeNanos(stepTimeNanos)
-                    }
+                    lastBeatTimeNanos = stepTimeNanos
                     currentBeatDurationNanos = beatDurationNanos
-                    startChoreographerLoop()
+                    pulseLoop.start()
                 }
                 if (beatIndex == 0) {
                     playheadResetID += 1
@@ -228,42 +225,16 @@ class PolyrhythmViewModel @Inject constructor(
                 // Show the hit immediately; Choreographer owns the frame-synced decay.
                 rhythmPulse = 1f
                 if (stepTimeNanos > 0L && rhythmDurationNanos > 0L) {
-                    lastRhythmTimeNanos = if (presentationIsFrameTime) {
-                        stepTimeNanos
-                    } else {
-                        toChoreographerTimeNanos(stepTimeNanos)
-                    }
+                    lastRhythmTimeNanos = stepTimeNanos
                     currentRhythmDurationNanos = rhythmDurationNanos
-                    startChoreographerLoop()
+                    pulseLoop.start()
                 }
             }
         }
-    }
-
-    private fun startChoreographerLoop() {
-        if (choreographerCallback != null) return
-
-        val frameChoreographer = choreographer ?: Choreographer.getInstance().also { choreographer = it }
-        val callback = object : Choreographer.FrameCallback {
-            override fun doFrame(frameTimeNanos: Long) {
-                if (!isPlaying || (lastBeatTimeNanos == 0L && lastRhythmTimeNanos == 0L)) {
-                    choreographerCallback = null
-                    return
-                }
-
-                updatePulseStates(frameTimeNanos)
-                frameChoreographer.postFrameCallback(this)
-            }
-        }
-        choreographerCallback = callback
-        frameChoreographer.postFrameCallback(callback)
     }
 
     private fun stopChoreographerLoop() {
-        choreographerCallback?.let { callback ->
-            choreographer?.removeFrameCallback(callback)
-        }
-        choreographerCallback = null
+        pulseLoop.stop()
     }
 
     private fun updatePulseStates(frameTimeNanos: Long) {
@@ -279,11 +250,6 @@ class PolyrhythmViewModel @Inject constructor(
         val progress = ((frameTimeNanos - startedAtNanos).toDouble() / durationNanos).coerceIn(0.0, 1.0)
         val remaining = 1.0 - progress
         return (remaining * remaining).toFloat()
-    }
-
-    private fun toChoreographerTimeNanos(elapsedRealtimeNanos: Long): Long {
-        // Audio is scheduled with elapsedRealtimeNanos, while Choreographer frame times use nanoTime.
-        return elapsedRealtimeNanos - SystemClock.elapsedRealtimeNanos() + System.nanoTime()
     }
 
     private fun applyTransportState(state: PlaybackTransportState) {
@@ -311,17 +277,12 @@ class PolyrhythmViewModel @Inject constructor(
     }
 
     private fun applyCommittedEvent(event: PlaybackCommittedEvent) {
-        when (val delivery = committedEventCursor.accept(event)) {
-            CommittedEventDeliveryResult.Accepted -> Unit
-            CommittedEventDeliveryResult.Duplicate -> return
-            is CommittedEventDeliveryResult.Gap -> {
-                committedEventDeliveryLoss += delivery.detail.missingCount
-                stopChoreographerLoop()
-                beatPulse = 0f
-                rhythmPulse = 0f
-                return
-            }
-        }
+        if (!deliverCommittedEvent(committedEventCursor, event) { gap ->
+            committedEventDeliveryLoss += gap.missingCount
+            stopChoreographerLoop()
+            beatPulse = 0f
+            rhythmPulse = 0f
+        }) return
         val rendered = event as? PlaybackCommittedEvent.Rendered ?: return
         val playing = transportState as? PlaybackTransportState.Playing ?: return
         if (playing.context.mode != PlaybackMode.POLYRHYTHM ||
@@ -337,15 +298,14 @@ class PolyrhythmViewModel @Inject constructor(
             ?: 0L
         val beatDurationNanos = polyrhythmBeatDurationNanos(configuration.bpm)
         val rhythmDurationNanos = polyrhythmRhythmDurationNanos(configuration)
-        polyrhythmBeatFired(
+        applyPolyrhythmEvent(
             beatFired,
             rhythmFired,
             if (beatFired) rendered.roleIndex else activeBeatIndex,
             if (rhythmFired) rendered.roleIndex else activeRhythmIndex,
             presentationTime,
             beatDurationNanos,
-            rhythmDurationNanos,
-            presentationIsFrameTime = true
+            rhythmDurationNanos
         )
     }
 

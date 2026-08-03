@@ -14,11 +14,9 @@
 | `PLAYER_VIEW_TOOLBAR_SIZE` | 30 | Compact indicator size |
 | `ICON_SCALE_MIN` | 0.5 | Pulse resting scale |
 | `ICON_SCALE_MAX` | 1.0 | Pulse peak scale |
-| `TIMER_CHECK_INTERVAL_MS` | 1 ms | Polling interval |
 | `FIRST_BEAT_DELAY_MS` | 67 ms | Startup scheduling delay |
-| `LOOKAHEAD_TOLERANCE_MS` | 2 ms | Early firing window |
 
-The timing values describe the existing polling implementation, not accuracy guarantees. They should disappear or move behind the audio backend when the sample-frame scheduler replaces polling.
+The first-beat delay is rendered as stream-owned silence before the exact frame timeline's first event.
 
 ## Musical helpers
 

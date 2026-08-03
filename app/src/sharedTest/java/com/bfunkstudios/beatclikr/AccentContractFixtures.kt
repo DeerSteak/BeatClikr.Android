@@ -10,9 +10,7 @@ internal data class OddMeterPatternFixture(
         get() = groups.flatMap { group -> listOf(true) + List(group - 1) { false } }
 
     val soundRoles: List<ContractSoundRole>
-        get() = accents.map { accented ->
-            if (accented) ContractSoundRole.BEAT else ContractSoundRole.RHYTHM
-        }
+        get() = accents.map { if (it) ContractSoundRole.BEAT else ContractSoundRole.RHYTHM }
 }
 
 internal object AccentContractFixtures {
@@ -33,11 +31,10 @@ internal object AccentContractFixtures {
     )
 
     val oddMeterSubdivisions = listOf(1, 2)
-
     val alternateSixteenthEvents = listOf(
-        StandardMetronomeEventFixture(0, isBeat = true, ContractSoundRole.BEAT),
-        StandardMetronomeEventFixture(1, isBeat = false, ContractSoundRole.RHYTHM),
-        StandardMetronomeEventFixture(2, isBeat = false, ContractSoundRole.BEAT),
-        StandardMetronomeEventFixture(3, isBeat = false, ContractSoundRole.RHYTHM)
+        StandardMetronomeEventFixture(0, true, ContractSoundRole.BEAT),
+        StandardMetronomeEventFixture(1, false, ContractSoundRole.RHYTHM),
+        StandardMetronomeEventFixture(2, false, ContractSoundRole.BEAT),
+        StandardMetronomeEventFixture(3, false, ContractSoundRole.RHYTHM)
     )
 }
