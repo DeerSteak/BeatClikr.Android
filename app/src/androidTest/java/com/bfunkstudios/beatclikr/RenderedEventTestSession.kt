@@ -96,14 +96,24 @@ class RenderedEventTestSession private constructor(
         try {
             val batch = engine.drainRenderedEvents(captureSequence) ?: return
             captureSequence = batch.events.nextCaptureSequence
+            var newestFrame = pendingFrame.firstOrNull()?.intendedFrame ?: Long.MIN_VALUE
+            var complete: MutableList<RenderedFrameEvent>? = null
             batch.events.records.forEach { record ->
                 if (record.sessionId != sessionId.value) return@forEach
-                if (pendingFrame.isNotEmpty() && pendingFrame[0].intendedFrame != record.intendedFrame) {
-                    onRecords(pendingFrame.toList(), batch.sampleRate)
+                if (record.intendedFrame > newestFrame) {
+                    if (pendingFrame.isNotEmpty()) {
+                        complete = (complete ?: ArrayList()).also { it += pendingFrame }
+                    }
                     pendingFrame.clear()
+                    newestFrame = record.intendedFrame
                 }
-                pendingFrame += record
+                if (record.intendedFrame == newestFrame) {
+                    pendingFrame += record
+                } else {
+                    complete = (complete ?: ArrayList()).also { it += record }
+                }
             }
+            complete?.let { onRecords(it, batch.sampleRate) }
         } catch (problem: Throwable) {
             failure.compareAndSet(null, problem)
             Log.e("RenderedEventTest", "Polling failed", problem)
@@ -127,8 +137,9 @@ class RenderedEventTestSession private constructor(
                 engine.isMuted
             ) as PlaybackInputResult.Accepted
             val sessionId = PlaybackSessionId(nextTestSession.getAndIncrement())
+            val session = RenderedEventTestSession(engine, sessionId, PlaybackMode.STANDARD, onRecords)
             engine.beginStandardSession(sessionId, validated.value)
-            return RenderedEventTestSession(engine, sessionId, PlaybackMode.STANDARD, onRecords)
+            return session
         }
 
         fun polyrhythm(
@@ -145,8 +156,9 @@ class RenderedEventTestSession private constructor(
                 engine.isMuted
             ) as PlaybackInputResult.Accepted
             val sessionId = PlaybackSessionId(nextTestSession.getAndIncrement())
+            val session = RenderedEventTestSession(engine, sessionId, PlaybackMode.POLYRHYTHM, onRecords)
             engine.beginPolyrhythmSession(sessionId, validated.value)
-            return RenderedEventTestSession(engine, sessionId, PlaybackMode.POLYRHYTHM, onRecords)
+            return session
         }
     }
 }
