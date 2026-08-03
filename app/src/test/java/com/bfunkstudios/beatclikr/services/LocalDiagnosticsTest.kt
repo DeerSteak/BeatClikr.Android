@@ -9,7 +9,7 @@ class LocalDiagnosticsTest {
     @Test
     fun reportIsBoundedAndRedactsUnstructuredMetadata() {
         val transitions = (1L..30L).map {
-            PlaybackLifecycleDiagnostic(it, "Playing/song=Secret", "Idle/path=/private/user")
+            PlaybackLifecycleDiagnostic(it, "Playing", "Idle")
         }
         val report = LocalDiagnostics.render(
             LocalDiagnosticSnapshot(

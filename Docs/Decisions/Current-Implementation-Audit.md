@@ -6,6 +6,8 @@
 
 > Historical snapshot: this file records the gap analysis that initiated remediation. It is not a description of the current implementation; use the authoritative decisions and `Docs/Validation.md` for current behavior and evidence.
 
+> Contract supersession: this audit compared commit `c175888` with the contract accepted on 2026-07-28. On 2026-08-03, the product owner designated Android `release/4.1.0` as the authority for configuration-boundary behavior. ADR 0001 now records the intentional Android divergence from current iOS: standard changes preserve phase, while polyrhythm changes restart at a shared origin. References below to tick-zero standard replacement describe the superseded contract reviewed by this historical audit.
+
 ## Purpose
 
 This audit compares the current Android implementation with the accepted Phase 1 contracts. It is a present-state assessment, not an acceptance result. A behavior can exist without sufficient tests, and a favorable debug-device measurement does not satisfy a release gate that requires longer or different evidence.

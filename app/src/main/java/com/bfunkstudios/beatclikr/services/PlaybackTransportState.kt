@@ -88,6 +88,17 @@ sealed interface PlaybackFailureReason {
 }
 
 sealed interface PlaybackTransportState {
+    val diagnosticName: String
+        get() = when (this) {
+            Idle -> "Idle"
+            is Preparing -> "Preparing"
+            is Starting -> "Starting"
+            is Playing -> "Playing"
+            is Stopping -> "Stopping"
+            is Interrupted -> "Interrupted"
+            is Failed -> "Failed"
+        }
+
     data object Idle : PlaybackTransportState
 
     sealed interface SessionState : PlaybackTransportState {

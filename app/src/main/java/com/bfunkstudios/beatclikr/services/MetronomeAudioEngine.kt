@@ -43,9 +43,6 @@ class MetronomeAudioEngine(private val context: Context) : PlaybackEnginePort {
     @Volatile
     override var transportObserver: PlaybackEngineTransportObserver? = null
     @Volatile
-    var playbackInterruptionObserver:
-        ((PlaybackSessionId, PlaybackInterruptionReason) -> Unit)? = null
-    @Volatile
     private var frameAudioEngine: FrameAudioEngine? = null
     private val handlerThread = HandlerThread("MetronomeThread").also { it.start() }
     private val handler = Handler(handlerThread.looper)
@@ -416,9 +413,9 @@ class MetronomeAudioEngine(private val context: Context) : PlaybackEnginePort {
     ) {
         handler.post {
             val rejection = when {
-                activeCoordinatorSessionId != sessionId -> PlaybackEngineUpdateResult.Reason.STALE_SESSION
-                !isPlaying || !frameAudioActive -> PlaybackEngineUpdateResult.Reason.INACTIVE_MODE
-                framePolyrhythmActive -> PlaybackEngineUpdateResult.Reason.INACTIVE_MODE
+                activeCoordinatorSessionId != sessionId -> PlaybackCoordinatorFailureCode.STALE_SESSION
+                !isPlaying || !frameAudioActive -> PlaybackCoordinatorFailureCode.MODE_MISMATCH
+                framePolyrhythmActive -> PlaybackCoordinatorFailureCode.MODE_MISMATCH
                 else -> null
             }
             if (rejection != null) {
@@ -437,7 +434,7 @@ class MetronomeAudioEngine(private val context: Context) : PlaybackEnginePort {
                     completion(
                         PlaybackEngineUpdateResult.Rejected(
                             sessionId,
-                            PlaybackEngineUpdateResult.Reason.RENDERER_REJECTED
+                            PlaybackCoordinatorFailureCode.RENDERER_REJECTED
                         )
                     )
                     return@post
@@ -451,9 +448,9 @@ class MetronomeAudioEngine(private val context: Context) : PlaybackEnginePort {
                 }
                 completion(PlaybackEngineUpdateResult.Accepted(sessionId))
             } catch (failure: IllegalArgumentException) {
-                completion(updateFailure(sessionId, PlaybackEngineUpdateResult.Reason.INVALID_CONFIGURATION, failure))
+                completion(updateFailure(sessionId, PlaybackCoordinatorFailureCode.INVALID_INPUT, failure))
             } catch (failure: Throwable) {
-                completion(updateFailure(sessionId, PlaybackEngineUpdateResult.Reason.ENGINE_FAILURE, failure))
+                completion(updateFailure(sessionId, PlaybackCoordinatorFailureCode.ENGINE_FAILURE, failure))
             }
         }
     }
@@ -465,9 +462,9 @@ class MetronomeAudioEngine(private val context: Context) : PlaybackEnginePort {
     ) {
         handler.post {
             val rejection = when {
-                activeCoordinatorSessionId != sessionId -> PlaybackEngineUpdateResult.Reason.STALE_SESSION
+                activeCoordinatorSessionId != sessionId -> PlaybackCoordinatorFailureCode.STALE_SESSION
                 !polyrhythmPlaying || !frameAudioActive || !framePolyrhythmActive ->
-                    PlaybackEngineUpdateResult.Reason.INACTIVE_MODE
+                    PlaybackCoordinatorFailureCode.MODE_MISMATCH
                 else -> null
             }
             if (rejection != null) {
@@ -485,7 +482,7 @@ class MetronomeAudioEngine(private val context: Context) : PlaybackEnginePort {
                     completion(
                         PlaybackEngineUpdateResult.Rejected(
                             sessionId,
-                            PlaybackEngineUpdateResult.Reason.RENDERER_REJECTED
+                            PlaybackCoordinatorFailureCode.RENDERER_REJECTED
                         )
                     )
                     return@post
@@ -497,16 +494,16 @@ class MetronomeAudioEngine(private val context: Context) : PlaybackEnginePort {
                 )
                 completion(PlaybackEngineUpdateResult.Accepted(sessionId))
             } catch (failure: IllegalArgumentException) {
-                completion(updateFailure(sessionId, PlaybackEngineUpdateResult.Reason.INVALID_CONFIGURATION, failure))
+                completion(updateFailure(sessionId, PlaybackCoordinatorFailureCode.INVALID_INPUT, failure))
             } catch (failure: Throwable) {
-                completion(updateFailure(sessionId, PlaybackEngineUpdateResult.Reason.ENGINE_FAILURE, failure))
+                completion(updateFailure(sessionId, PlaybackCoordinatorFailureCode.ENGINE_FAILURE, failure))
             }
         }
     }
 
     private fun updateFailure(
         sessionId: PlaybackSessionId,
-        reason: PlaybackEngineUpdateResult.Reason,
+        reason: PlaybackCoordinatorFailureCode,
         failure: Throwable
     ) = PlaybackEngineUpdateResult.Rejected(
         sessionId,
@@ -749,7 +746,6 @@ class MetronomeAudioEngine(private val context: Context) : PlaybackEnginePort {
         sessionId: PlaybackSessionId,
         reason: PlaybackInterruptionReason
     ) {
-        playbackInterruptionObserver?.invoke(sessionId, reason)
         transportObserver?.engineInterrupted(sessionId, reason)
     }
 

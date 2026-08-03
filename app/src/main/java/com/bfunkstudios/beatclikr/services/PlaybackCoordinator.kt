@@ -238,17 +238,9 @@ sealed interface PlaybackEngineUpdateResult {
 
     data class Rejected(
         override val sessionId: PlaybackSessionId,
-        val reason: Reason,
+        val reason: PlaybackCoordinatorFailureCode,
         val diagnostic: String? = null
     ) : PlaybackEngineUpdateResult
-
-    enum class Reason {
-        STALE_SESSION,
-        INACTIVE_MODE,
-        RENDERER_REJECTED,
-        INVALID_CONFIGURATION,
-        ENGINE_FAILURE
-    }
 }
 
 data class SoundPreparationPublication(
@@ -342,8 +334,8 @@ class PlaybackCoordinator(
             .map { transition ->
                 PlaybackLifecycleDiagnostic(
                     transition.sequence,
-                    transition.from.diagnosticName(),
-                    transition.to.diagnosticName()
+                    transition.from.diagnosticName,
+                    transition.to.diagnosticName
                 )
             }
 
@@ -719,7 +711,7 @@ class PlaybackCoordinator(
         val current = transportState.value as? PlaybackTransportState.Playing ?: return
         val update = pendingUpdates.removeFirstOrNull() ?: return
         if (update.sessionId != current.context.sessionId) {
-            rejectUpdate(update, PlaybackEngineUpdateResult.Reason.STALE_SESSION)
+            rejectUpdate(update, PlaybackCoordinatorFailureCode.STALE_SESSION)
             dispatchNextUpdate()
             return
         }
@@ -739,7 +731,7 @@ class PlaybackCoordinator(
                 update,
                 PlaybackEngineUpdateResult.Rejected(
                     update.sessionId,
-                    PlaybackEngineUpdateResult.Reason.ENGINE_FAILURE,
+                    PlaybackCoordinatorFailureCode.ENGINE_FAILURE,
                     failure.message
                 )
             )
@@ -754,7 +746,7 @@ class PlaybackCoordinator(
         inFlightUpdate = null
         val current = transportState.value as? PlaybackTransportState.Playing
         if (result.sessionId != update.sessionId || current?.context?.sessionId != update.sessionId) {
-            rejectUpdate(update, PlaybackEngineUpdateResult.Reason.STALE_SESSION)
+            rejectUpdate(update, PlaybackCoordinatorFailureCode.STALE_SESSION)
             dispatchNextUpdate()
             return
         }
@@ -778,7 +770,7 @@ class PlaybackCoordinator(
 
     private fun rejectUpdate(
         update: PendingUpdate,
-        reason: PlaybackEngineUpdateResult.Reason,
+        reason: PlaybackCoordinatorFailureCode,
         diagnostic: String? = null
     ) {
         recordOutcome(
@@ -786,36 +778,23 @@ class PlaybackCoordinator(
             update.intent,
             rejectedOutcome(
                 update.sequence,
-                reason.coordinatorFailureCode(),
+                reason,
                 diagnostic ?: "Playback update rejected: $reason"
             )
         )
-    }
-
-    private fun PlaybackEngineUpdateResult.Reason.coordinatorFailureCode() = when (this) {
-        PlaybackEngineUpdateResult.Reason.STALE_SESSION ->
-            PlaybackCoordinatorFailureCode.STALE_SESSION
-        PlaybackEngineUpdateResult.Reason.INACTIVE_MODE ->
-            PlaybackCoordinatorFailureCode.MODE_MISMATCH
-        PlaybackEngineUpdateResult.Reason.RENDERER_REJECTED ->
-            PlaybackCoordinatorFailureCode.RENDERER_REJECTED
-        PlaybackEngineUpdateResult.Reason.INVALID_CONFIGURATION ->
-            PlaybackCoordinatorFailureCode.INVALID_INPUT
-        PlaybackEngineUpdateResult.Reason.ENGINE_FAILURE ->
-            PlaybackCoordinatorFailureCode.ENGINE_FAILURE
     }
 
     private fun cancelUpdatesFor(sessionId: PlaybackSessionId) {
         val inFlight = inFlightUpdate
         if (inFlight?.sessionId == sessionId) {
             inFlightUpdate = null
-            rejectUpdate(inFlight, PlaybackEngineUpdateResult.Reason.STALE_SESSION)
+            rejectUpdate(inFlight, PlaybackCoordinatorFailureCode.STALE_SESSION)
         }
         val retained = ArrayDeque<PendingUpdate>()
         while (pendingUpdates.isNotEmpty()) {
             val update = pendingUpdates.removeFirst()
             if (update.sessionId == sessionId) {
-                rejectUpdate(update, PlaybackEngineUpdateResult.Reason.STALE_SESSION)
+                rejectUpdate(update, PlaybackCoordinatorFailureCode.STALE_SESSION)
             } else {
                 retained.addLast(update)
             }
@@ -1559,14 +1538,4 @@ class PlaybackCoordinator(
         const val NANOS_PER_SECOND = 1_000_000_000L
         const val EVENT_DRAIN_PERIOD_MILLIS = 10L
     }
-}
-
-private fun PlaybackTransportState.diagnosticName(): String = when (this) {
-    PlaybackTransportState.Idle -> "Idle"
-    is PlaybackTransportState.Preparing -> "Preparing"
-    is PlaybackTransportState.Starting -> "Starting"
-    is PlaybackTransportState.Playing -> "Playing"
-    is PlaybackTransportState.Stopping -> "Stopping"
-    is PlaybackTransportState.Interrupted -> "Interrupted"
-    is PlaybackTransportState.Failed -> "Failed"
 }

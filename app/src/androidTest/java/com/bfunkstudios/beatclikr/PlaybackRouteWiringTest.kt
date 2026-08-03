@@ -5,6 +5,8 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.bfunkstudios.beatclikr.services.AudioOutputRoute
 import com.bfunkstudios.beatclikr.services.MetronomeAudioEngine
+import com.bfunkstudios.beatclikr.services.PlaybackEngineStartEvidence
+import com.bfunkstudios.beatclikr.services.PlaybackEngineTransportObserver
 import com.bfunkstudios.beatclikr.services.PlaybackInterruptionReason
 import com.bfunkstudios.beatclikr.services.PlaybackSessionId
 import java.util.concurrent.CountDownLatch
@@ -25,9 +27,18 @@ class PlaybackRouteWiringTest {
             engine.prepareRouteWiringForTesting()
             assertTrue(engine.awaitRouteWiringIdleForTesting())
             prepareActiveRoute(engine, PlaybackSessionId(41), AudioOutputRoute.BUILT_IN)
-            engine.playbackInterruptionObserver = { sessionId, reason ->
-                observed += sessionId to reason
-                latch.countDown()
+            engine.transportObserver = object : PlaybackEngineTransportObserver {
+                override fun engineStarted(evidence: PlaybackEngineStartEvidence) = Unit
+                override fun audioFocusUnavailable(sessionId: PlaybackSessionId) = Unit
+                override fun engineStartFailed(sessionId: PlaybackSessionId, diagnostic: String) = Unit
+                override fun engineStopped(sessionId: PlaybackSessionId) = Unit
+                override fun engineInterrupted(
+                    sessionId: PlaybackSessionId,
+                    reason: PlaybackInterruptionReason
+                ) {
+                    observed += sessionId to reason
+                    latch.countDown()
+                }
             }
             engine.audioDeviceCallbackForTesting().onAudioDevicesRemoved(emptyArray())
 

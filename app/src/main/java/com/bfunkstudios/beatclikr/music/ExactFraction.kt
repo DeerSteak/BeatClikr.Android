@@ -88,12 +88,6 @@ class ExactTempo private constructor(
         return ExactFraction.of(sampleRate.toLong()) * quarterNoteDurationSeconds
     }
 
-    fun increasedBy(increment: Int): ExactTempo {
-        require(increment > 0) { "Tempo increment must be positive" }
-        val increased = beatsPerMinute + ExactFraction.of(increment.toLong())
-        return ExactTempo(if (increased > maximumBpm) maximumBpm else increased)
-    }
-
     override fun equals(other: Any?): Boolean =
         other is ExactTempo && beatsPerMinute == other.beatsPerMinute
 

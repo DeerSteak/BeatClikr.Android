@@ -248,7 +248,7 @@ class PlaybackCoordinatorTest {
             coordinator.submit(PlaybackIntent.UpdateStandard(130f, 4, null, false))
             assertTrue(coordinator.awaitControlIdle())
             engine.completeNextUpdate(
-                PlaybackEngineUpdateResult.Reason.RENDERER_REJECTED,
+                PlaybackCoordinatorFailureCode.RENDERER_REJECTED,
                 "renderer rejected replacement"
             )
             assertTrue(coordinator.awaitControlIdle())
@@ -380,31 +380,26 @@ class PlaybackCoordinatorTest {
 
     @Test
     fun updateRejectionReasonsRemainStructuredCoordinatorOutcomes() {
-        val mappings = listOf(
-            PlaybackEngineUpdateResult.Reason.STALE_SESSION to
-                PlaybackCoordinatorFailureCode.STALE_SESSION,
-            PlaybackEngineUpdateResult.Reason.INACTIVE_MODE to
-                PlaybackCoordinatorFailureCode.MODE_MISMATCH,
-            PlaybackEngineUpdateResult.Reason.RENDERER_REJECTED to
-                PlaybackCoordinatorFailureCode.RENDERER_REJECTED,
-            PlaybackEngineUpdateResult.Reason.INVALID_CONFIGURATION to
-                PlaybackCoordinatorFailureCode.INVALID_INPUT,
-            PlaybackEngineUpdateResult.Reason.ENGINE_FAILURE to
-                PlaybackCoordinatorFailureCode.ENGINE_FAILURE
+        val reasons = listOf(
+            PlaybackCoordinatorFailureCode.STALE_SESSION,
+            PlaybackCoordinatorFailureCode.MODE_MISMATCH,
+            PlaybackCoordinatorFailureCode.RENDERER_REJECTED,
+            PlaybackCoordinatorFailureCode.INVALID_INPUT,
+            PlaybackCoordinatorFailureCode.ENGINE_FAILURE
         )
         val engine = FakePlaybackEngine().apply { asynchronousUpdates = true }
         val coordinator = PlaybackCoordinator(engine)
         try {
             coordinator.submit(PlaybackIntent.StartStandard(120f, 4, null, false))
             assertTrue(coordinator.awaitControlIdle())
-            mappings.forEachIndexed { index, (reason, expectedCode) ->
+            reasons.forEachIndexed { index, reason ->
                 val sequence = coordinator.submit(
                     PlaybackIntent.UpdateStandard(130f + index, 4, null, false)
                 )
                 assertTrue(coordinator.awaitControlIdle())
                 engine.completeNextUpdate(reason)
                 assertTrue(coordinator.awaitControlIdle())
-                assertFailureCode(coordinator, sequence, expectedCode)
+                assertFailureCode(coordinator, sequence, reason)
             }
         } finally {
             coordinator.release()
@@ -2199,7 +2194,7 @@ class PlaybackCoordinatorTest {
         }
 
         fun completeNextUpdate(
-            rejection: PlaybackEngineUpdateResult.Reason? = null,
+            rejection: PlaybackCoordinatorFailureCode? = null,
             diagnostic: String? = null
         ) {
             val (sessionId, completion) = updateCompletions.removeFirst()

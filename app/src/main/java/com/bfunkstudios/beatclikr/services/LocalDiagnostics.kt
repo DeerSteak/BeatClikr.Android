@@ -33,23 +33,11 @@ object LocalDiagnostics {
         }
         appendLine("recent_transitions:")
         snapshot.transitions.takeLast(MAX_TRANSITIONS).forEach {
-            appendLine("${it.sequence}:${safeState(it.fromState)}>${safeState(it.toState)}")
+            appendLine("${it.sequence}:${it.fromState}>${it.toState}")
         }
     }
 
     private fun sanitizeMetadata(value: String): String =
         value.replace(Regex("[^A-Za-z0-9 ._()-]"), "?").take(120)
 
-    private fun safeState(value: String): String = value.takeIf { it in SAFE_STATES } ?: "Unknown"
-
-    private val SAFE_STATES = setOf(
-        "Idle",
-        "Preparing",
-        "Starting",
-        "Playing",
-        "Stopping",
-        "Interrupted",
-        "Failed",
-        "Unknown"
-    )
 }

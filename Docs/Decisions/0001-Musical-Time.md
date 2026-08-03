@@ -10,6 +10,10 @@ The shipping engine derives deadlines from a monotonic clock, but several musica
 
 The sibling iOS app is the reference product behavior. Android mirrors it unless an Android platform constraint prevents parity or an explicit decision records an intentional divergence.
 
+### Approved Android divergence
+
+On 2026-08-03, the product owner designated Android `release/4.1.0` as the authority for configuration-boundary behavior. Current iOS restarts the standard timeline when tempo or groove changes; Android intentionally preserves the pending event and phase under MT-019, MT-020, and MT-028. Polyrhythm changes continue to restart both roles together under MT-021. This explicit divergence preserves the established Android release behavior while the refactored production path and permanent qualification suite prevent drift.
+
 ## Decision
 
 The clauses below are normative. Scheduler, renderer, playback, and UI acceptance tests cite these identifiers.
