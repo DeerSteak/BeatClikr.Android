@@ -9,8 +9,6 @@ import androidx.lifecycle.viewModelScope
 import com.bfunkstudios.beatclikr.BuildConfig
 import com.bfunkstudios.beatclikr.data.IAppPreferences
 import com.bfunkstudios.beatclikr.data.SoundBank
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.CancellationException
 import com.bfunkstudios.beatclikr.data.SoundFile
 import com.bfunkstudios.beatclikr.services.IAudioPlayerService
 import com.bfunkstudios.beatclikr.services.IFlashlightService
@@ -19,6 +17,7 @@ import com.bfunkstudios.beatclikr.services.LocalDiagnosticSnapshot
 import com.bfunkstudios.beatclikr.services.LocalDiagnostics
 import com.bfunkstudios.beatclikr.services.OperationalFailureReporter
 import com.bfunkstudios.beatclikr.services.reminderFailure
+import com.bfunkstudios.beatclikr.services.launchReporting
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 
@@ -378,15 +377,7 @@ class SettingsViewModel @Inject constructor(
     }
 
     private fun launchReminder(code: String, action: suspend () -> Unit) {
-        viewModelScope.launch {
-            try {
-                action()
-            } catch (cancelled: CancellationException) {
-                throw cancelled
-            } catch (_: Exception) {
-                failureReporter.report(reminderFailure(code))
-            }
-        }
+        viewModelScope.launchReporting(failureReporter, reminderFailure(code), action)
     }
 
     private fun cancelReminder() {

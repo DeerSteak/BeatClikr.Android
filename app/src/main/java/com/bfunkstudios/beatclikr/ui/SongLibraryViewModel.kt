@@ -14,15 +14,14 @@ import com.bfunkstudios.beatclikr.data.Song
 import com.bfunkstudios.beatclikr.data.SongRepository
 import com.bfunkstudios.beatclikr.services.OperationalFailureReporter
 import com.bfunkstudios.beatclikr.services.databaseFailure
+import com.bfunkstudios.beatclikr.services.launchReporting
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.launch
 import java.util.UUID
 import javax.inject.Inject
 
@@ -157,14 +156,6 @@ class SongLibraryViewModel @Inject constructor(
     }
 
     private fun launchDatabase(code: String, action: suspend () -> Unit) {
-        viewModelScope.launch {
-            try {
-                action()
-            } catch (cancelled: CancellationException) {
-                throw cancelled
-            } catch (_: Exception) {
-                failureReporter.report(databaseFailure(code))
-            }
-        }
+        viewModelScope.launchReporting(failureReporter, databaseFailure(code), action)
     }
 }

@@ -18,12 +18,14 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Fullscreen
 import androidx.compose.material.icons.filled.IosShare
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Card
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -69,6 +71,33 @@ fun BeatClikrApp(
 ) {
     val context = LocalContext.current
     val operationalFailure by operationalFailureViewModel.failure.collectAsState()
+    val failureSnackbar = remember { SnackbarHostState() }
+    val dataFailureMessage = stringResource(R.string.data_operation_failed)
+    val reminderFailureMessage = stringResource(R.string.reminder_operation_failed)
+    val dismissLabel = stringResource(R.string.dismiss)
+    val openSettingsLabel = stringResource(R.string.open_settings)
+    LaunchedEffect(
+        operationalFailure,
+        dataFailureMessage,
+        reminderFailureMessage,
+        dismissLabel,
+        openSettingsLabel
+    ) {
+        val failure = operationalFailure ?: return@LaunchedEffect
+        val isReminder = failure.domain == FailureDomain.REMINDER
+        val result = failureSnackbar.showSnackbar(
+            message = if (isReminder) reminderFailureMessage else dataFailureMessage,
+            actionLabel = if (isReminder) openSettingsLabel else dismissLabel,
+            withDismissAction = true
+        )
+        operationalFailureViewModel.dismiss()
+        if (isReminder && result == SnackbarResult.ActionPerformed) {
+            context.startActivity(
+                Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                    .putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+            )
+        }
+    }
     BoxWithConstraints {
         val useSidebar = maxWidth >= 600.dp
         Box(Modifier.fillMaxSize()) {
@@ -83,55 +112,7 @@ fun BeatClikrApp(
                 onAlwaysUseDarkThemeChange = onAlwaysUseDarkThemeChange,
                 onKeepScreenAwakeChange = onKeepScreenAwakeChange
             )
-            operationalFailure?.let { failure ->
-                OperationalFailureBanner(
-                    message = stringResource(
-                        if (failure.domain == FailureDomain.REMINDER) {
-                            R.string.reminder_operation_failed
-                        } else {
-                            R.string.data_operation_failed
-                        }
-                    ),
-                    recoveryLabel = if (failure.domain == FailureDomain.REMINDER) {
-                        stringResource(R.string.open_settings)
-                    } else {
-                        stringResource(R.string.dismiss)
-                    },
-                    onRecovery = {
-                        operationalFailureViewModel.dismiss()
-                        if (failure.domain == FailureDomain.REMINDER) {
-                            context.startActivity(
-                                Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
-                                    .putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
-                            )
-                        }
-                    },
-                    modifier = Modifier.align(Alignment.TopCenter)
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun OperationalFailureBanner(
-    message: String,
-    recoveryLabel: String,
-    onRecovery: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Card(
-        modifier = modifier
-            .padding(16.dp)
-            .widthIn(max = 560.dp)
-            .fillMaxWidth()
-    ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.padding(start = 16.dp, end = 8.dp, top = 8.dp, bottom = 8.dp)
-        ) {
-            Text(message, modifier = Modifier.weight(1f))
-            TextButton(onClick = onRecovery) { Text(recoveryLabel) }
+            SnackbarHost(failureSnackbar, Modifier.align(Alignment.BottomCenter))
         }
     }
 }

@@ -1,7 +1,10 @@
 package com.bfunkstudios.beatclikr.services
 
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -67,3 +70,17 @@ fun reminderFailure(code: String) = OperationalFailure(
     FailureDisposition.USER_ACTIONABLE,
     FailureRecoveryAction.OPEN_SETTINGS
 )
+
+fun CoroutineScope.launchReporting(
+    reporter: OperationalFailureReporter,
+    failure: OperationalFailure,
+    action: suspend () -> Unit
+) = launch {
+    try {
+        action()
+    } catch (cancelled: CancellationException) {
+        throw cancelled
+    } catch (_: Exception) {
+        reporter.report(failure)
+    }
+}
