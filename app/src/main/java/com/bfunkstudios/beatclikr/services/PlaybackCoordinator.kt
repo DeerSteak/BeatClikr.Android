@@ -340,6 +340,16 @@ class PlaybackCoordinator(
     val stateTransitions: SharedFlow<PlaybackStateTransition> = mutableStateTransitions
     override val committedEvents: SharedFlow<PlaybackCommittedEvent> = mutableCommittedEvents
 
+    override fun recentLifecycleDiagnostics(limit: Int): List<PlaybackLifecycleDiagnostic> =
+        mutableStateTransitions.replayCache.takeLast(limit.coerceIn(0, TRANSPORT_EVENT_CAPACITY))
+            .map { transition ->
+                PlaybackLifecycleDiagnostic(
+                    transition.sequence,
+                    transition.from.diagnosticName(),
+                    transition.to.diagnosticName()
+                )
+            }
+
     override fun lifecycleTransitionsAfter(sequence: Long): PlaybackLifecycleBatch {
         require(sequence >= 0) { "Lifecycle sequence must not be negative" }
         return synchronized(lifecycleJournalLock) {
@@ -1611,8 +1621,15 @@ class PlaybackCoordinator(
                 val adoptedState = requireNotNull(current)
                 transitionTo(
                     adoptedState.copy(
-                        context = adoptedState.context.copy(audibleSounds = adoptedSounds)
+                        context = adoptedState.context.copy(
+                            audibleSounds = adoptedSounds,
+                            soundPreparationFailure = null
+                        )
                     )
+                )
+            } else if (failure != null && current != null) {
+                transitionTo(
+                    current.copy(context = current.context.copy(soundPreparationFailure = failure))
                 )
             }
             if (failure != null) {
@@ -1670,4 +1687,14 @@ class PlaybackCoordinator(
         const val NANOS_PER_SECOND = 1_000_000_000L
         const val EVENT_DRAIN_PERIOD_MILLIS = 10L
     }
+}
+
+private fun PlaybackTransportState.diagnosticName(): String = when (this) {
+    PlaybackTransportState.Idle -> "Idle"
+    is PlaybackTransportState.Preparing -> "Preparing"
+    is PlaybackTransportState.Starting -> "Starting"
+    is PlaybackTransportState.Playing -> "Playing"
+    is PlaybackTransportState.Stopping -> "Stopping"
+    is PlaybackTransportState.Interrupted -> "Interrupted"
+    is PlaybackTransportState.Failed -> "Failed"
 }

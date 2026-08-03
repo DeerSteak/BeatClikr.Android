@@ -122,13 +122,7 @@ class PlaylistViewModel @Inject constructor(
     }
 
     fun deleteEntry(entry: PlaylistEntryWithSong, entries: List<PlaylistEntryWithSong>) {
-        viewModelScope.launch {
-            repository.deleteEntry(entry.entry)
-            val resequenced = entries
-                .filter { it.entry.id != entry.entry.id }
-                .mapIndexed { i, e -> e.copy(entry = e.entry.copy(sequence = i)) }
-            repository.reorderEntries(resequenced)
-        }
+        viewModelScope.launch { repository.deleteEntry(entry.entry) }
     }
 
     fun reorderEntries(reorderedEntries: List<PlaylistEntryWithSong>) {

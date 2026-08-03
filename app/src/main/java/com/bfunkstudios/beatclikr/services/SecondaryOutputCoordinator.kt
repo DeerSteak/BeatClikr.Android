@@ -21,7 +21,8 @@ enum class SecondaryOutput {
 data class SecondaryOutputFailure(
     val output: SecondaryOutput,
     val operation: String,
-    val diagnostic: String
+    val diagnostic: String,
+    val failure: OperationalFailure
 )
 
 interface SecondaryOutputObservation {
@@ -235,7 +236,29 @@ class SecondaryOutputCoordinator(
         mutableFailure.value = SecondaryOutputFailure(
             output,
             operation,
-            failure.message ?: failure::class.java.simpleName
+            failure.message ?: failure::class.java.simpleName,
+            output.operationalFailure()
+        )
+    }
+
+    private fun SecondaryOutput.operationalFailure() = when (this) {
+        SecondaryOutput.HAPTIC -> OperationalFailure(
+            FailureDomain.HAPTIC,
+            "haptic_unavailable",
+            FailureDisposition.DEGRADED,
+            FailureRecoveryAction.DISABLE_EFFECT
+        )
+        SecondaryOutput.TORCH -> OperationalFailure(
+            FailureDomain.TORCH,
+            "torch_unavailable",
+            FailureDisposition.DEGRADED,
+            FailureRecoveryAction.DISABLE_EFFECT
+        )
+        SecondaryOutput.SCHEDULER -> OperationalFailure(
+            FailureDomain.SCHEDULER,
+            "scheduler_rejected",
+            FailureDisposition.RETRYABLE,
+            FailureRecoveryAction.RETRY
         )
     }
 

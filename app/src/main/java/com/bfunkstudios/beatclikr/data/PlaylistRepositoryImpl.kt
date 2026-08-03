@@ -27,12 +27,12 @@ class PlaylistRepositoryImpl @Inject constructor(
     override suspend fun deletePlaylist(playlist: Playlist) = dao.deletePlaylist(playlist)
 
     override suspend fun addEntry(playlistId: UUID, songId: UUID, sequence: Int) {
-        dao.upsertEntry(PlaylistEntry(playlistId = playlistId, songId = songId, sequence = sequence))
+        dao.addEntryAllocated(playlistId, songId, sequence)
     }
 
-    override suspend fun deleteEntry(entry: PlaylistEntry) = dao.deleteEntry(entry)
+    override suspend fun deleteEntry(entry: PlaylistEntry) = dao.deleteEntryAndResequence(entry)
 
     override suspend fun reorderEntries(entries: List<PlaylistEntryWithSong>) {
-        dao.updateEntries(entries.map { it.entry })
+        dao.reorderEntriesDeterministically(entries.map { it.entry })
     }
 }

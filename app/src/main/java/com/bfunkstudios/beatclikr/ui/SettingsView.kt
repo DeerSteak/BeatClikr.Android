@@ -5,6 +5,8 @@ import com.bfunkstudios.beatclikr.BuildConfig
 import android.annotation.SuppressLint
 import android.app.Activity
 import android.app.TimePickerDialog
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.content.ContextWrapper
@@ -137,7 +139,7 @@ fun SettingsView(
         )
         PlaylistInstrumentsSection(viewModel = viewModel)
         PolyrhythmInstrumentsSection(viewModel = viewModel)
-        AboutSection()
+        AboutSection(viewModel, context)
     }
 
     viewModel.flashlightDialog?.let { dialog ->
@@ -412,7 +414,7 @@ private fun PolyrhythmInstrumentsSection(viewModel: SettingsViewModel) {
 }
 
 @Composable
-private fun AboutSection() {
+private fun AboutSection(viewModel: SettingsViewModel, context: Context) {
     SettingsSectionTitle(stringResource(R.string.about))
     SectionCard {
         SettingsValueRow(
@@ -424,6 +426,25 @@ private fun AboutSection() {
             label = stringResource(R.string.copyright),
             value = stringResource(R.string.copyright_value)
         )
+        SettingsDivider()
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+            TextButton(onClick = {
+                context.getSystemService(ClipboardManager::class.java)?.setPrimaryClip(
+                    ClipData.newPlainText("BeatClikr diagnostics", viewModel.diagnosticReport())
+                )
+            }) {
+                Text(stringResource(R.string.copy_diagnostics))
+            }
+            TextButton(onClick = {
+                val intent = Intent(Intent.ACTION_SEND).apply {
+                    type = "text/plain"
+                    putExtra(Intent.EXTRA_TEXT, viewModel.diagnosticReport())
+                }
+                context.startActivity(Intent.createChooser(intent, null))
+            }) {
+                Text(stringResource(R.string.share_diagnostics))
+            }
+        }
     }
     Spacer(modifier = Modifier.padding(bottom = 8.dp))
 }

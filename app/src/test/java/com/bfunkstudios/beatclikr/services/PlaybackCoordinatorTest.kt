@@ -968,6 +968,7 @@ class PlaybackCoordinatorTest {
             assertSame(original, coordinator.ownership.value.audibleSounds)
             val playing = coordinator.transportState.value as PlaybackTransportState.Playing
             assertSame(original, playing.context.audibleSounds)
+            assertSame(failure, playing.context.soundPreparationFailure)
             assertSame(failure, coordinator.ownership.value.soundPreparationFailure)
         } finally {
             coordinator.release()

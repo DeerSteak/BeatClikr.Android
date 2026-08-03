@@ -34,6 +34,8 @@
     <string name="practice_reminder_notification_body_streak_broken">Your %1$d day practice streak was broken. Time to start fresh!</string>
     <string name="copyright">Copyright</string>
     <string name="copyright_value">© 2026 Benjamin Funk</string>
+    <string name="copy_diagnostics">Copy diagnostics</string>
+    <string name="share_diagnostics">Share diagnostics</string>
     <string name="previous">Previous</string>
     <string name="next">Next</string>
     <string name="now_playing">Now Playing</string>
@@ -128,6 +130,9 @@
     <string name="previous_month">Previous month</string>
     <string name="next_month">Next month</string>
     <string name="secondary_output_failure">Secondary output unavailable: %1$s</string>
+    <string name="haptic_unavailable">vibration is unavailable</string>
+    <string name="torch_unavailable">flash is unavailable</string>
+    <string name="secondary_scheduler_unavailable">effect timing is unavailable</string>
     <string name="practice_duration_hours_minutes">%1$dh %2$dm</string>
     <string name="practice_duration_minutes_seconds">%1$dm %2$ds</string>
     <string name="practice_duration_seconds">%1$ds</string>

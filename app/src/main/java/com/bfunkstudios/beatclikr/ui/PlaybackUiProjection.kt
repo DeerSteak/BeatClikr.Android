@@ -37,6 +37,8 @@ internal fun PlaybackTransportState.updateDiagnostic(
 ): PlaybackUiDiagnostic? = when (this) {
     is PlaybackTransportState.Failed -> PlaybackUiDiagnostic.Failure(reason)
     is PlaybackTransportState.Interrupted -> PlaybackUiDiagnostic.Interruption(reason)
-    is PlaybackTransportState.Playing -> null
+    is PlaybackTransportState.Playing -> context.soundPreparationFailure?.let {
+        PlaybackUiDiagnostic.Failure(PlaybackFailureReason.SoundPreparation(it))
+    }
     else -> retained
 }

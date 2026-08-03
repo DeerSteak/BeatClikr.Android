@@ -34,6 +34,8 @@
     <string name="practice_reminder_notification_body_streak_broken">Tu racha de práctica de %1$d días se rompió. ¡Hora de empezar de nuevo!</string>
     <string name="copyright">Copyright</string>
     <string name="copyright_value">© 2026 Benjamin Funk</string>
+    <string name="copy_diagnostics">Copiar diagnóstico</string>
+    <string name="share_diagnostics">Compartir diagnóstico</string>
     <string name="previous">Anterior</string>
     <string name="next">Siguiente</string>
     <string name="now_playing">Reproduciendo ahora</string>
@@ -128,6 +130,9 @@
     <string name="previous_month">Mes anterior</string>
     <string name="next_month">Mes siguiente</string>
     <string name="secondary_output_failure">Salida secundaria no disponible: %1$s</string>
+    <string name="haptic_unavailable">la vibración no está disponible</string>
+    <string name="torch_unavailable">el flash no está disponible</string>
+    <string name="secondary_scheduler_unavailable">la sincronización del efecto no está disponible</string>
     <string name="practice_duration_hours_minutes">%1$dh %2$dm</string>
     <string name="practice_duration_minutes_seconds">%1$dm %2$ds</string>
     <string name="practice_duration_seconds">%1$ds</string>

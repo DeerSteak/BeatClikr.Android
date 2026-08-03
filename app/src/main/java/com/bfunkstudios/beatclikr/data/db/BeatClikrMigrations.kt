@@ -13,6 +13,7 @@ object BeatClikrMigrations {
             populateCivilDays(db)
             mergeDuplicateDays(db)
             mergeDuplicateItems(db)
+            normalizePlaylistSequences(db)
             createConstraintsAndCheckpoint(db)
         }
     }
@@ -92,6 +93,7 @@ object BeatClikrMigrations {
     }
 
     private fun createConstraintsAndCheckpoint(db: SupportSQLiteDatabase) {
+        db.execSQL("CREATE UNIQUE INDEX index_playlist_entries_playlist_id_sequence ON playlist_entries(playlist_id, sequence)")
         db.execSQL("CREATE UNIQUE INDEX index_practice_sessions_local_day_key ON practice_sessions(local_day_key)")
         db.execSQL("CREATE UNIQUE INDEX index_practiced_songs_session_id_song_id ON practiced_songs(session_id, song_id)")
         db.execSQL(
@@ -104,5 +106,26 @@ object BeatClikrMigrations {
                 period_counted INTEGER NOT NULL
             )""".trimIndent()
         )
+    }
+
+    private fun normalizePlaylistSequences(db: SupportSQLiteDatabase) {
+        db.query("SELECT DISTINCT playlist_id FROM playlist_entries").use { playlists ->
+            while (playlists.moveToNext()) {
+                val playlistId = playlists.getString(0)
+                val entryIds = mutableListOf<String>()
+                db.query(
+                    "SELECT id FROM playlist_entries WHERE playlist_id = ? ORDER BY sequence, id",
+                    arrayOf(playlistId)
+                ).use { entries ->
+                    while (entries.moveToNext()) entryIds += entries.getString(0)
+                }
+                entryIds.forEachIndexed { sequence, entryId ->
+                    db.execSQL(
+                        "UPDATE playlist_entries SET sequence = ? WHERE id = ?",
+                        arrayOf<Any>(sequence, entryId)
+                    )
+                }
+            }
+        }
     }
 }

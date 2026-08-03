@@ -1,10 +1,12 @@
 package com.bfunkstudios.beatclikr.ui
 
+import android.os.Build
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.bfunkstudios.beatclikr.BuildConfig
 import com.bfunkstudios.beatclikr.data.IAppPreferences
 import com.bfunkstudios.beatclikr.data.SoundBank
 import kotlinx.coroutines.launch
@@ -12,6 +14,8 @@ import com.bfunkstudios.beatclikr.data.SoundFile
 import com.bfunkstudios.beatclikr.services.IAudioPlayerService
 import com.bfunkstudios.beatclikr.services.IFlashlightService
 import com.bfunkstudios.beatclikr.services.IPracticeReminderScheduler
+import com.bfunkstudios.beatclikr.services.LocalDiagnosticSnapshot
+import com.bfunkstudios.beatclikr.services.LocalDiagnostics
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 
@@ -111,6 +115,17 @@ class SettingsViewModel @Inject constructor(
 
     var polyrhythmRhythmSound by mutableStateOf(prefs.polyrhythmRhythmSound)
         private set
+
+    fun diagnosticReport(): String = LocalDiagnostics.render(
+        LocalDiagnosticSnapshot(
+            BuildConfig.VERSION_NAME,
+            BuildConfig.VERSION_CODE,
+            "${Build.MANUFACTURER} ${Build.MODEL}",
+            "Android ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})",
+            audioPlayerService.getFrameAudioMetricsSnapshot(),
+            audioPlayerService.recentLifecycleDiagnostics()
+        )
+    )
 
     fun updateUseFlashlight(value: Boolean) {
         useFlashlight = value

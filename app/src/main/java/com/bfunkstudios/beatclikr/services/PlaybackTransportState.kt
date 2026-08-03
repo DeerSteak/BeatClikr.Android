@@ -44,6 +44,7 @@ data class PlaybackSessionContext(
     val audibleSounds: ActiveSoundConfiguration? = null,
     val route: AudioOutputRoute? = null,
     val backend: AudioBackendType? = null,
+    val soundPreparationFailure: SoundPreparationFailure? = null,
     val startOrigin: PlaybackStartOrigin,
     val practiceItem: PracticeItemSnapshot = when (mode) {
         PlaybackMode.STANDARD -> PracticeItemSnapshot.metronome()

@@ -25,7 +25,8 @@ import java.util.UUID
     ],
     indices = [
         Index("playlist_id"),
-        Index("song_id")
+        Index("song_id"),
+        Index(value = ["playlist_id", "sequence"], unique = true)
     ]
 )
 data class PlaylistEntry(

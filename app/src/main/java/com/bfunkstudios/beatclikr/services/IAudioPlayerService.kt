@@ -46,5 +46,12 @@ interface IAudioPlayerService {
     fun prewarmAudioTrack()
     fun prepareAudioTrackSounds(soundFiles: Collection<SoundFile>)
     fun getFrameAudioMetricsSnapshot(): FrameAudioMetricsSnapshot?
+    fun recentLifecycleDiagnostics(limit: Int = 20): List<PlaybackLifecycleDiagnostic> = emptyList()
     fun release()
 }
+
+data class PlaybackLifecycleDiagnostic(
+    val sequence: Long,
+    val fromState: String,
+    val toState: String
+)
