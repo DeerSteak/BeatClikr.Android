@@ -67,6 +67,11 @@ jobs:
             runner: ubuntu-latest
             profile: pixel_6
           - api-level: "36"
+            api-label: "36-phone"
+            arch: x86_64
+            runner: ubuntu-latest
+            profile: pixel_6
+          - api-level: "36"
             api-label: "36-tablet"
             arch: x86_64
             runner: ubuntu-latest
