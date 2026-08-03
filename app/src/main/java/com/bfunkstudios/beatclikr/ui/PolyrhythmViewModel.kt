@@ -64,6 +64,9 @@ class PolyrhythmViewModel @Inject constructor(
     val hasVariableOutputLatency: Boolean
         get() = transportState.hasVariableOutputLatency(PlaybackMode.POLYRHYTHM)
 
+    val playbackStatus: PlaybackUiStatus?
+        get() = transportState.uiStatus(PlaybackMode.POLYRHYTHM)
+
     var lastPlaybackDiagnostic by mutableStateOf<PlaybackUiDiagnostic?>(null)
         private set
 

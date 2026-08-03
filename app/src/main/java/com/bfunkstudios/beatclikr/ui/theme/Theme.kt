@@ -13,14 +13,14 @@ import androidx.compose.ui.platform.LocalContext
 
 private val DarkColorScheme = darkColorScheme(
     primary = AppPrimaryDark,           // Light blue for dark mode (readable on dark surfaces)
-    onPrimary = Color.White,      // Dark navy — contrast on the light blue primary
+    onPrimary = Color.Black,
     primaryContainer = AppPrimaryContainerDark,
     onPrimaryContainer = Color.White,
-    secondary = AccentColor,            // Orange accent
-    onSecondary = Color.White,          // White on orange, both modes
+    secondary = AccentColorDark,
+    onSecondary = Color.Black,
     secondaryContainer = AppPrimaryContainerDark,
     onSecondaryContainer = Color.White,
-    tertiary = AccentColor,
+    tertiary = AccentColorDark,
     tertiaryContainer = AccentContainerDark,
     onTertiaryContainer = Color.White,
     surface = SurfaceDark,

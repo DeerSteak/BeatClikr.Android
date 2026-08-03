@@ -1,8 +1,8 @@
 package com.bfunkstudios.beatclikr.ui
 
+import android.animation.ValueAnimator
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -47,16 +47,18 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.bfunkstudios.beatclikr.R
-import com.bfunkstudios.beatclikr.constants.AppLocale
 import com.bfunkstudios.beatclikr.constants.MetronomeConstants
 import com.bfunkstudios.beatclikr.ui.components.BpmSliderControl
 import com.bfunkstudios.beatclikr.ui.components.SectionCard
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 
 @Composable
 fun PolyrhythmView(
     modifier: Modifier = Modifier,
     viewModel: PolyrhythmViewModel = hiltViewModel()
 ) {
+    val motionEnabled = ValueAnimator.areAnimatorsEnabled()
     LaunchedEffect(Unit) {
         viewModel.setupPolyrhythm()
     }
@@ -71,6 +73,7 @@ fun PolyrhythmView(
     ) {
         SecondaryOutputFailureText(viewModel.lastSecondaryOutputFailure)
         PlaybackDiagnosticText(viewModel.lastPlaybackDiagnostic)
+        PlaybackStatusText(viewModel.playbackStatus)
         VariableLatencyWarning(viewModel.hasVariableOutputLatency)
         SectionCard {
             Column(
@@ -112,20 +115,21 @@ fun PolyrhythmView(
                         label = stringResource(R.string.beat),
                         count = viewModel.against,
                         activeIndex = viewModel.activeBeatIndex,
-                        pulse = viewModel.beatPulse,
+                        pulse = if (motionEnabled) viewModel.beatPulse else 1f,
                         color = MaterialTheme.colorScheme.primary
                     )
                     PolyrhythmDotRow(
                         label = stringResource(R.string.rhythm),
                         count = viewModel.beats,
                         activeIndex = viewModel.activeRhythmIndex,
-                        pulse = viewModel.rhythmPulse,
+                        pulse = if (motionEnabled) viewModel.rhythmPulse else 1f,
                         color = MaterialTheme.colorScheme.secondary
                     )
                     PolyrhythmPlayheadRow(
                         isPlaying = viewModel.isPlaying,
                         resetId = viewModel.playheadResetID,
-                        cycleDurationMillis = viewModel.cycleDurationMillis
+                        cycleDurationMillis = viewModel.cycleDurationMillis,
+                        motionEnabled = motionEnabled
                     )
                 }
             }
@@ -142,12 +146,8 @@ fun PolyrhythmView(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        val animatedBpm by animateFloatAsState(
-                            targetValue = viewModel.bpm,
-                            label = "polyrhythm_bpm_animation"
-                        )
                         Text(
-                            text = String.format(AppLocale, "%.0f", animatedBpm),
+                            text = formatBpm(viewModel.bpm),
                             fontSize = 60.sp,
                             fontWeight = FontWeight.Thin,
                             textAlign = TextAlign.Center
@@ -199,6 +199,8 @@ private fun CountSelector(
     enabled: Boolean,
     modifier: Modifier = Modifier
 ) {
+    val decreaseLabel = stringResource(R.string.decrease_value, label)
+    val increaseLabel = stringResource(R.string.increase_value, label)
     Column(
         modifier = modifier,
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -215,7 +217,11 @@ private fun CountSelector(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            IconButton(onClick = onDecrease, enabled = enabled && value > 1) {
+            IconButton(
+                onClick = onDecrease,
+                enabled = enabled && value > 1,
+                modifier = Modifier.semantics { contentDescription = decreaseLabel }
+            ) {
                 Icon(imageVector = Icons.Default.Remove, contentDescription = null)
             }
             Text(
@@ -225,7 +231,11 @@ private fun CountSelector(
                 textAlign = TextAlign.Center,
                 modifier = Modifier.width(44.dp)
             )
-            IconButton(onClick = onIncrease, enabled = enabled && value < 15) {
+            IconButton(
+                onClick = onIncrease,
+                enabled = enabled && value < 15,
+                modifier = Modifier.semantics { contentDescription = increaseLabel }
+            ) {
                 Icon(imageVector = Icons.Default.Add, contentDescription = null)
             }
         }
@@ -281,13 +291,14 @@ private fun PolyrhythmDotRow(
 private fun PolyrhythmPlayheadRow(
     isPlaying: Boolean,
     resetId: Int,
-    cycleDurationMillis: Int
+    cycleDurationMillis: Int,
+    motionEnabled: Boolean
 ) {
     val progress = remember { Animatable(0f) }
 
     LaunchedEffect(resetId, isPlaying, cycleDurationMillis) {
         progress.snapTo(0f)
-        if (isPlaying) {
+        if (isPlaying && motionEnabled) {
             progress.animateTo(
                 targetValue = 1f,
                 animationSpec = tween(durationMillis = cycleDurationMillis, easing = LinearEasing)

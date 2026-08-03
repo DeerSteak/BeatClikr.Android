@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -57,12 +58,14 @@ fun MetronomeContainerView(
                     val selected = selectedMode == mode
                     SegmentedButton(
                         selected = selected,
-                        modifier = Modifier.testTag(
-                            when (mode) {
-                                MetronomeMode.Metronome -> "metronome_mode_metronome"
-                                MetronomeMode.Polyrhythm -> "metronome_mode_polyrhythm"
-                            }
-                        ),
+                        modifier = Modifier
+                            .heightIn(min = 48.dp)
+                            .testTag(
+                                when (mode) {
+                                    MetronomeMode.Metronome -> "metronome_mode_metronome"
+                                    MetronomeMode.Polyrhythm -> "metronome_mode_polyrhythm"
+                                }
+                            ),
                         onClick = {
                             if (selectedMode != mode) {
                                 when (mode) {

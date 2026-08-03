@@ -2,7 +2,8 @@ package com.bfunkstudios.beatclikr.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-val AccentColor = Color(0xFFFF5722)        // Orange accent (iOS AccentColor)
+val AccentColor = Color(0xFFA63816)
+val AccentColorDark = Color(0xFFFF8A65)
 val AppPrimaryLight = Color(0xFF174D69)    // Blue primary for light mode
 val AppPrimaryDark = Color(0xFF408CC9)     // Light blue for dark mode (high contrast on dark surfaces)
 val AppPrimaryContainerLight = Color(0xFFD7EBFA)

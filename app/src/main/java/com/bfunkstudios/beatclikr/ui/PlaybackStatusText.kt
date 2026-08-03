@@ -7,6 +7,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.annotation.StringRes
 import com.bfunkstudios.beatclikr.R
@@ -29,6 +31,27 @@ internal fun VariableLatencyWarning(visible: Boolean) {
 }
 
 @Composable
+internal fun PlaybackStatusText(status: PlaybackUiStatus?) {
+    status ?: return
+    val text = stringResource(
+        when (status) {
+            PlaybackUiStatus.PREPARING -> R.string.playback_status_preparing
+            PlaybackUiStatus.PLAYING -> R.string.playback_status_playing
+            PlaybackUiStatus.STOPPING -> R.string.playback_status_stopping
+            PlaybackUiStatus.INTERRUPTED -> R.string.playback_status_interrupted
+            PlaybackUiStatus.FAILED -> R.string.playback_status_failed
+        }
+    )
+    Text(
+        text = text,
+        style = MaterialTheme.typography.labelLarge,
+        modifier = Modifier
+            .testTag("playback_status")
+            .semantics { liveRegion = LiveRegionMode.Polite }
+    )
+}
+
+@Composable
 internal fun PlaybackDiagnosticText(diagnostic: PlaybackUiDiagnostic?) {
     diagnostic ?: return
     Text(
@@ -36,6 +59,7 @@ internal fun PlaybackDiagnosticText(diagnostic: PlaybackUiDiagnostic?) {
         color = MaterialTheme.colorScheme.error,
         style = MaterialTheme.typography.bodyMedium,
         modifier = Modifier.testTag("playback_diagnostic")
+            .semantics { liveRegion = LiveRegionMode.Assertive }
     )
 }
 

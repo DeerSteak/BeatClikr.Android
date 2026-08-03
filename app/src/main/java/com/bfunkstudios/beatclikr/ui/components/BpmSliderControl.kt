@@ -19,6 +19,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.semantics.semantics
+import com.bfunkstudios.beatclikr.R
+import com.bfunkstudios.beatclikr.ui.formatBpm
+import kotlin.math.roundToInt
 
 @Composable
 fun BpmSliderControl(
@@ -28,6 +35,9 @@ fun BpmSliderControl(
     modifier: Modifier = Modifier,
     enabled: Boolean = true
 ) {
+    val label = stringResource(R.string.bpm)
+    val decreaseLabel = stringResource(R.string.decrease_value, label)
+    val increaseLabel = stringResource(R.string.increase_value, label)
     Row(
         modifier = modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -36,7 +46,7 @@ fun BpmSliderControl(
         OutlinedIconButton(
             onClick = { onValueChange((value - 1f).coerceIn(valueRange)) },
             enabled = enabled,
-            modifier = Modifier.size(48.dp),
+            modifier = Modifier.size(48.dp).semantics { contentDescription = decreaseLabel },
             colors = IconButtonDefaults.outlinedIconButtonColors(
                 contentColor = MaterialTheme.colorScheme.primary
             )
@@ -46,10 +56,14 @@ fun BpmSliderControl(
 
         Slider(
             value = value,
-            onValueChange = onValueChange,
+            onValueChange = { onValueChange(it.roundToInt().toFloat()) },
             valueRange = valueRange,
+            steps = (valueRange.endInclusive - valueRange.start).roundToInt() - 1,
             enabled = enabled,
-            modifier = Modifier.weight(1f),
+            modifier = Modifier.weight(1f).semantics {
+                contentDescription = label
+                stateDescription = formatBpm(value)
+            },
             colors = SliderDefaults.colors(
                 thumbColor = MaterialTheme.colorScheme.primary,
                 activeTrackColor = MaterialTheme.colorScheme.primary,
@@ -60,7 +74,7 @@ fun BpmSliderControl(
         OutlinedIconButton(
             onClick = { onValueChange((value + 1f).coerceIn(valueRange)) },
             enabled = enabled,
-            modifier = Modifier.size(48.dp),
+            modifier = Modifier.size(48.dp).semantics { contentDescription = increaseLabel },
             colors = IconButtonDefaults.outlinedIconButtonColors(
                 contentColor = MaterialTheme.colorScheme.primary
             )

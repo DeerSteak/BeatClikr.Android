@@ -628,14 +628,15 @@ class MetronomeViewModelTest {
     @Test
     fun `recordTap with single tap does not change BPM`() {
         val initialBpm = viewModel.beatsPerMinute
-        viewModel.recordTap()
+        viewModel.recordTap(1_000_000_000L)
         assertEquals(initialBpm, viewModel.beatsPerMinute)
     }
 
     @Test
-    fun `recordTap with two rapid taps clamps to max BPM`() {
-        viewModel.recordTap()
-        viewModel.recordTap()
-        assertEquals(MetronomeConstants.MAX_BPM, viewModel.beatsPerMinute)
+    fun `recordTap rejects impossible double taps`() {
+        val initialBpm = viewModel.beatsPerMinute
+        viewModel.recordTap(1_000_000_000L)
+        viewModel.recordTap(1_100_000_000L)
+        assertEquals(initialBpm, viewModel.beatsPerMinute)
     }
 }
