@@ -48,9 +48,9 @@ android {
     }
     testBuildType = providers.gradleProperty("beatclikr.testBuildType").orElse("debug").get()
     sourceSets {
-        getByName("test").kotlin.directories.add("src/sharedTest/java")
+        getByName("test").kotlin.directories.add("$projectDir/src/sharedTest/java")
         getByName("androidTest") {
-            kotlin.directories.add("src/sharedTest/java")
+            kotlin.directories.add("$projectDir/src/sharedTest/java")
             assets.directories.add("$projectDir/schemas")
         }
     }

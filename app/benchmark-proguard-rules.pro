@@ -2,15 +2,15 @@
 -keep class kotlin.** { *; }
 -keep,allowoptimization class com.bfunkstudios.beatclikr.data.SoundFile { public *; }
 -keep,allowoptimization class com.bfunkstudios.beatclikr.services.FrameAudioMetricsSnapshot { public *; }
--keep class com.bfunkstudios.beatclikr.services.MetronomeAudioEngine { public *; }
--keep class com.bfunkstudios.beatclikr.services.FramePlaybackPublicationBoundary { *; }
--keep class com.bfunkstudios.beatclikr.services.ValidatedStandardConfiguration { *; }
--keep class com.bfunkstudios.beatclikr.services.ValidatedPolyrhythmConfiguration { *; }
--keep class com.bfunkstudios.beatclikr.music.PlaybackInputResult** { *; }
--keep class com.bfunkstudios.beatclikr.services.FrameAudioRenderedEventBatch { *; }
--keep class com.bfunkstudios.beatclikr.services.RenderedEventBatch { *; }
--keep class com.bfunkstudios.beatclikr.services.RenderedFrameEvent { *; }
--keep class com.bfunkstudios.beatclikr.services.AudioFrameCorrelation { *; }
+-keep,allowoptimization class com.bfunkstudios.beatclikr.services.MetronomeAudioEngine { public *; }
+-keep,allowoptimization class com.bfunkstudios.beatclikr.services.FramePlaybackPublicationBoundary { *; }
+-keep,allowoptimization class com.bfunkstudios.beatclikr.services.ValidatedStandardConfiguration { *; }
+-keep,allowoptimization class com.bfunkstudios.beatclikr.services.ValidatedPolyrhythmConfiguration { *; }
+-keep,allowoptimization class com.bfunkstudios.beatclikr.music.PlaybackInputResult** { *; }
+-keep,allowoptimization class com.bfunkstudios.beatclikr.services.FrameAudioRenderedEventBatch { *; }
+-keep,allowoptimization class com.bfunkstudios.beatclikr.services.RenderedEventBatch { *; }
+-keep,allowoptimization class com.bfunkstudios.beatclikr.services.RenderedFrameEvent { *; }
+-keep,allowoptimization class com.bfunkstudios.beatclikr.services.AudioFrameCorrelation { *; }
 -keep class com.bfunkstudios.beatclikr.services.PcmFileCache { *; }
 -keep class com.bfunkstudios.beatclikr.services.PreparedSoundBank { *; }
 -keep class com.bfunkstudios.beatclikr.services.PreparedPcmWaveform { *; }

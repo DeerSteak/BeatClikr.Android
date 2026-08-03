@@ -80,15 +80,8 @@ class StandardMetronomeContractInstrumentedTest {
             val times = synchronized(scheduledTimes) { scheduledTimes.toList() }
             val flags = synchronized(beatFlags) { beatFlags.toList() }
             val metrics = requireNotNull(engine.getFrameAudioMetricsSnapshot())
-            val phaseTimes = times.mapIndexed { index, time ->
-                if (index < MUTE_START_EVENT || index >= MUTE_END_EVENT) {
-                    time - metrics.estimatedOutputLatencyNanos
-                } else {
-                    time
-                }
-            }
             assertEquals(fixture.events(MUTE_EVENT_COUNT).map { it.isBeat }, flags)
-            assertIntervals(fixture, phaseTimes)
+            assertIntervals(fixture, times)
             assertTrue("Audio renderer produced no blocks", metrics.renderedChunks > 0)
         }
     }

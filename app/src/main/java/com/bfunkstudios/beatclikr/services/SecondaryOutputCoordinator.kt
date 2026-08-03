@@ -87,7 +87,7 @@ class SecondaryOutputCoordinator(
     }
 
     fun stopEffects() {
-        val generation = pulseGeneration.incrementAndGet()
+        pulseGeneration.incrementAndGet()
         runOutput(SecondaryOutput.HAPTIC, "cancel") { haptics.cancel() }
         forceTorchOff("off")
     }
@@ -168,8 +168,23 @@ class SecondaryOutputCoordinator(
     }
 
     private fun forceTorchOff(operation: String) {
-        if (!runOutput(SecondaryOutput.TORCH, operation) { flashlight.turnFlashlightOff() }) {
-            runOutput(SecondaryOutput.TORCH, "$operation retry") { flashlight.turnFlashlightOff() }
+        if (runOutput(SecondaryOutput.TORCH, operation) { flashlight.turnFlashlightOff() }) return
+        val generation = pulseGeneration.get()
+        val retryScheduled = scheduleOutput(
+            SecondaryOutput.TORCH,
+            "$operation retry schedule",
+            TORCH_FAILSAFE_NANOS
+        ) {
+            if (pulseGeneration.get() == generation) {
+                runOutput(SecondaryOutput.TORCH, "$operation retry") {
+                    flashlight.turnFlashlightOff()
+                }
+            }
+        }
+        if (!retryScheduled) {
+            runOutput(SecondaryOutput.TORCH, "$operation retry") {
+                flashlight.turnFlashlightOff()
+            }
         }
     }
 

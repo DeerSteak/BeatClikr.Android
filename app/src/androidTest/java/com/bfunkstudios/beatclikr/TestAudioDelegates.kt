@@ -102,16 +102,20 @@ fun MetronomeAudioEngine.startPolyrhythm(bpm: Float, beats: Int, against: Int) {
     ) as PlaybackInputResult.Accepted
     val sessionId = PlaybackSessionId(nextTestSession.getAndIncrement())
     beginPolyrhythmSession(sessionId, validated.value)
+    var beatIndex = 0
+    var rhythmIndex = 0
     startPolling(sessionId, PlaybackMode.POLYRHYTHM) { records, sampleRate ->
         val delegate = polyrhythmTestDelegate ?: return@startPolling
         records.groupBy { it.intendedFrame }.values.forEach { simultaneous ->
             val beat = simultaneous.firstOrNull { it.role == MusicalEventRole.POLYRHYTHM_BEAT }
             val rhythm = simultaneous.firstOrNull { it.role == MusicalEventRole.POLYRHYTHM_RHYTHM }
+            beat?.let { beatIndex = it.roleIndex }
+            rhythm?.let { rhythmIndex = it.roleIndex }
             delegate.polyrhythmBeatFired(
                 beat != null,
                 rhythm != null,
-                beat?.roleIndex ?: 0,
-                rhythm?.roleIndex ?: 0,
+                beatIndex,
+                rhythmIndex,
                 simultaneous.first().intendedFrame * 1_000_000_000L / sampleRate,
                 (60_000_000_000.0 / bpm).toLong(),
                 (60_000_000_000.0 * against / (bpm * beats)).toLong()
@@ -150,7 +154,10 @@ private fun MetronomeAudioEngine.startPolling(
         try {
             drainRenderedEvents(captureSequence)?.let { batch ->
                 captureSequence = batch.events.nextCaptureSequence
-                if (batch.events.records.isNotEmpty()) publish(batch.events.records, batch.sampleRate)
+                val sessionRecords = batch.events.records.filter {
+                    it.sessionId == sessionId.value
+                }
+                if (sessionRecords.isNotEmpty()) publish(sessionRecords, batch.sampleRate)
             }
         } catch (problem: Throwable) {
             failure.compareAndSet(null, problem)
@@ -164,8 +171,8 @@ private fun MetronomeAudioEngine.stopTestSession(mode: PlaybackMode) {
     require(session?.mode == mode) { "No active $mode test session" }
     session.polling.shutdownNow()
     val pollingFailure = synchronized(pollingFailures) { pollingFailures.remove(this) }?.get()
-    if (pollingFailure != null) throw AssertionError("Rendered-event polling failed", pollingFailure)
     stopSession(session.id, mode)
+    if (pollingFailure != null) throw AssertionError("Rendered-event polling failed", pollingFailure)
 }
 
 private fun ticksToNextAccent(pattern: List<Boolean>, index: Int): Int {

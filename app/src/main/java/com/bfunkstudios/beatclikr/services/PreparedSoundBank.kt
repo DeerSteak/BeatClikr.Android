@@ -36,6 +36,7 @@ class PreparedPcmWaveform(samples: ShortArray) {
     /** Returns an isolated copy for callers outside the render pipeline. */
     fun copySamples(): ShortArray = storage.copyOf()
 
+    /** Shared across render sessions; callers must never modify the returned array. */
     internal fun sharedSamples(): ShortArray = storage
 }
 

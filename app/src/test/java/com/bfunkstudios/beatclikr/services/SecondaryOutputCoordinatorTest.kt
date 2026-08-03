@@ -158,11 +158,14 @@ class SecondaryOutputCoordinatorTest {
     }
 
     @Test
-    fun failedImmediateStopOffRetriesOnceWithoutSchedulingWork() {
-        every { flashlight.turnFlashlightOff() } throws IllegalStateException("camera busy")
+    fun failedImmediateStopOffSchedulesOneDelayedRetry() {
+        every { flashlight.turnFlashlightOff() } throws IllegalStateException("camera busy") andThen Unit
 
         coordinator.stopEffects()
 
+        verify(exactly = 1) { flashlight.turnFlashlightOff() }
+        assertEquals(250_000_000L, scheduler.tasks.single().delayNanos)
+        scheduler.runNext()
         verify(exactly = 2) { flashlight.turnFlashlightOff() }
         assertTrue(scheduler.tasks.isEmpty())
         assertEquals("camera busy", coordinator.secondaryOutputFailure.value?.diagnostic)
@@ -174,6 +177,7 @@ class SecondaryOutputCoordinatorTest {
             IllegalStateException("retry failure")
 
         coordinator.stopEffects()
+        scheduler.runNext()
 
         verify(exactly = 2) { flashlight.turnFlashlightOff() }
         assertEquals("retry failure", coordinator.secondaryOutputFailure.value?.diagnostic)
