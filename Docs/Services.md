@@ -4,7 +4,7 @@ Services isolate audio, device feedback, reminder scheduling, and repository beh
 
 ## Audio services
 
-`PlaybackCoordinator` implements the application command port `IAudioPlayerService` and read-only `PlaybackObservation`. UI and secondary outputs observe transport state and renderer-originated `committedEvents`; no application-facing timing delegate or provisional timing flow remains.
+`PlaybackCoordinator` implements the intent-only application command port `IAudioPlayerService` and read-only `PlaybackObservation`. Callers submit typed `PlaybackIntent` values; UI and secondary outputs observe transport state and renderer-originated `committedEvents`.
 
 `MetronomeAudioEngine` implements `PlaybackEnginePort`. Every coordinator start/stop entry point requires session identity, so stale owners cannot issue sessionless teardown. Engine timing delegates remain below that port to prompt committed-event draining.
 

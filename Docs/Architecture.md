@@ -12,7 +12,7 @@ BeatClikr is a single-module Kotlin application built with Jetpack Compose.
 - `services/` contains PCM decoding, scheduling, mixing, `AudioTrack` output, and platform integrations.
 - `di/` wires the application graph with Hilt.
 
-`PlaybackCoordinator` is the application-scoped transport authority. Playback ViewModels submit commands through `IAudioPlayerService` and project the coordinator's read-only transport state and committed renderer events; they do not install engine delegates or maintain independent playback truth.
+`PlaybackCoordinator` is the application-scoped transport authority. Playback ViewModels submit `PlaybackIntent` values through `IAudioPlayerService` and project the coordinator's read-only transport state and committed renderer events; they do not install engine delegates or maintain independent playback truth.
 
 The `music/` package is a dependency leaf and cannot depend on Android classes, clocks, resources, audio objects, persistence, or presentation models. Its configuration layer contains exact standard and polyrhythm inputs, session origins, monotonic event identity, and frame-event vocabulary. `StandardMetronomeTimeline` and `PolyrhythmTimeline` provide the pure frame-range schedulers used by the production renderer.
 
@@ -71,7 +71,7 @@ Proprietary samples are excluded from Git. A tracked requirements file defines t
 ### Standard metronome
 
 1. The Compose screen submits a user intent through `MetronomeViewModel`.
-2. The ViewModel sends a typed request through `IAudioPlayerService` and projects coordinator state.
+2. The ViewModel submits a typed `PlaybackIntent` through `IAudioPlayerService` and projects coordinator state.
 3. `PlaybackCoordinator` serializes the request, owns the session, and publishes authoritative transport state.
 4. The exact timeline and frame renderer write prepared PCM through the streaming `AudioTrack` backend.
 5. Committed renderer events drive practice accounting, restrained visual updates, and optional secondary outputs.

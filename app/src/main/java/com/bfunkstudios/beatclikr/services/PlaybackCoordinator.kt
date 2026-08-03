@@ -389,20 +389,8 @@ class PlaybackCoordinator(
         refreshAudibleSounds()
     }
 
-    override var isMuted: Boolean
-        get() = ownership.value.muted
-        set(value) {
-            submit(PlaybackIntent.SetMuted(value))
-        }
-
-    override var soundBank: SoundBank
-        get() = ownership.value.requestedSounds.bank
-        set(value) {
-            submit(PlaybackIntent.SelectSoundBank(value))
-        }
-
     @Synchronized
-    fun submit(intent: PlaybackIntent): Long {
+    override fun submit(intent: PlaybackIntent): Long {
         val sequence = nextCommandSequence++
         val publishedIntent = intent.immutableCopy()
         if (released) {
@@ -445,93 +433,6 @@ class PlaybackCoordinator(
             }
         }
         return sequence
-    }
-
-    override fun setupAudioPlayer(beatResourceId: Int, rhythmResourceId: Int) {
-        val beat = SoundFile.fromResourceId(beatResourceId)
-        val rhythm = SoundFile.fromResourceId(rhythmResourceId)
-        if (beat == null || rhythm == null) {
-            submit(PlaybackIntent.Invalid("Unknown sound resource"))
-            return
-        }
-        submit(PlaybackIntent.SelectSounds(beat, rhythm))
-    }
-
-    override fun startMetronome(
-        bpm: Float,
-        subdivisions: Int,
-        accentPattern: List<Boolean>?,
-        alternateSixteenth: Boolean,
-        practiceItem: PracticeItemSnapshot
-    ) {
-        submit(
-            PlaybackIntent.StartStandard(
-                bpm,
-                subdivisions,
-                accentPattern?.toList(),
-                alternateSixteenth,
-                practiceItem
-            )
-        )
-    }
-
-    override fun replaceMetronome(
-        bpm: Float,
-        subdivisions: Int,
-        accentPattern: List<Boolean>?,
-        alternateSixteenth: Boolean,
-        practiceItem: PracticeItemSnapshot
-    ) {
-        submit(
-            PlaybackIntent.ReplaceStandard(
-                bpm,
-                subdivisions,
-                accentPattern?.toList(),
-                alternateSixteenth,
-                practiceItem
-            )
-        )
-    }
-
-    override fun stopIfCurrent(expectedSessionId: PlaybackSessionId) {
-        submit(PlaybackIntent.StopIfCurrent(expectedSessionId))
-    }
-
-    override fun updateTempo(
-        bpm: Float,
-        subdivisions: Int,
-        accentPattern: List<Boolean>?,
-        alternateSixteenth: Boolean
-    ) {
-        submit(
-            PlaybackIntent.UpdateStandard(
-                bpm,
-                subdivisions,
-                accentPattern?.toList(),
-                alternateSixteenth
-            )
-        )
-    }
-
-    override fun startPolyrhythm(
-        bpm: Float,
-        beats: Int,
-        against: Int,
-        practiceItem: PracticeItemSnapshot
-    ) {
-        submit(PlaybackIntent.StartPolyrhythm(bpm, beats, against, practiceItem))
-    }
-
-    override fun stopPlayback() {
-        submit(PlaybackIntent.Stop)
-    }
-
-    override fun prewarmAudioTrack() {
-        submit(PlaybackIntent.Prewarm)
-    }
-
-    override fun prepareAudioTrackSounds(soundFiles: Collection<SoundFile>) {
-        submit(PlaybackIntent.PrepareSounds(soundFiles.toList()))
     }
 
     override fun getFrameAudioMetricsSnapshot(): FrameAudioMetricsSnapshot? =

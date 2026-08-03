@@ -22,6 +22,7 @@ import com.bfunkstudios.beatclikr.services.CommittedEventDeliveryResult
 import com.bfunkstudios.beatclikr.services.EventPresentation
 import com.bfunkstudios.beatclikr.services.IAudioPlayerService
 import com.bfunkstudios.beatclikr.services.PlaybackCommittedEvent
+import com.bfunkstudios.beatclikr.services.PlaybackIntent
 import com.bfunkstudios.beatclikr.services.PlaybackMode
 import com.bfunkstudios.beatclikr.services.PlaybackObservation
 import com.bfunkstudios.beatclikr.services.PlaybackSessionId
@@ -156,11 +157,7 @@ class PolyrhythmViewModel @Inject constructor(
     }
 
     fun setupPolyrhythm() {
-        val beatResId = selectedBeatSound.resourceId
-        val rhythmResId = selectedRhythmSound.resourceId
-        if (beatResId != null && rhythmResId != null) {
-            audio.setupAudioPlayer(beatResId, rhythmResId)
-        }
+        audio.submit(PlaybackIntent.SelectSounds(selectedBeatSound, selectedRhythmSound))
     }
 
     fun togglePlayPause() {
@@ -174,13 +171,20 @@ class PolyrhythmViewModel @Inject constructor(
         setupPolyrhythm()
         beatPulse = 0f
         rhythmPulse = 0f
-        audio.isMuted = prefs.muteMetronome
-        audio.soundBank = prefs.soundBank
-        audio.startPolyrhythm(bpm, beats, against, PracticeItemSnapshot.polyrhythm())
+        audio.submit(PlaybackIntent.SetMuted(prefs.muteMetronome))
+        audio.submit(PlaybackIntent.SelectSoundBank(prefs.soundBank))
+        audio.submit(
+            PlaybackIntent.StartPolyrhythm(
+                bpm,
+                beats,
+                against,
+                PracticeItemSnapshot.polyrhythm()
+            )
+        )
     }
 
     fun stop() {
-        ownedSessionId?.let(audio::stopIfCurrent)
+        ownedSessionId?.let { audio.submit(PlaybackIntent.StopIfCurrent(it)) }
         stopChoreographerLoop()
         beatPulse = 0f
         rhythmPulse = 0f

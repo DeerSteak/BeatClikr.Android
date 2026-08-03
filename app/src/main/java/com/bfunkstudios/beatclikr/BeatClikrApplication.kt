@@ -9,6 +9,7 @@ import androidx.lifecycle.ProcessLifecycleOwner
 import com.bfunkstudios.beatclikr.data.IAppPreferences
 import com.bfunkstudios.beatclikr.data.SoundBank
 import com.bfunkstudios.beatclikr.services.IAudioPlayerService
+import com.bfunkstudios.beatclikr.services.PlaybackIntent
 import com.bfunkstudios.beatclikr.services.PracticeAccountingCoordinator
 import com.bfunkstudios.beatclikr.services.SecondaryOutputCoordinator
 import dagger.hilt.android.HiltAndroidApp
@@ -24,11 +25,11 @@ class BeatClikrApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
-        audioPlayerService.soundBank = prefs.soundBank
+        audioPlayerService.submit(PlaybackIntent.SelectSoundBank(prefs.soundBank))
         if (prefs.soundBank == SoundBank.ACOUSTIC) {
-            audioPlayerService.prepareAudioTrackSounds(prefs.audioTrackSoundCacheSet())
+            audioPlayerService.submit(PlaybackIntent.PrepareSounds(prefs.audioTrackSoundCacheSet()))
         }
-        audioPlayerService.prewarmAudioTrack()
+        audioPlayerService.submit(PlaybackIntent.Prewarm)
         practiceAccounting.start()
         secondaryOutputs.start()
         ProcessLifecycleOwner.get().lifecycle.addObserver(
@@ -47,7 +48,7 @@ class BeatClikrApplication : Application() {
     }
 
     private fun stopResources() {
-        audioPlayerService.stopPlayback()
+        audioPlayerService.submit(PlaybackIntent.Stop)
         secondaryOutputs.stopEffects()
     }
 

@@ -205,11 +205,11 @@ class PlaybackCoordinatorTest {
         val engine = FakePlaybackEngine()
         val coordinator = PlaybackCoordinator(engine)
         try {
-            coordinator.startPolyrhythm(120f, 3, 2)
+            coordinator.submit(PlaybackIntent.StartPolyrhythm(120f, 3, 2))
             assertTrue(coordinator.awaitControlIdle())
             engine.operations.clear()
 
-            coordinator.startPolyrhythm(121f, 5, 3)
+            coordinator.submit(PlaybackIntent.StartPolyrhythm(121f, 5, 3))
             assertTrue(coordinator.awaitControlIdle())
 
             assertEquals(listOf("updatePolyrhythm"), engine.operations)

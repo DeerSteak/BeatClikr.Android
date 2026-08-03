@@ -288,7 +288,7 @@ class InstantMetronomeViewTest {
         fake.publishPlaying(PlaybackMode.POLYRHYTHM, AudioOutputRoute.BLUETOOTH)
         composeRule.onNodeWithTag("bluetooth_latency_warning").assertIsDisplayed()
 
-        fake.stopPlayback()
+        fake.stopPlaybackForTest()
         composeRule.onNodeWithTag("bluetooth_latency_warning").assertDoesNotExist()
     }
 
@@ -432,7 +432,7 @@ class InstantMetronomeViewTest {
         composeRule.waitForIdle()
         composeRule.waitUntil { activity.isKeepingScreenOn() }
 
-        fake.startMetronome(120f, 4, null, false)
+        fake.startMetronomeForTest(120f, 4)
         composeRule.waitUntil { !activity.isKeepingScreenOn() }
 
         fake.publishPlaying(PlaybackMode.STANDARD)
@@ -474,7 +474,7 @@ class InstantMetronomeViewTest {
         composeRule.activityRule.scenario.recreate()
         composeRule.waitUntil { activity.isKeepingScreenOn() }
 
-        fake.stopPlayback()
+        fake.stopPlaybackForTest()
         composeRule.waitUntil { !activity.isKeepingScreenOn() }
     }
 
@@ -698,7 +698,7 @@ class InstantMetronomeViewTest {
         assertEquals(0, fake.stopCount + fake.polyrhythmStopCount)
         composeRule.onNodeWithText(activity.getString(R.string.cancel)).performClick()
 
-        fake.stopPlayback()
+        fake.stopPlaybackForTest()
         fake.resetCallCounts()
         navigateTo(R.string.tab_playlist)
         fake.publishPlaying(PlaybackMode.STANDARD)

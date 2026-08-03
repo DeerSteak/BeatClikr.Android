@@ -15,6 +15,7 @@ import com.bfunkstudios.beatclikr.services.IFlashlightService
 import com.bfunkstudios.beatclikr.services.IPracticeReminderScheduler
 import com.bfunkstudios.beatclikr.services.LocalDiagnosticSnapshot
 import com.bfunkstudios.beatclikr.services.LocalDiagnostics
+import com.bfunkstudios.beatclikr.services.PlaybackIntent
 import com.bfunkstudios.beatclikr.services.OperationalFailureReporter
 import com.bfunkstudios.beatclikr.services.reminderFailure
 import com.bfunkstudios.beatclikr.services.launchReporting
@@ -191,7 +192,7 @@ class SettingsViewModel @Inject constructor(
     fun updateSoundBank(value: SoundBank) {
         soundBank = value
         prefs.soundBank = value
-        audioPlayerService.soundBank = value
+        audioPlayerService.submit(PlaybackIntent.SelectSoundBank(value))
         if (value == SoundBank.ACOUSTIC) {
             prepareAudioTrackSoundsIfNeeded()
         }
@@ -348,20 +349,20 @@ class SettingsViewModel @Inject constructor(
 
     private fun prepareAudioTrackSoundIfNeeded(soundFile: SoundFile) {
         if (soundBank == SoundBank.SYNTH) return
-        audioPlayerService.prepareAudioTrackSounds(listOf(soundFile))
+        audioPlayerService.submit(PlaybackIntent.PrepareSounds(listOf(soundFile)))
     }
 
     private fun prepareAudioTrackSoundsIfNeeded() {
         if (soundBank == SoundBank.SYNTH) return
-        audioPlayerService.prepareAudioTrackSounds(
-            listOf(
+        audioPlayerService.submit(
+            PlaybackIntent.PrepareSounds(listOf(
                 metronomeBeatSound,
                 metronomeRhythmSound,
                 polyrhythmBeatSound,
                 polyrhythmRhythmSound,
                 playlistBeatSound,
                 playlistRhythmSound
-            )
+            ))
         )
     }
 

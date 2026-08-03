@@ -5,6 +5,7 @@ import com.bfunkstudios.beatclikr.data.SoundBank
 import com.bfunkstudios.beatclikr.data.SoundFile
 import com.bfunkstudios.beatclikr.services.IFlashlightService
 import com.bfunkstudios.beatclikr.services.IAudioPlayerService
+import com.bfunkstudios.beatclikr.services.PlaybackIntent
 import com.bfunkstudios.beatclikr.services.IPracticeReminderScheduler
 import com.bfunkstudios.beatclikr.services.FailureDomain
 import com.bfunkstudios.beatclikr.services.OperationalFailureReporter
@@ -67,8 +68,10 @@ class SettingsViewModelTest {
 
         assertEquals(SoundBank.SYNTH, viewModel.soundBank)
         verify { prefs.soundBank = SoundBank.SYNTH }
-        verify { audioPlayerService.soundBank = SoundBank.SYNTH }
-        verify(exactly = 0) { audioPlayerService.prepareAudioTrackSounds(any()) }
+        verify { audioPlayerService.submit(PlaybackIntent.SelectSoundBank(SoundBank.SYNTH)) }
+        verify(exactly = 0) {
+            audioPlayerService.submit(ofType<PlaybackIntent.PrepareSounds>())
+        }
     }
 
     @Test
@@ -78,7 +81,9 @@ class SettingsViewModelTest {
 
         viewModel.updateMetronomeBeatSound(SoundFile.SNARE)
 
-        verify { audioPlayerService.prepareAudioTrackSounds(listOf(SoundFile.SNARE)) }
+        verify {
+            audioPlayerService.submit(PlaybackIntent.PrepareSounds(listOf(SoundFile.SNARE)))
+        }
     }
 
     @Test
