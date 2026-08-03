@@ -49,7 +49,7 @@ The clauses below are normative. Scheduler, renderer, playback, and UI acceptanc
 - **MT-019:** A user tempo change during standard playback restarts the audio timeline at tick zero using the new tempo without ending the logical playback period.
 - **MT-020:** A groove or odd-meter pattern change during playback restarts the standard-metronome timeline at tick zero without ending the logical playback period.
 - **MT-021:** A polyrhythm tempo or ratio change during playback restarts both streams together at a new shared cycle origin without ending the logical playback period.
-- **MT-022:** A beat sound, rhythm sound, or sound-bank change prepares the replacement sounds off the render thread and restarts active playback at its mode origin without ending the logical playback period. Global mute is applied when the active audio timeline is next started or restarted.
+- **MT-022:** A beat sound, rhythm sound, or sound-bank change prepares the replacement off the render thread and publishes it atomically for subsequently created voices without ending the logical playback period or cutting an active waveform tail. Global mute changes only the renderer's audible gate and does not change musical phase.
 - **MT-023:** When several commands request the same boundary, command sequence determines their order and the final valid configuration is applied atomically.
 
 ### Tempo ramp
@@ -69,8 +69,8 @@ The clauses below are normative. Scheduler, renderer, playback, and UI acceptanc
 
 ## Consequences
 
-The existing polling engine does not satisfy every clause. In particular, a multi-event stall can currently enqueue events in a catch-up sequence, configuration changes do not all use the boundaries above, and audio readiness is not an authoritative prerequisite for a successful start. Those are implementation gaps assigned to Phases 2 through 4, not exceptions to this contract.
+Phases 2 through 4 replaced the legacy polling/output path with exact frame timelines, arithmetic deadline recovery, approved configuration boundaries, prepared frame rendering, and audio-confirmed authoritative starts. The permanent qualification suite protects those clauses; Phase 8 remains responsible for final physical presentation evidence.
 
 The contract deliberately mirrors iOS behavior: quarter-note BPM, beat/rhythm sound mapping, additive odd meters, `M:N` polyrhythm labeling, configuration-driven timeline restarts, tempo-ramp counting, a beat-first start, and no hidden count-in.
 
-This review intentionally does not freeze the current tap-tempo estimator as product behavior. Phase 7 may replace its wall-clock arithmetic and simple averaging with a monotonic, outlier-resistant estimator while preserving the visible tempo range and whole-BPM direct-control behavior above.
+This decision intentionally does not make one estimator part of the musical-time contract. Phase 7 replaced wall-clock arithmetic and simple averaging with elapsed-realtime nanoseconds, interval rejection, inactivity reset, and a median estimator while preserving the approved range and whole-BPM direct-control behavior.

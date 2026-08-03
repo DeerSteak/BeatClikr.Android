@@ -14,7 +14,7 @@ BeatClikr is a single-module Kotlin application built with Jetpack Compose.
 
 `PlaybackCoordinator` is the application-scoped transport authority. Playback ViewModels submit commands through `IAudioPlayerService` and project the coordinator's read-only transport state and committed renderer events; they do not install engine delegates or maintain independent playback truth.
 
-The `music/` package is a dependency leaf and cannot depend on Android classes, clocks, resources, audio objects, persistence, or presentation models. Its configuration layer contains exact standard and polyrhythm inputs, session origins, monotonic event identity, and frame-event vocabulary. `StandardMetronomeTimeline` now provides the first pure frame-range scheduler, while production playback remains on the characterized engine until the controlled Phase 3 integration.
+The `music/` package is a dependency leaf and cannot depend on Android classes, clocks, resources, audio objects, persistence, or presentation models. Its configuration layer contains exact standard and polyrhythm inputs, session origins, monotonic event identity, and frame-event vocabulary. `StandardMetronomeTimeline` and `PolyrhythmTimeline` provide the pure frame-range schedulers used by the production renderer.
 
 ### Music integration boundary
 
@@ -62,7 +62,7 @@ Playback is intentionally foreground-only. The app stops active playback when it
 
 Room stores playlists, songs, practice sessions, and related structured data. Preferences store lightweight app settings. Practice-day grouping uses the device's local date so history matches the calendar the musician sees.
 
-Room schema version 4 is the migration baseline. Versions 1–3 were not distributed to the supported population and are reset if encountered. Future production schema changes must include exported schemas and a real migration from version 4 onward.
+Room schema version 5 stores duration-based practice history and its accounting checkpoint. Version 4 is the supported migration baseline; versions 1–3 were not distributed to the supported population and are reset if encountered. Future production schema changes must include exported schemas and a preserving migration from version 5 onward.
 
 Proprietary samples are excluded from Git. A tracked requirements file defines their names and properties. CI creates non-proprietary placeholders with the same resource contract.
 
@@ -70,19 +70,19 @@ Proprietary samples are excluded from Git. A tracked requirements file defines t
 
 ### Standard metronome
 
-1. The Compose screen sends controls to `MetronomeViewModel`.
-2. The ViewModel updates observable state and controls the audio engine.
-3. The timing engine schedules beats against a monotonic clock.
-4. The mixer writes PCM chunks to a streaming `AudioTrack`.
-5. Beat callbacks update visuals and optional haptic or flash feedback.
+1. The Compose screen submits a user intent through `MetronomeViewModel`.
+2. The ViewModel sends a typed request through `IAudioPlayerService` and projects coordinator state.
+3. `PlaybackCoordinator` serializes the request, owns the session, and publishes authoritative transport state.
+4. The exact timeline and frame renderer write prepared PCM through the streaming `AudioTrack` backend.
+5. Committed renderer events drive practice accounting, restrained visual updates, and optional secondary outputs.
 
 ### Polyrhythm
 
-The polyrhythm flow has separate UI and timing state but uses the same output principles. Each rhythm advances independently against a shared monotonic time base, and coincident events are mixed into the output stream.
+The polyrhythm UI has separate draft state but uses the same coordinator, command boundary, prepared sounds, frame renderer, and authoritative transport. Both roles derive from one exact cycle grid, and coincident voices share one frame event.
 
 ### Practice history
 
-Completed activity is written through the repository to Room. Calendar and streak views read aggregated local-day results. UI code should not perform database queries or date-boundary calculations directly.
+`PracticeAccountingCoordinator` consumes authoritative lifecycle checkpoints. Only confirmed `Playing` time qualifies; each periodic idempotent checkpoint attributes its entire elapsed interval to the civil day observed at checkpoint time and supports process recovery or typed lifecycle-journal-gap resynchronization. Room transactions update the accounting checkpoint and duration aggregates together. Calendar and streak views read qualified local-day results, while reserved metronome and polyrhythm labels are localized at render time.
 
 ## Known architectural limits
 

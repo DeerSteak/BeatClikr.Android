@@ -12,9 +12,9 @@ intervalNs = 60,000,000,000 / bpm
 
 Subdivisions and polyrhythms derive deadlines from that interval. The replacement scheduler must meet contract clauses MT-030 through MT-032 by dropping expired events, avoiding catch-up bursts, preserving the session time base, and carrying fractional sample-frame remainder.
 
-The pure replacement core now implements that recovery policy. `DeadlineRecovery` counts events arithmetically between the first unprocessed frame and the current render-window start, without enumerating overdue events, then queries committed events directly from the current window against the unchanged absolute origin. Production playback continues using the existing engine until Phase 3 integrates the replacement core.
+The production frame core implements that recovery policy. `DeadlineRecovery` counts events arithmetically between the first unprocessed frame and the current render-window start, without enumerating overdue events, then queries committed events directly from the current window against the unchanged absolute origin.
 
-The Android-free `AbsoluteAudioTimeline` derives every frame independently from an exact rational interval and global index, matching iOS’s absolute-rounding behavior without its `Double` representation. `StandardMetronomeTimeline` answers absolute frame-range requests without moving the origin or retaining a polling cursor. It is not connected to production audio yet.
+The Android-free `AbsoluteAudioTimeline` derives every frame independently from an exact rational interval and global index, matching iOS’s absolute-rounding behavior without its `Double` representation. `StandardMetronomeTimeline` answers absolute frame-range requests without moving the origin or retaining a polling cursor and feeds the production frame renderer through the publication boundary.
 
 ## Output pipeline
 

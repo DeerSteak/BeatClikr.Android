@@ -102,7 +102,7 @@ GitHub Actions runs [`.github/workflows/android-ci.yml`](.github/workflows/andro
 4. configures Gradle caching;
 5. generates non-production placeholder WAVs;
 6. runs debug unit tests, Android lint, and a debug build;
-7. runs the bounded instrumentation and contract suites on Android 12/API 31 and Android 16/API 36 emulators.
+7. runs the bounded instrumentation and contract suites on an Android 12/API 31 phone, an Android 16/API 36 phone, and an API 36 tablet.
 
 Public CI cannot access the proprietary BeatClikr sounds. `tools/generate_ci_audio.py` creates short placeholder PCM WAVs only so Android resource generation and code verification can run. These files are ignored by Git and must never be used for a production artifact.
 
@@ -158,7 +158,7 @@ This describes the present implementation, not the target architecture. The reme
 
 ## Database version policy
 
-Room database version 4 is the first version released through Google Play and is the migration baseline. Pre-release database versions 1–3 are unsupported and are destructively recreated if encountered. All migrations beginning with version 4 must preserve user data and include exported schemas and instrumentation tests.
+Room database version 5 is current. Version 4 is the first version released through Google Play and remains the preserving migration baseline. Pre-release database versions 1–3 are unsupported and are destructively recreated if encountered. Every migration after version 5 must preserve user data and include exported schemas and instrumentation tests.
 
 ## Repository layout
 

@@ -13,7 +13,7 @@ BeatClikr currently provides:
 - compact phone and expanded tablet navigation;
 - offline local operation without an account.
 
-The supported platform floor is Android 12/API 31. CI exercises that minimum and the Android 16/API 36 target; Android 17/API 37 compatibility remains a manual check until its CI emulator is stable.
+The supported platform floor is Android 12/API 31. CI exercises an API 31 phone, an API 36 phone, and an API 36 tablet; Android 17/API 37 compatibility remains a manual check until its CI emulator is stable.
 
 ## Android permissions and features
 
@@ -33,7 +33,7 @@ Metronome playback is foreground-only. Audio and flashlight resources stop when 
 
 ## Storage and backup
 
-Room and SharedPreferences store user-authored data locally. Generated PCM is regenerable internal data and should be excluded from backup. The current backup classification still requires verification and a concise privacy statement. Proprietary WAV files and signing material are never committed.
+Room and SharedPreferences store user-authored data locally. Backup uses an allowlist for the database and preferences; generated PCM, transient diagnostics, caches, and files are excluded. The concise offline and no-tracking policy is published in [Privacy.md](Privacy.md). Proprietary WAV files and signing material are never committed.
 
 ## Release validation
 

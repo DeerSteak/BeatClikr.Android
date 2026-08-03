@@ -31,4 +31,8 @@ The theme uses custom light and dark palettes; dynamic color is intentionally di
 
 ## UI validation
 
-Automated Compose coverage exists, but TalkBack, large fonts, RTL, landscape, tablet/foldable behavior, contrast, and reduced-motion behavior still require a formal acceptance matrix.
+Phase 7 automated coverage audits accessible labels and effective 48 dp touch bounds, keyboard focus, authoritative playback announcements, 2× font rendering, RTL and pseudolocales, compact and expanded window sizes, theme contrast, reduced motion, and differentiated screenshots for critical themes, layouts, and transport states. CI runs the bounded Compose suite on API 31 and API 36 phones plus an API 36 tablet.
+
+Direct tempo selection uses whole-BPM steps, while imported or stored decimal tempos remain valid and display with up to two fractional digits. Tap tempo uses Android elapsed-realtime nanoseconds, rejects accidental double taps and stale intervals, resets after inactivity, and uses a median estimator with concise confidence feedback.
+
+Preparing, playing, stopping, interrupted, and failed states come from authoritative transport state. Controls that cannot safely apply during a transition or active tempo ramp are disabled, failures remain distinct from secondary-output degradation, and Bluetooth is identified as latency-variable without promising deterministic correction. Transport and failure changes use live-region semantics; beat animation never generates per-beat accessibility announcements.

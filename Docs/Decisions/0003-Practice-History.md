@@ -45,13 +45,13 @@ The sibling iOS practice model is the reference behavior. Android mirrors its co
 
 Playback authority is never restored after process death. Transport state, process-scoped session IDs, pending commands, engine/focus ownership, route evidence, and rendered-event cursors restart empty and `Idle`; persisted navigation and preferences cannot authorize playback.
 
-Phase 5 may restore a durable practice-accounting checkpoint, including the last acknowledged lifecycle sequence and an unfinished accounting interval. Restoring that data may reconcile elapsed practice, but it must not submit Play or recreate audio authority without a new explicit user intent.
+The durable practice-accounting checkpoint stores the last acknowledged lifecycle sequence and any unfinished accounting interval. Restoring it may reconcile elapsed practice, but it never submits Play or recreates audio authority without a new explicit user intent.
 - **PH-020:** Reminder and streak calculations use only qualified daily history.
 - **PH-021:** Schema migration preserves existing records. Legacy entries without duration receive 30 seconds so previously earned history and streaks remain qualified, matching the iOS migration policy.
 
 ## Consequences
 
-Implementing this contract requires duration, period-count, and accounting state beyond the current schema. Phase 4 supplies authoritative playback events and Phase 5 supplies transactional accounting and migration.
+Room version 5 implements duration, period-count, and checkpoint state. The application-scoped accounting coordinator consumes authoritative playback events and persists each accounting update and checkpoint transactionally.
 
 The 30-second threshold matches the existing product intent while preventing taps, denied focus, and immediately stopped playback from creating misleading practice history.
 

@@ -58,7 +58,7 @@ The Android-free 2.2 model suite verifies exact decimal tempo normalization, exa
 
 The Phase 2.3 pure-timeline suite verifies iOS-compatible absolute rounding, exact awkward periods, first-event searches, every standard subdivision, additive accents, alternate-sixteenth sound roles, mute continuity, adjacent and overlapping range boundaries, session resets, a twelve-hour maximum-density endpoint, all 225 polyrhythm ratios, coincident-frame merging, complete-cycle voice indices, and deterministic tempo-ramp transitions. The timeline tests require no emulator and do not exercise production playback.
 
-The Phase 2.4 command suite verifies stale-session rejection, strict same-boundary ordering, atomic final configuration, standard and polyrhythm phase restarts, stable logical playback identity, deferred mute, and two-stage sound preparation and publication. These commands remain Android-free and are not connected to production playback until Phase 3.
+The Phase 2.4 command suite verifies stale-session rejection, strict same-boundary ordering, atomic final configuration, standard and polyrhythm phase restarts, stable logical playback identity, deferred mute, and two-stage sound preparation and publication. Production playback now consumes these Android-free commands through the coordinator and frame-publication boundary.
 
 `PlaybackInputBoundaryTest` verifies that invalid external configurations and command batches become typed failures before render handoff, valid values remain available to production consumers, and unexpected implementation exceptions are not mislabeled as recoverable input errors.
 
@@ -128,7 +128,11 @@ Final targeted Android qualification passed on 2026-08-02 on the Pixel 8a (`akit
 
 Separate JVM tests verify zero-allocation ring recording and zero-allocation every-block event rendering. Combined capture is covered functionally because HotSpot thread-allocation accounting for the inlined combination varies with compiler state; cross-thread publication visibility and torn-overwrite rejection have dedicated concurrency tests.
 
-New practice requests are intentionally not written through the legacy request-counting repository during this transition. Phase 5 introduces confirmed duration, the cumulative 30-second threshold, stable item identity, and transactional accounting; restoring a write on the first committed event would still violate that accepted contract.
+Phase 5 replaced legacy request counting with authoritative duration accounting. `PracticeAccountingCoordinatorTest`, repository tests, and version 4→5 migration instrumentation cover confirmed `Playing` time, the cumulative 30-second qualification threshold, repeated periods, checkpoint-time civil-day attribution, idempotent checkpoints, process recovery, and typed lifecycle-journal-gap resynchronization. Reserved metronome and polyrhythm identities remain stable while their display labels resolve from localized resources.
+
+Phase 6 qualification covers transactional playlist ordering, safe preference decoding and bounds, typed user-facing failures, last-good sound-bank degradation, backup/restore from a version-4-shaped data set, and bounded redacted diagnostics. The JVM suite, Android repository and migration tests, lint, benchmark assembly, and the minified release path passed during the phase review.
+
+Phase 7 adds monotonic median-based tap tempo, whole-step direct tempo selection with retained decimal display precision, authoritative playback status, transition-aware controls, localized sound labels, English/Spanish parity, accessibility semantics, effective touch-target auditing, keyboard focus, 2× font and RTL rendering, adaptive-window coverage, contrast checks, reduced-motion behavior, and differentiated screenshot assertions. Focused Pixel 8a checks for the adversarial-review corrections pass, and the full JVM suite, `lintDebug`, and `assembleBenchmark` pass together. The complete 34-test Compose class still requires one uninterrupted run on an awake, unlocked device before the Phase 7 exit gate is recorded complete.
 
 Renderer records cross a fixed primitive ring without render-path allocation and are materialized on the coordinator control context with session, event sequence, musical role, intended frame, mute state, and explicit correlated or unavailable presentation time. Ring overwrite is observable, runtime terminal backend failures enter authoritative `Failed`, and audio-focus loss reports a tagged interruption instead of letting the engine independently authorize teardown.
 
@@ -184,7 +188,7 @@ The pre-commit hook runs `tools/format_markdown.py` across repository Markdown. 
 
 GitHub Actions pins JDK 17 and required Android SDK components. Since proprietary WAV files are absent, CI generates deterministic placeholder tones from the tracked requirements.
 
-The emulator matrix runs the bounded instrumentation and contract suites at the supported floor, Android 12/API 31, and the current target, Android 16/API 36. Android 17/API 37 remains a manual compatibility check until its CI emulator is stable. Long-duration stress, startup benchmark, and acoustic timing tests remain explicit physical-device or performance runs.
+The emulator matrix runs the bounded instrumentation and contract suites on an Android 12/API 31 Pixel 6 phone, an Android 16/API 36 Pixel 6 phone, and an API 36 Pixel C tablet. Android 17/API 37 remains a manual compatibility check until its CI emulator is stable. Long-duration stress, startup benchmark, and acoustic timing tests remain explicit physical-device or performance runs.
 
 CI must start from a clean checkout. Success means the public source, declared toolchain, generated resources, tests, lint, debug build, and supported-version emulator checks agree. It does not mean a publishable production bundle exists.
 

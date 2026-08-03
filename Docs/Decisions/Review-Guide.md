@@ -36,7 +36,7 @@ The review compared the contracts with the sibling iOS implementation and docume
 
 - Missed deadlines are dropped against an absolute frame timeline instead of producing catch-up clicks.
 - Practice checkpoints use the current local civil-day record and original absolute timestamp exactly as iOS does; intervals are not split at exact midnight or timezone boundaries.
-- The current tap-tempo estimator is not frozen into the ADR so Phase 7 can use monotonic time and robust filtering.
+- The tap-tempo estimator is not frozen into the ADR; Phase 7 now uses monotonic time, interval rejection, inactivity reset, and median filtering.
 
 ### Product-owner clarifications
 

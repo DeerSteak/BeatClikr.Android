@@ -28,4 +28,4 @@ Android currently stores this data locally; it has no iCloud-equivalent cross-de
 
 ## Database policy
 
-Room version 4 is the supported baseline. Exported schemas live under `app/schemas/`. Every future production version requires a data-preserving migration and instrumentation fixture covering songs, playlists, entries, practice sessions, and relationships.
+Room version 5 is current, and version 4 is the supported preserving migration baseline. Exported schemas live under `app/schemas/`. Every future production version requires a data-preserving migration and instrumentation fixture covering songs, playlists, entries, practice sessions, accounting checkpoints, and relationships.

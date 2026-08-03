@@ -9,16 +9,17 @@ BeatClikr stores structured user data with Room and represents musical choices w
 | `Song` | Title, artist, tempo, meter, groove, optional odd-meter pattern, and legacy sequence fields |
 | `Playlist` | Named ordered collection with creation time |
 | `PlaylistEntry` | Song membership and sequence within a playlist |
-| `PracticeSession` | One local calendar day of practice |
-| `PracticedSong` | Aggregated practice count and a snapshot of the practiced item |
+| `PracticeSession` | One stable civil calendar day of qualified practice |
+| `PracticedSong` | Duration, completed-period count, and a snapshot of the practiced item |
+| `PracticeAccountingCheckpoint` | Idempotent lifecycle-accounting and recovery position |
 
 `PlaylistEntry` cascades deletion from its playlist or song. Practice items cascade from their session. UUIDs are persisted through Room converters. Relation projections (`PlaylistWithEntries`, `PlaylistEntryWithSong`, and `PracticeSessionWithSongs`) assemble screen-ready graphs without making them independent entities.
 
 ## Practice-day identity
 
-Practice sessions are grouped by the device's local calendar day. Repeated practice of the same `songId` increments `timesPracticed`; metronome and polyrhythm activity use stable synthetic IDs. This policy intentionally matches the day shown in the history calendar rather than UTC.
+Practice sessions are grouped by the civil day and zone observed at each accounting checkpoint. The entire monotonic interval since the prior checkpoint belongs to that selected bucket; exact midnight and timezone boundaries are not invented. Repeated periods for the same stable item ID accumulate duration and completed-period counts. Metronome and polyrhythm use reserved synthetic IDs whose labels are resolved by the UI rather than persisted as English display text.
 
-Room version 4 is the supported migration baseline. Unknown versions 1–3 are destructively recreated; migrations after version 4 must preserve user data and ship with schema fixtures.
+Room version 5 is current. Version 4 is the supported preserving migration baseline; unknown versions 1–3 are destructively recreated. Migrations after version 5 must preserve user data and ship with schema fixtures.
 
 ## Musical models
 
@@ -48,6 +49,6 @@ The Phase 2 music package is deliberately Android-free. Its exact configurations
 
 Where concepts already exist on iOS, the Android-free model uses the same terminology: `bpm`, `beats`, `against`, `subdivisions`, `alternateSixteenth`, `muteMetronome`, `sessionID`, `cycleIndex`, and event `index`. New frame-domain concepts retain their contract-oriented names until both platforms adopt a shared replacement model.
 
-Several enums currently contain display text. Moving presentation strings to localized resources remains remediation work.
+User-facing sound-bank and sound-file labels are resource-backed. Stable raw values and contract identifiers remain untranslated; pattern notation such as `3+2+2` is data rather than prose.
 
-The Android-free models intentionally do not contain resource IDs, Android clocks, handlers, audio objects, or persistence annotations. The existing Android engine remains the production timing source until Phase 3.
+The Android-free models intentionally do not contain resource IDs, Android clocks, handlers, audio objects, or persistence annotations. Production rendering consumes their exact frame timelines through the Android integration boundary.
