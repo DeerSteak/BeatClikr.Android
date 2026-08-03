@@ -13,6 +13,7 @@ import com.bfunkstudios.beatclikr.data.Groove
 fun GrooveSelector(
     selected: Groove,
     onSelect: (Groove) -> Unit,
+    enabled: Boolean = true,
     modifier: Modifier = Modifier
 ) {
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -22,6 +23,7 @@ fun GrooveSelector(
                     GrooveButton(
                         groove = groove,
                         isSelected = selected == groove,
+                        enabled = enabled,
                         onClick = { onSelect(groove) },
                         modifier = Modifier.weight(1f)
                     )

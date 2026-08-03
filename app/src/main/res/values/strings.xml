@@ -36,6 +36,7 @@
     <string name="copyright_value">© 2026 Benjamin Funk</string>
     <string name="copy_diagnostics">Copy diagnostics</string>
     <string name="share_diagnostics">Share diagnostics</string>
+    <string name="diagnostics_clipboard_label">BeatClikr diagnostics</string>
     <string name="previous">Previous</string>
     <string name="next">Next</string>
     <string name="now_playing">Now Playing</string>
@@ -44,6 +45,12 @@
     <!-- Metronome screen -->
     <string name="bpm">BPM</string>
     <string name="tap_tempo">TAP\nTEMPO</string>
+    <string name="tap_tempo_listening">Tap again</string>
+    <string name="tap_tempo_building">Finding tempo…</string>
+    <string name="tap_tempo_steady">Tempo locked</string>
+    <string name="tap_tempo_reset">Tap tempo reset</string>
+    <string name="decrease_value">Decrease %1$s</string>
+    <string name="increase_value">Increase %1$s</string>
     <string name="groove">Groove</string>
     <string name="beat">Beat</string>
     <string name="rhythm">Rhythm</string>
@@ -126,6 +133,8 @@
     <string name="close">Close</string>
     <string name="reorder">Reorder</string>
     <string name="edit_song">Edit Song</string>
+    <string name="delete_song">Delete song</string>
+    <string name="delete_playlist">Delete playlist</string>
     <string name="focus_view">Focus View</string>
     <string name="previous_month">Previous month</string>
     <string name="next_month">Next month</string>
@@ -137,6 +146,33 @@
     <string name="practice_duration_minutes_seconds">%1$dm %2$ds</string>
     <string name="practice_duration_seconds">%1$ds</string>
     <string name="bluetooth_latency_warning">Bluetooth timing varies by device and may not match speaker latency.</string>
+    <string name="playback_status_preparing">Preparing audio…</string>
+    <string name="playback_status_playing">Playing</string>
+    <string name="playback_status_stopping">Stopping…</string>
+    <string name="playback_status_interrupted">Playback interrupted</string>
+    <string name="playback_status_failed">Playback failed</string>
+    <string name="tempo_locked_during_ramp">Tempo is controlled by the active ramp.</string>
+    <string name="sound_click_hi">High click</string>
+    <string name="sound_click_lo">Low click</string>
+    <string name="sound_cowbell">Cowbell</string>
+    <string name="sound_crash_left">Crash (left)</string>
+    <string name="sound_crash_right">Crash (right)</string>
+    <string name="sound_hat_closed">Hi-hat (closed)</string>
+    <string name="sound_hat_open">Hi-hat (open)</string>
+    <string name="sound_kick">Kick</string>
+    <string name="sound_ride_edge">Ride (edge)</string>
+    <string name="sound_ride_bell">Ride (bell)</string>
+    <string name="sound_snare">Snare</string>
+    <string name="sound_tambourine">Tambourine</string>
+    <string name="sound_tom_high">Tom (high)</string>
+    <string name="sound_tom_low">Tom (low)</string>
+    <string name="sound_tom_mid">Tom (middle)</string>
+    <string name="day_streak">day streak</string>
+    <string name="song_artist_tempo">%1$s / %2$s BPM</string>
+    <plurals name="song_count">
+        <item quantity="one">%1$d song</item>
+        <item quantity="other">%1$d songs</item>
+    </plurals>
     <string name="playback_focus_unavailable">Playback couldn’t start because audio focus is unavailable.</string>
     <string name="playback_route_unavailable">Playback couldn’t start because no audio output is available.</string>
     <string name="playback_sound_unavailable">Playback couldn’t start because the selected sounds are unavailable.</string>

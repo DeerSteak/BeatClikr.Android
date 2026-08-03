@@ -22,6 +22,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.res.stringResource
 import com.bfunkstudios.beatclikr.data.SoundFile
 
 @Composable
@@ -51,7 +52,7 @@ fun SoundPickerRow(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = selected.displayName,
+                    text = stringResource(selected.labelRes),
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.secondary
                 )
@@ -68,7 +69,7 @@ fun SoundPickerRow(
             ) {
                 options.forEach { option ->
                     DropdownMenuItem(
-                        text = { Text(option.displayName, style = MaterialTheme.typography.bodyLarge) },
+                        text = { Text(stringResource(option.labelRes), style = MaterialTheme.typography.bodyLarge) },
                         onClick = {
                             onSelect(option)
                             expanded = false

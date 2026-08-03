@@ -32,6 +32,22 @@ sealed interface PlaybackUiDiagnostic {
     data class Interruption(val reason: PlaybackInterruptionReason) : PlaybackUiDiagnostic
 }
 
+enum class PlaybackUiStatus { PREPARING, PLAYING, STOPPING, INTERRUPTED, FAILED }
+
+internal fun PlaybackTransportState.uiStatus(mode: PlaybackMode): PlaybackUiStatus? {
+    val session = this as? PlaybackTransportState.SessionState ?: return null
+    if (session.context.mode != mode) return null
+    return when (this) {
+        is PlaybackTransportState.Preparing,
+        is PlaybackTransportState.Starting -> PlaybackUiStatus.PREPARING
+        is PlaybackTransportState.Playing -> PlaybackUiStatus.PLAYING
+        is PlaybackTransportState.Stopping -> PlaybackUiStatus.STOPPING
+        is PlaybackTransportState.Interrupted -> PlaybackUiStatus.INTERRUPTED
+        is PlaybackTransportState.Failed -> PlaybackUiStatus.FAILED
+        PlaybackTransportState.Idle -> null
+    }
+}
+
 internal fun PlaybackTransportState.updateDiagnostic(
     retained: PlaybackUiDiagnostic?
 ): PlaybackUiDiagnostic? = when (this) {

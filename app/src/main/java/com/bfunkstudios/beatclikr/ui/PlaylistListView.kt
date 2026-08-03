@@ -29,6 +29,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.unit.dp
 import com.bfunkstudios.beatclikr.R
 import com.bfunkstudios.beatclikr.data.PlaylistWithEntries
@@ -169,7 +170,7 @@ private fun PlaylistRow(
                 style = MaterialTheme.typography.bodyLarge
             )
             Text(
-                text = "$count ${if (count == 1) "song" else "songs"}",
+                text = pluralStringResource(R.plurals.song_count, count, count),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -178,7 +179,7 @@ private fun PlaylistRow(
             IconButton(onClick = onDelete) {
                 Icon(
                     imageVector = Icons.Default.Delete,
-                    contentDescription = null,
+                    contentDescription = stringResource(R.string.delete_playlist),
                     tint = MaterialTheme.colorScheme.error
                 )
             }

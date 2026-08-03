@@ -66,6 +66,9 @@ class MetronomeViewModel @Inject constructor(
     val hasVariableOutputLatency: Boolean
         get() = transportState.hasVariableOutputLatency(PlaybackMode.STANDARD)
 
+    val playbackStatus: PlaybackUiStatus?
+        get() = transportState.uiStatus(PlaybackMode.STANDARD)
+
     var lastPlaybackDiagnostic by mutableStateOf<PlaybackUiDiagnostic?>(null)
         private set
 
@@ -109,7 +112,9 @@ class MetronomeViewModel @Inject constructor(
         increment = prefs.rampIncrement,
         interval = prefs.rampInterval
     )
-    private val tapTimestamps = mutableListOf<Long>()
+    private val tapTempoTracker = TapTempoTracker()
+    var tapTempoFeedback by mutableStateOf<TapTempoFeedback?>(null)
+        private set
     private var choreographer: Choreographer? = null
     private var choreographerCallback: Choreographer.FrameCallback? = null
     private var lastBeatTimeNanos: Long = 0L
@@ -348,22 +353,10 @@ class MetronomeViewModel @Inject constructor(
         audio.stopPlayback()
     }
 
-    fun recordTap() {
-        val now = System.currentTimeMillis()
-
-        if (tapTimestamps.isNotEmpty() && now - tapTimestamps.last() > 2000) {
-            tapTimestamps.clear()
-        }
-
-        tapTimestamps.add(now)
-        if (tapTimestamps.size > 8) tapTimestamps.removeAt(0)
-        if (tapTimestamps.size < 2) return
-
-        val avgIntervalMs = (0 until tapTimestamps.size - 1)
-            .map { tapTimestamps[it + 1] - tapTimestamps[it] }
-            .average()
-
-        updateBPM((60_000.0 / avgIntervalMs).toFloat())
+    fun recordTap(elapsedRealtimeNanos: Long = SystemClock.elapsedRealtimeNanos()) {
+        val result = tapTempoTracker.record(elapsedRealtimeNanos)
+        tapTempoFeedback = result.feedback
+        result.bpm?.let { updateBPM(it.toFloat()) }
     }
 
     internal fun applyStandardEvent(

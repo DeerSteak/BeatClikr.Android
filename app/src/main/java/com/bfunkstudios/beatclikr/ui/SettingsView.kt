@@ -55,6 +55,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.core.app.ActivityCompat
@@ -430,7 +432,10 @@ private fun AboutSection(viewModel: SettingsViewModel, context: Context) {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
             TextButton(onClick = {
                 context.getSystemService(ClipboardManager::class.java)?.setPrimaryClip(
-                    ClipData.newPlainText("BeatClikr diagnostics", viewModel.diagnosticReport())
+                    ClipData.newPlainText(
+                        context.getString(R.string.diagnostics_clipboard_label),
+                        viewModel.diagnosticReport()
+                    )
                 )
             }) {
                 Text(stringResource(R.string.copy_diagnostics))
@@ -580,7 +585,7 @@ private fun SettingsToggleRow(
         Switch(
             checked = checked,
             onCheckedChange = onCheckedChange,
-            modifier = switchModifier
+            modifier = switchModifier.semantics { contentDescription = label }
         )
     }
 }

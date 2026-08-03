@@ -27,7 +27,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.bfunkstudios.beatclikr.R
-import com.bfunkstudios.beatclikr.constants.AppLocale
+import com.bfunkstudios.beatclikr.ui.formatBpm
 import com.bfunkstudios.beatclikr.data.Song
 
 @Composable
@@ -54,7 +54,7 @@ fun SongListItem(
                 IconButton(onClick = onDelete) {
                     Icon(
                         imageVector = Icons.Outlined.RemoveCircle,
-                        contentDescription = null,
+                        contentDescription = stringResource(R.string.delete_song),
                         tint = MaterialTheme.colorScheme.error,
                         modifier = Modifier.size(28.dp)
                     )
@@ -85,7 +85,7 @@ fun SongListItem(
                 overflow = TextOverflow.Ellipsis
             )
             Text(
-                text = "${song.artist}  /  ${String.format(AppLocale, "%.0f", song.beatsPerMinute)} BPM",
+                text = stringResource(R.string.song_artist_tempo, song.artist, formatBpm(song.beatsPerMinute)),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
@@ -113,7 +113,7 @@ fun SongListItem(
                     IconButton(onClick = onDelete) {
                         Icon(
                             imageVector = Icons.Outlined.Delete,
-                            contentDescription = null,
+                            contentDescription = stringResource(R.string.delete_song),
                             tint = MaterialTheme.colorScheme.error,
                             modifier = Modifier.size(22.dp)
                         )
@@ -125,7 +125,7 @@ fun SongListItem(
                 IconButton(onClick = onEdit) {
                     Icon(
                         imageVector = Icons.Outlined.Edit,
-                        contentDescription = null,
+                        contentDescription = stringResource(R.string.edit_song),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.size(22.dp)
                     )

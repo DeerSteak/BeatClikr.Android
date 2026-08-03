@@ -7,6 +7,7 @@ import android.provider.Settings
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
@@ -190,8 +191,9 @@ private fun BeatClikrNavigationContent(
     val contentScaffold: @Composable () -> Unit = {
         Scaffold(
         topBar = {
-            if (currentRoute != ROUTE_INSTANT) {
-                BeatClikrAppBar(
+            Column {
+                if (currentRoute != ROUTE_INSTANT) {
+                    BeatClikrAppBar(
                     title = appBarTitle,
                     canNavigateBack = !isTopLevel,
                     navigateUp = { navController.popBackStack() },
@@ -259,7 +261,23 @@ private fun BeatClikrNavigationContent(
                             }
                         }
                     }
-                )
+                    )
+                }
+                if (currentRoute != ROUTE_INSTANT && currentRoute != ROUTE_POLYRHYTHM) {
+                    Column(modifier = Modifier.padding(horizontal = 16.dp)) {
+                        PlaybackStatusText(
+                            metronomeViewModel.playbackStatus ?: polyrhythmViewModel.playbackStatus
+                        )
+                        PlaybackDiagnosticText(
+                            metronomeViewModel.lastPlaybackDiagnostic
+                                ?: polyrhythmViewModel.lastPlaybackDiagnostic
+                        )
+                        VariableLatencyWarning(
+                            metronomeViewModel.hasVariableOutputLatency ||
+                                polyrhythmViewModel.hasVariableOutputLatency
+                        )
+                    }
+                }
             }
         },
         bottomBar = {

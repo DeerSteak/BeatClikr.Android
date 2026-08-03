@@ -1,12 +1,13 @@
 package com.bfunkstudios.beatclikr.ui
 
-import androidx.compose.animation.core.animateFloatAsState
+import android.animation.ValueAnimator
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
@@ -44,9 +45,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.bfunkstudios.beatclikr.R
-import com.bfunkstudios.beatclikr.constants.AppLocale
 import com.bfunkstudios.beatclikr.constants.MetronomeConstants
 import com.bfunkstudios.beatclikr.ui.components.BeatPatternSelector
 import com.bfunkstudios.beatclikr.ui.components.BpmSliderControl
@@ -60,6 +64,7 @@ fun MetronomeView(
     modifier: Modifier = Modifier,
     viewModel: MetronomeViewModel = hiltViewModel()
 ) {
+    val motionEnabled = ValueAnimator.areAnimatorsEnabled()
     LaunchedEffect(Unit) {
         val beatResId = viewModel.selectedBeatSound.resourceId
         val rhythmResId = viewModel.selectedRhythmSound.resourceId
@@ -79,21 +84,22 @@ fun MetronomeView(
     ) {
         SecondaryOutputFailureText(viewModel.lastSecondaryOutputFailure)
         PlaybackDiagnosticText(viewModel.lastPlaybackDiagnostic)
+        PlaybackStatusText(viewModel.playbackStatus)
         VariableLatencyWarning(viewModel.hasVariableOutputLatency)
         SectionCard {
             Column(
                 modifier = Modifier.padding(12.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Row(
+                FlowRow(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceEvenly,
-                    verticalAlignment = Alignment.CenterVertically
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         Spacer(modifier = Modifier.size(MetronomeConstants.PLAYER_VIEW_DEFAULT_SIZE.dp))
                         MetronomePlayerView(
-                            scale = viewModel.iconScale,
+                            scale = if (motionEnabled) viewModel.iconScale else MetronomeConstants.ICON_SCALE_MIN,
                             bpm = viewModel.beatsPerMinute,
                             size = MetronomeConstants.PLAYER_VIEW_DEFAULT_SIZE.dp
                         )
@@ -103,12 +109,8 @@ fun MetronomeView(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        val animatedBpm by animateFloatAsState(
-                            targetValue = viewModel.beatsPerMinute,
-                            label = "bpm_animation"
-                        )
                         Text(
-                            text = String.format(AppLocale, "%.0f", animatedBpm),
+                            text = formatBpm(viewModel.beatsPerMinute),
                             fontSize = 60.sp,
                             fontWeight = FontWeight.Thin,
                             textAlign = TextAlign.Center
@@ -121,12 +123,21 @@ fun MetronomeView(
                         )
                     }
 
+                    val tapLabel = stringResource(R.string.tap_tempo)
+                    val tapFeedback = tapFeedbackText(viewModel.tapTempoFeedback)
                     Box(
                         modifier = Modifier
                             .size(MetronomeConstants.PLAYER_VIEW_DEFAULT_SIZE.dp)
                             .clip(CircleShape)
                             .background(MaterialTheme.colorScheme.secondary.copy(alpha = 0.15f))
-                            .clickable { viewModel.recordTap() },
+                            .semantics {
+                                role = Role.Button
+                                contentDescription = "$tapLabel. $tapFeedback"
+                            }
+                            .clickable(
+                                enabled = viewModel.controlsEnabled &&
+                                    !(viewModel.rampEnabled && viewModel.isPlaying)
+                            ) { viewModel.recordTap() },
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
@@ -142,6 +153,14 @@ fun MetronomeView(
                     }
                 }
 
+                viewModel.tapTempoFeedback?.let {
+                    Text(
+                        text = tapFeedbackText(it),
+                        style = MaterialTheme.typography.labelMedium,
+                        modifier = Modifier.align(Alignment.End)
+                    )
+                }
+
                 BpmSliderControl(
                     value = viewModel.beatsPerMinute,
                     onValueChange = { viewModel.updateBPM(it) },
@@ -149,6 +168,12 @@ fun MetronomeView(
                     enabled = viewModel.controlsEnabled &&
                         !(viewModel.rampEnabled && viewModel.isPlaying)
                 )
+                if (viewModel.rampEnabled && viewModel.isPlaying) {
+                    Text(
+                        text = stringResource(R.string.tempo_locked_during_ramp),
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
             }
         }
 
@@ -167,7 +192,8 @@ fun MetronomeView(
 
                 GrooveSelector(
                     selected = viewModel.selectedGroove,
-                    onSelect = { viewModel.updateGroove(it) }
+                    onSelect = { viewModel.updateGroove(it) },
+                    enabled = viewModel.controlsEnabled
                 )
                 if (viewModel.selectedGroove.isOddMeter) {
                     Text(
@@ -179,7 +205,8 @@ fun MetronomeView(
                     )
                     BeatPatternSelector(
                         selected = viewModel.selectedBeatPattern,
-                        onSelect = { viewModel.updateBeatPattern(it) }
+                        onSelect = { viewModel.updateBeatPattern(it) },
+                        enabled = viewModel.controlsEnabled
                     )
                 }
             }
@@ -187,6 +214,7 @@ fun MetronomeView(
 
         SectionCard {
             Column {
+                val tempoRampLabel = stringResource(R.string.tempo_ramp)
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -194,13 +222,15 @@ fun MetronomeView(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = stringResource(R.string.tempo_ramp),
+                        text = tempoRampLabel,
                         style = MaterialTheme.typography.titleMedium,
                         modifier = Modifier.weight(1f)
                     )
                     Switch(
                         checked = viewModel.rampEnabled,
-                        onCheckedChange = { viewModel.updateRampEnabled(it) }
+                        enabled = viewModel.controlsEnabled,
+                        onCheckedChange = { viewModel.updateRampEnabled(it) },
+                        modifier = Modifier.semantics { contentDescription = tempoRampLabel }
                     )
                 }
 
@@ -209,6 +239,7 @@ fun MetronomeView(
                     RampStepperRow(
                         label = stringResource(R.string.ramp_increase_by),
                         valueLabel = stringResource(R.string.ramp_bpm_value, viewModel.rampIncrement),
+                        enabled = viewModel.controlsEnabled,
                         onDecrease = {
                             val options = RampController.supportedIncrements
                             viewModel.updateRampIncrement(previousOption(viewModel.rampIncrement, options))
@@ -222,6 +253,7 @@ fun MetronomeView(
                     RampStepperRow(
                         label = stringResource(R.string.ramp_every),
                         valueLabel = stringResource(R.string.ramp_beats_value, viewModel.rampInterval),
+                        enabled = viewModel.controlsEnabled,
                         onDecrease = {
                             val options = RampController.supportedIntervals
                             viewModel.updateRampInterval(previousOption(viewModel.rampInterval, options))
@@ -307,9 +339,12 @@ private fun PlayPauseButton(
 private fun RampStepperRow(
     label: String,
     valueLabel: String,
+    enabled: Boolean,
     onDecrease: () -> Unit,
     onIncrease: () -> Unit
 ) {
+    val decreaseLabel = stringResource(R.string.decrease_value, label)
+    val increaseLabel = stringResource(R.string.increase_value, label)
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -321,7 +356,11 @@ private fun RampStepperRow(
             style = MaterialTheme.typography.bodyLarge,
             modifier = Modifier.weight(1f)
         )
-        IconButton(onClick = onDecrease) {
+        IconButton(
+            onClick = onDecrease,
+            enabled = enabled,
+            modifier = Modifier.semantics { contentDescription = decreaseLabel }
+        ) {
             Icon(imageVector = Icons.Default.Remove, contentDescription = null)
         }
         Text(
@@ -330,11 +369,25 @@ private fun RampStepperRow(
             textAlign = TextAlign.Center,
             modifier = Modifier.width(72.dp)
         )
-        IconButton(onClick = onIncrease) {
+        IconButton(
+            onClick = onIncrease,
+            enabled = enabled,
+            modifier = Modifier.semantics { contentDescription = increaseLabel }
+        ) {
             Icon(imageVector = Icons.Default.Add, contentDescription = null)
         }
     }
 }
+
+@Composable
+private fun tapFeedbackText(feedback: TapTempoFeedback?): String = stringResource(
+    when (feedback) {
+        TapTempoFeedback.LISTENING, null -> R.string.tap_tempo_listening
+        TapTempoFeedback.BUILDING -> R.string.tap_tempo_building
+        TapTempoFeedback.STEADY -> R.string.tap_tempo_steady
+        TapTempoFeedback.RESET -> R.string.tap_tempo_reset
+    }
+)
 
 private fun previousOption(current: Int, options: List<Int>): Int {
     val currentIndex = options.indexOf(current).takeIf { it >= 0 } ?: 0

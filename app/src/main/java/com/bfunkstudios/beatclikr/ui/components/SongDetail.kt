@@ -34,7 +34,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.bfunkstudios.beatclikr.R
-import com.bfunkstudios.beatclikr.constants.AppLocale
+import com.bfunkstudios.beatclikr.ui.formatBpm
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import com.bfunkstudios.beatclikr.constants.MetronomeConstants
 import com.bfunkstudios.beatclikr.ui.SongLibraryViewModel
 
@@ -85,7 +87,7 @@ fun SongDetail(
                 ) {
                     Text(text = stringResource(R.string.bpm), style = MaterialTheme.typography.titleMedium)
                     Text(
-                        text = String.format(AppLocale, "%.0f", viewModel.draftBpm),
+                        text = formatBpm(viewModel.draftBpm),
                         fontSize = 28.sp,
                         fontWeight = FontWeight.Thin
                     )
@@ -98,13 +100,16 @@ fun SongDetail(
             }
             HorizontalDivider(modifier = Modifier.padding(start = 12.dp))
             FormRow(label = stringResource(R.string.beats_per_bar)) {
+                val beatsLabel = stringResource(R.string.beats_per_bar)
+                val decreaseLabel = stringResource(R.string.decrease_value, beatsLabel)
+                val increaseLabel = stringResource(R.string.increase_value, beatsLabel)
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     OutlinedIconButton(
                         onClick = { viewModel.updateDraftBeatsPerMeasure(viewModel.draftBeatsPerMeasure - 1) },
-                        modifier = Modifier.size(48.dp)
+                        modifier = Modifier.size(48.dp).semantics { contentDescription = decreaseLabel }
                     ) {
                         Text("−", fontSize = 24.sp, fontWeight = FontWeight.Bold)
                     }
@@ -115,7 +120,7 @@ fun SongDetail(
                     )
                     OutlinedIconButton(
                         onClick = { viewModel.updateDraftBeatsPerMeasure(viewModel.draftBeatsPerMeasure + 1) },
-                        modifier = Modifier.size(48.dp)
+                        modifier = Modifier.size(48.dp).semantics { contentDescription = increaseLabel }
                     ) {
                         Icon(imageVector = Icons.Default.Add, contentDescription = null)
                     }

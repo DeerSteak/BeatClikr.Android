@@ -22,19 +22,21 @@ import com.bfunkstudios.beatclikr.data.BeatPattern
 fun BeatPatternSelector(
     selected: BeatPattern,
     onSelect: (BeatPattern) -> Unit,
+    enabled: Boolean = true,
     modifier: Modifier = Modifier
 ) {
     var expanded by remember { mutableStateOf(false) }
 
     ExposedDropdownMenuBox(
         expanded = expanded,
-        onExpandedChange = { expanded = it },
+        onExpandedChange = { if (enabled) expanded = it },
         modifier = modifier
     ) {
         OutlinedTextField(
             value = selected.displayName,
             onValueChange = {},
             readOnly = true,
+            enabled = enabled,
             singleLine = true,
             textStyle = MaterialTheme.typography.bodyLarge,
             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },

@@ -27,6 +27,7 @@ android {
     buildTypes {
         debug {
             applicationIdSuffix = ".debug"
+            isPseudoLocalesEnabled = true
         }
         release {
             isMinifyEnabled = true

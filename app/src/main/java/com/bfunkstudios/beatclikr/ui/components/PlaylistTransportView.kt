@@ -1,5 +1,6 @@
 package com.bfunkstudios.beatclikr.ui.components
 
+import android.animation.ValueAnimator
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -29,6 +30,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import com.bfunkstudios.beatclikr.R
 
 @Composable
@@ -44,7 +47,11 @@ fun PlaylistTransportView(
     onNext: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val pulseAlpha = if (isPlaying) beatPulse.coerceIn(0f, 1f) * 0.35f else 0f
+    val pulseAlpha = if (isPlaying && ValueAnimator.areAnimatorsEnabled()) {
+        beatPulse.coerceIn(0f, 1f) * 0.35f
+    } else {
+        0f
+    }
     Column(
         modifier = modifier
             .fillMaxWidth()
@@ -136,11 +143,13 @@ private fun PlayPauseTransportButton(
     isPlaying: Boolean,
     onClick: () -> Unit
 ) {
+    val actionLabel = stringResource(if (isPlaying) R.string.pause else R.string.play)
     IconButton(
         onClick = onClick,
         modifier = Modifier
             .size(56.dp)
             .background(MaterialTheme.colorScheme.secondary, MaterialTheme.shapes.medium)
+            .semantics { contentDescription = actionLabel }
     ) {
         if (isPlaying) {
             Row(
@@ -161,7 +170,7 @@ private fun PlayPauseTransportButton(
         } else {
             Icon(
                 imageVector = Icons.Default.PlayArrow,
-                contentDescription = stringResource(R.string.play),
+                contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSecondary
             )
         }

@@ -65,10 +65,12 @@ jobs:
             api-label: "31"
             arch: x86_64
             runner: ubuntu-latest
+            profile: pixel_6
           - api-level: "36"
-            api-label: "36"
+            api-label: "36-tablet"
             arch: x86_64
             runner: ubuntu-latest
+            profile: pixel_c
 
     steps:
       - name: Check out repository
@@ -106,7 +108,7 @@ jobs:
           api-level: ${{ matrix.api-level }}
           arch: ${{ matrix.arch }}
           target: google_apis
-          profile: pixel_6
+          profile: ${{ matrix.profile }}
           disable-animations: true
           emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-metrics
           pre-emulator-launch-script: adb start-server

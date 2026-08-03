@@ -36,6 +36,7 @@
     <string name="copyright_value">© 2026 Benjamin Funk</string>
     <string name="copy_diagnostics">Copiar diagnóstico</string>
     <string name="share_diagnostics">Compartir diagnóstico</string>
+    <string name="diagnostics_clipboard_label">Diagnóstico de BeatClikr</string>
     <string name="previous">Anterior</string>
     <string name="next">Siguiente</string>
     <string name="now_playing">Reproduciendo ahora</string>
@@ -44,6 +45,12 @@
     <!-- Metronome screen -->
     <string name="bpm">BPM</string>
     <string name="tap_tempo">TAP\nTEMPO</string>
+    <string name="tap_tempo_listening">Toca de nuevo</string>
+    <string name="tap_tempo_building">Calculando tempo…</string>
+    <string name="tap_tempo_steady">Tempo fijado</string>
+    <string name="tap_tempo_reset">Tempo por pulsación reiniciado</string>
+    <string name="decrease_value">Disminuir %1$s</string>
+    <string name="increase_value">Aumentar %1$s</string>
     <string name="groove">Groove</string>
     <string name="beat">Pulso</string>
     <string name="rhythm">Ritmo</string>
@@ -126,6 +133,8 @@
     <string name="close">Cerrar</string>
     <string name="reorder">Reordenar</string>
     <string name="edit_song">Editar canción</string>
+    <string name="delete_song">Eliminar canción</string>
+    <string name="delete_playlist">Eliminar lista</string>
     <string name="focus_view">Vista enfocada</string>
     <string name="previous_month">Mes anterior</string>
     <string name="next_month">Mes siguiente</string>
@@ -137,6 +146,33 @@
     <string name="practice_duration_minutes_seconds">%1$dm %2$ds</string>
     <string name="practice_duration_seconds">%1$ds</string>
     <string name="bluetooth_latency_warning">La sincronización por Bluetooth varía según el dispositivo y puede no coincidir con la latencia del altavoz.</string>
+    <string name="playback_status_preparing">Preparando audio…</string>
+    <string name="playback_status_playing">Reproduciendo</string>
+    <string name="playback_status_stopping">Deteniendo…</string>
+    <string name="playback_status_interrupted">Reproducción interrumpida</string>
+    <string name="playback_status_failed">Error de reproducción</string>
+    <string name="tempo_locked_during_ramp">El tempo está controlado por el incremento activo.</string>
+    <string name="sound_click_hi">Clic agudo</string>
+    <string name="sound_click_lo">Clic grave</string>
+    <string name="sound_cowbell">Cencerro</string>
+    <string name="sound_crash_left">Crash (izquierdo)</string>
+    <string name="sound_crash_right">Crash (derecho)</string>
+    <string name="sound_hat_closed">Charles (cerrado)</string>
+    <string name="sound_hat_open">Charles (abierto)</string>
+    <string name="sound_kick">Bombo</string>
+    <string name="sound_ride_edge">Ride (borde)</string>
+    <string name="sound_ride_bell">Ride (campana)</string>
+    <string name="sound_snare">Caja</string>
+    <string name="sound_tambourine">Pandereta</string>
+    <string name="sound_tom_high">Tom (agudo)</string>
+    <string name="sound_tom_low">Tom (grave)</string>
+    <string name="sound_tom_mid">Tom (medio)</string>
+    <string name="day_streak">días seguidos</string>
+    <string name="song_artist_tempo">%1$s / %2$s BPM</string>
+    <plurals name="song_count">
+        <item quantity="one">%1$d canción</item>
+        <item quantity="other">%1$d canciones</item>
+    </plurals>
     <string name="playback_focus_unavailable">La reproducción no pudo comenzar porque el enfoque de audio no está disponible.</string>
     <string name="playback_route_unavailable">La reproducción no pudo comenzar porque no hay una salida de audio disponible.</string>
     <string name="playback_sound_unavailable">La reproducción no pudo comenzar porque los sonidos seleccionados no están disponibles.</string>
