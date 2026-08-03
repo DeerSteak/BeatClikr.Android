@@ -15,7 +15,8 @@ interface IAudioPlayerService {
     fun release()
 }
 
-class PlaybackLifecycleDiagnostic internal constructor(
+@ConsistentCopyVisibility
+data class PlaybackLifecycleDiagnostic internal constructor(
     val sequence: Long,
     val fromState: String,
     val toState: String

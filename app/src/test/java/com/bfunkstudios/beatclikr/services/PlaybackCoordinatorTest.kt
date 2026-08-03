@@ -180,7 +180,7 @@ class PlaybackCoordinatorTest {
     }
 
     @Test
-    fun configurationAndMuteChangesDoNotTearDownTheActiveMode() {
+    fun mt022_configurationAndMuteChangesDoNotTearDownTheActiveMode() {
         val engine = FakePlaybackEngine()
         val coordinator = PlaybackCoordinator(engine)
         try {
@@ -971,7 +971,7 @@ class PlaybackCoordinatorTest {
     }
 
     @Test
-    fun liveSoundAdoptionUpdatesOwnershipAndTransportTogether() {
+    fun mt022_liveSoundAdoptionUpdatesOwnershipAndTransportTogether() {
         val engine = FakePlaybackEngine()
         val coordinator = PlaybackCoordinator(engine)
         try {

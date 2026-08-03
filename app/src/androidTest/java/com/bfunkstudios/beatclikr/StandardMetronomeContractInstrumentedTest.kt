@@ -95,7 +95,7 @@ class StandardMetronomeContractInstrumentedTest {
     }
 
     @Test
-    fun mt011_mt014_restartBeginsAtTickZeroWithoutCountInAndStopEndsPhase() {
+    fun mt011_mt013_mt014_restartBeginsAtTickZeroWithoutCountInAndStopEndsPhase() {
         val fixture = StandardMetronomeFixture(bpm = 240f, subdivisions = 4)
         withEngine { engine ->
             val firstSessionCallbacks = AtomicInteger()
