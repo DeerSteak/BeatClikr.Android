@@ -483,9 +483,3 @@ class MetronomeViewModel @Inject constructor(
         pendingBeatEvent.set(null)
     }
 }
-
-private fun PlaybackTransportState.sessionIdFor(mode: PlaybackMode): PlaybackSessionId? =
-    (this as? PlaybackTransportState.SessionState)
-        ?.context
-        ?.takeIf { it.mode == mode }
-        ?.sessionId

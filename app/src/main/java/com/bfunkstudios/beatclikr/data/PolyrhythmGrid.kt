@@ -1,5 +1,7 @@
 package com.bfunkstudios.beatclikr.data
 
+import com.bfunkstudios.beatclikr.music.PolyrhythmConfiguration
+
 data class PolyrhythmStep(
     val beatFired: Boolean,
     val rhythmFired: Boolean,
@@ -30,8 +32,8 @@ data class PolyrhythmGrid(
     companion object {
         fun create(beats: Int, against: Int): PolyrhythmGrid =
             PolyrhythmGrid(
-                beats = beats.coerceIn(1, 15),
-                against = against.coerceIn(1, 15)
+                beats = beats.coerceIn(PolyrhythmConfiguration.SUPPORTED_COUNT),
+                against = against.coerceIn(PolyrhythmConfiguration.SUPPORTED_COUNT)
             )
 
         private fun computeLCM(a: Int, b: Int): Int = a / computeGCD(a, b) * b

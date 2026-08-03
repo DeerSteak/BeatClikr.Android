@@ -51,13 +51,6 @@ class ExactFraction private constructor(
         return (quotient + adjustment).longValueExact()
     }
 
-    fun floorLong(): Long {
-        val division = numerator.divideAndRemainder(denominator)
-        val quotient = division[0]
-        val hasNegativeRemainder = division[1].signum() < 0
-        return (if (hasNegativeRemainder) quotient - BigInteger.ONE else quotient).longValueExact()
-    }
-
     companion object {
         fun of(value: Long): ExactFraction = create(BigInteger.valueOf(value), BigInteger.ONE)
 

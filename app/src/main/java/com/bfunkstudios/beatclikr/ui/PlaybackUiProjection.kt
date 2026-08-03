@@ -3,6 +3,7 @@ package com.bfunkstudios.beatclikr.ui
 import com.bfunkstudios.beatclikr.services.PlaybackMode
 import com.bfunkstudios.beatclikr.services.PlaybackFailureReason
 import com.bfunkstudios.beatclikr.services.PlaybackInterruptionReason
+import com.bfunkstudios.beatclikr.services.PlaybackSessionId
 import com.bfunkstudios.beatclikr.services.PlaybackTransportState
 import com.bfunkstudios.beatclikr.services.hasVariableOutputLatency
 
@@ -13,6 +14,12 @@ internal fun PlaybackTransportState.isModeActive(mode: PlaybackMode): Boolean {
         this !is PlaybackTransportState.Interrupted &&
         this !is PlaybackTransportState.Failed
 }
+
+internal fun PlaybackTransportState.sessionIdFor(mode: PlaybackMode): PlaybackSessionId? =
+    (this as? PlaybackTransportState.SessionState)
+        ?.context
+        ?.takeIf { it.mode == mode }
+        ?.sessionId
 
 internal fun PlaybackTransportState.isModeTransitioning(mode: PlaybackMode): Boolean {
     val session = this as? PlaybackTransportState.SessionState ?: return false

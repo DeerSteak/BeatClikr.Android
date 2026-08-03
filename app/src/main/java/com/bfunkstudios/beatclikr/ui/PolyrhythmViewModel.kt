@@ -15,6 +15,7 @@ import com.bfunkstudios.beatclikr.data.IAppPreferences
 import com.bfunkstudios.beatclikr.data.PracticeItemSnapshot
 import com.bfunkstudios.beatclikr.data.SoundFile
 import com.bfunkstudios.beatclikr.music.MusicalEventRole
+import com.bfunkstudios.beatclikr.music.PolyrhythmConfiguration
 import com.bfunkstudios.beatclikr.services.CommittedPlaybackConfiguration
 import com.bfunkstudios.beatclikr.services.CommittedEventDeliveryCursor
 import com.bfunkstudios.beatclikr.services.CommittedEventDeliveryResult
@@ -52,7 +53,7 @@ class PolyrhythmViewModel @Inject constructor(
 
     private var transportState by mutableStateOf(playback.transportState.value)
     private var ownedSessionId: PlaybackSessionId? =
-        transportState.polyrhythmSessionId()
+        transportState.sessionIdFor(PlaybackMode.POLYRHYTHM)
     private var awaitingOwnedSession = false
 
     val isPlaying: Boolean
@@ -125,13 +126,13 @@ class PolyrhythmViewModel @Inject constructor(
     }
 
     fun updateBeats(value: Int) {
-        beats = value.coerceIn(1, 15)
+        beats = value.coerceIn(PolyrhythmConfiguration.SUPPORTED_COUNT)
         prefs.polyrhythmBeats = beats
         if (isPlaying) start()
     }
 
     fun updateAgainst(value: Int) {
-        against = value.coerceIn(1, 15)
+        against = value.coerceIn(PolyrhythmConfiguration.SUPPORTED_COUNT)
         prefs.polyrhythmAgainst = against
         if (isPlaying) start()
     }
@@ -167,7 +168,7 @@ class PolyrhythmViewModel @Inject constructor(
     }
 
     fun start() {
-        val currentSession = transportState.polyrhythmSessionId()
+        val currentSession = transportState.sessionIdFor(PlaybackMode.POLYRHYTHM)
         ownedSessionId = currentSession
         awaitingOwnedSession = currentSession == null
         setupPolyrhythm()
@@ -284,7 +285,7 @@ class PolyrhythmViewModel @Inject constructor(
     private fun applyTransportState(state: PlaybackTransportState) {
         transportState = state
         if (awaitingOwnedSession) {
-            state.polyrhythmSessionId()?.let { sessionId ->
+            state.sessionIdFor(PlaybackMode.POLYRHYTHM)?.let { sessionId ->
                 ownedSessionId = sessionId
                 awaitingOwnedSession = false
             }
@@ -350,12 +351,6 @@ class PolyrhythmViewModel @Inject constructor(
     }
 
 }
-
-private fun PlaybackTransportState.polyrhythmSessionId(): PlaybackSessionId? =
-    (this as? PlaybackTransportState.SessionState)
-        ?.context
-        ?.takeIf { it.mode == PlaybackMode.POLYRHYTHM }
-        ?.sessionId
 
 internal fun polyrhythmBeatDurationNanos(bpm: Float): Long =
     (NANOS_PER_MINUTE / bpm.toDouble()).toLong()

@@ -2,6 +2,7 @@ package com.bfunkstudios.beatclikr.services
 
 import android.os.Handler
 import android.os.SystemClock
+import com.bfunkstudios.beatclikr.music.PolyrhythmConfiguration
 import com.bfunkstudios.beatclikr.data.PolyrhythmGrid
 
 internal class PolyrhythmTimingEngine(
@@ -51,8 +52,8 @@ internal class PolyrhythmTimingEngine(
 
     private fun doStart(bpm: Float, beats: Int, against: Int) {
         this.bpm = bpm
-        this.against = against.coerceIn(1, 15)
-        this.beats = beats.coerceIn(1, 15)
+        this.against = against.coerceIn(PolyrhythmConfiguration.SUPPORTED_COUNT)
+        this.beats = beats.coerceIn(PolyrhythmConfiguration.SUPPORTED_COUNT)
         this.grid = PolyrhythmGrid.create(beats = this.beats, against = this.against)
         // Compute directly in nanoseconds to minimize floating-point precision loss
         val nanosPerBeat = 60_000_000_000.0 / this.bpm
@@ -131,8 +132,8 @@ internal class PolyrhythmTimingEngine(
     private fun applyPendingUpdate() {
         if (!hasPendingUpdate) return
         bpm = pendingBpm
-        beats = pendingBeats.coerceIn(1, 15)
-        against = pendingAgainst.coerceIn(1, 15)
+        beats = pendingBeats.coerceIn(PolyrhythmConfiguration.SUPPORTED_COUNT)
+        against = pendingAgainst.coerceIn(PolyrhythmConfiguration.SUPPORTED_COUNT)
         grid = PolyrhythmGrid.create(beats = beats, against = against)
         val nanosPerBeat = 60_000_000_000.0 / bpm
         stepDurationNanos = (against * nanosPerBeat / grid.lcm).toLong()
