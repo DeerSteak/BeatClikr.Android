@@ -6,11 +6,14 @@ import androidx.lifecycle.viewModelScope
 import com.bfunkstudios.beatclikr.R
 import com.bfunkstudios.beatclikr.data.PracticedSong
 import com.bfunkstudios.beatclikr.data.PracticeHistoryRepository
+import com.bfunkstudios.beatclikr.services.OperationalFailureReporter
+import com.bfunkstudios.beatclikr.services.databaseFailure
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import java.text.SimpleDateFormat
@@ -32,10 +35,12 @@ data class StreakStatsUiState(
 @HiltViewModel
 class PracticeHistoryViewModel @Inject constructor(
     application: Application,
-    private val repository: PracticeHistoryRepository
+    private val repository: PracticeHistoryRepository,
+    failureReporter: OperationalFailureReporter = OperationalFailureReporter()
 ) : AndroidViewModel(application) {
 
     private val sessions = repository.getAllSessions()
+        .catch { failureReporter.report(databaseFailure("practice_history_read")); emit(emptyList()) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     private val _selectedDate = MutableStateFlow(startOfDay(System.currentTimeMillis()))

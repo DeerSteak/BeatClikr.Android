@@ -6,6 +6,8 @@ import com.bfunkstudios.beatclikr.data.SoundFile
 import com.bfunkstudios.beatclikr.services.IFlashlightService
 import com.bfunkstudios.beatclikr.services.IAudioPlayerService
 import com.bfunkstudios.beatclikr.services.IPracticeReminderScheduler
+import com.bfunkstudios.beatclikr.services.FailureDomain
+import com.bfunkstudios.beatclikr.services.OperationalFailureReporter
 import com.bfunkstudios.beatclikr.ui.FlashlightSettingsDialog
 import com.bfunkstudios.beatclikr.ui.ReminderPermissionStatus
 import com.bfunkstudios.beatclikr.ui.ReminderSettingsAction
@@ -160,6 +162,17 @@ class SettingsViewModelTest {
         assertFalse(viewModel.notificationsDeferredLocally)
         verify { prefs.practiceReminderEnabled = false }
         verify { prefs.practiceReminderNotificationsDeferred = false }
+    }
+
+    @Test
+    fun `reminder cancellation failure is reported without escaping`() {
+        val reporter = OperationalFailureReporter()
+        every { reminderScheduler.cancel() } throws IllegalStateException("alarm unavailable")
+        viewModel = SettingsViewModel(prefs, flashlight, audioPlayerService, reminderScheduler, reporter)
+
+        viewModel.onPracticeReminderToggleRequested(false, ReminderPermissionStatus.Granted)
+
+        assertEquals(FailureDomain.REMINDER, reporter.failure.value?.domain)
     }
 
     @Test

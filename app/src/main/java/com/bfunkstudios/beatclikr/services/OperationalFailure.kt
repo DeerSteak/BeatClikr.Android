@@ -1,5 +1,10 @@
 package com.bfunkstudios.beatclikr.services
 
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import javax.inject.Inject
+import javax.inject.Singleton
+
 enum class FailureDomain {
     ASSET_VALIDATION,
     SOUND_DECODE_CACHE,
@@ -33,4 +38,32 @@ data class OperationalFailure(
     val code: String,
     val disposition: FailureDisposition,
     val recoveryAction: FailureRecoveryAction
+)
+
+@Singleton
+class OperationalFailureReporter @Inject constructor() {
+    private val mutableFailure = MutableStateFlow<OperationalFailure?>(null)
+    val failure = mutableFailure.asStateFlow()
+
+    fun report(failure: OperationalFailure) {
+        mutableFailure.value = failure
+    }
+
+    fun clear() {
+        mutableFailure.value = null
+    }
+}
+
+fun databaseFailure(code: String) = OperationalFailure(
+    FailureDomain.DATABASE,
+    code,
+    FailureDisposition.RETRYABLE,
+    FailureRecoveryAction.RETRY
+)
+
+fun reminderFailure(code: String) = OperationalFailure(
+    FailureDomain.REMINDER,
+    code,
+    FailureDisposition.USER_ACTIONABLE,
+    FailureRecoveryAction.OPEN_SETTINGS
 )

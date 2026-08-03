@@ -10,12 +10,15 @@ import com.bfunkstudios.beatclikr.BuildConfig
 import com.bfunkstudios.beatclikr.data.IAppPreferences
 import com.bfunkstudios.beatclikr.data.SoundBank
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.CancellationException
 import com.bfunkstudios.beatclikr.data.SoundFile
 import com.bfunkstudios.beatclikr.services.IAudioPlayerService
 import com.bfunkstudios.beatclikr.services.IFlashlightService
 import com.bfunkstudios.beatclikr.services.IPracticeReminderScheduler
 import com.bfunkstudios.beatclikr.services.LocalDiagnosticSnapshot
 import com.bfunkstudios.beatclikr.services.LocalDiagnostics
+import com.bfunkstudios.beatclikr.services.OperationalFailureReporter
+import com.bfunkstudios.beatclikr.services.reminderFailure
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 
@@ -44,7 +47,8 @@ class SettingsViewModel @Inject constructor(
     private val prefs: IAppPreferences,
     private val flashlight: IFlashlightService,
     private val audioPlayerService: IAudioPlayerService,
-    private val reminderScheduler: IPracticeReminderScheduler
+    private val reminderScheduler: IPracticeReminderScheduler,
+    private val failureReporter: OperationalFailureReporter = OperationalFailureReporter()
 ) : ViewModel() {
 
     var useFlashlight by mutableStateOf(prefs.useFlashlight)
@@ -204,7 +208,7 @@ class SettingsViewModel @Inject constructor(
         when (status) {
             ReminderPermissionStatus.Granted -> {
                 clearReminderPermissionWarnings()
-                viewModelScope.launch { reminderScheduler.reschedule() }
+                launchReminder("reminder_reschedule") { reminderScheduler.reschedule() }
             }
             ReminderPermissionStatus.NotDetermined -> {
                 notificationsBlockedLocally = false
@@ -227,7 +231,7 @@ class SettingsViewModel @Inject constructor(
         if (!enabled) {
                 updatePracticeReminderEnabled(false)
                 clearReminderPermissionWarnings()
-                reminderScheduler.cancel()
+                cancelReminder()
                 return ReminderSettingsAction.None
             }
 
@@ -235,7 +239,7 @@ class SettingsViewModel @Inject constructor(
             ReminderPermissionStatus.Granted -> {
                 updatePracticeReminderEnabled(true)
                 clearReminderPermissionWarnings()
-                viewModelScope.launch { reminderScheduler.reschedule() }
+                launchReminder("reminder_reschedule") { reminderScheduler.reschedule() }
                 ReminderSettingsAction.None
             }
             ReminderPermissionStatus.NotDetermined,
@@ -257,13 +261,13 @@ class SettingsViewModel @Inject constructor(
         if (granted) {
             updatePracticeReminderEnabled(true)
             clearReminderPermissionWarnings()
-            viewModelScope.launch { reminderScheduler.reschedule() }
+            launchReminder("reminder_reschedule") { reminderScheduler.reschedule() }
         } else {
             updatePracticeReminderEnabled(false)
             clearReminderDeferral()
             notificationsBlockedLocally = blocked
             reminderDialog = ReminderSettingsDialog.PermissionDenied(blocked)
-            reminderScheduler.cancel()
+            cancelReminder()
         }
     }
 
@@ -272,7 +276,7 @@ class SettingsViewModel @Inject constructor(
         return when (status) {
             ReminderPermissionStatus.Granted -> {
                 clearReminderPermissionWarnings()
-                viewModelScope.launch { reminderScheduler.reschedule() }
+                launchReminder("reminder_reschedule") { reminderScheduler.reschedule() }
                 ReminderSettingsAction.None
             }
             ReminderPermissionStatus.NotDetermined,
@@ -304,7 +308,7 @@ class SettingsViewModel @Inject constructor(
         practiceReminderMinute = safeMinute
         prefs.practiceReminderHour = safeHour
         prefs.practiceReminderMinute = safeMinute
-        viewModelScope.launch { reminderScheduler.rescheduleIfEnabled() }
+        launchReminder("reminder_time_update") { reminderScheduler.rescheduleIfEnabled() }
     }
 
     fun updateMetronomeBeatSound(value: SoundFile) {
@@ -371,5 +375,22 @@ class SettingsViewModel @Inject constructor(
     private fun clearReminderDeferral() {
         notificationsDeferredLocally = false
         prefs.practiceReminderNotificationsDeferred = false
+    }
+
+    private fun launchReminder(code: String, action: suspend () -> Unit) {
+        viewModelScope.launch {
+            try {
+                action()
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                failureReporter.report(reminderFailure(code))
+            }
+        }
+    }
+
+    private fun cancelReminder() {
+        runCatching { reminderScheduler.cancel() }
+            .onFailure { failureReporter.report(reminderFailure("reminder_cancel")) }
     }
 }

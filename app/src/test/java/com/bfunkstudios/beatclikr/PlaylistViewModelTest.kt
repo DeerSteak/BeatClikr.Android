@@ -4,6 +4,8 @@ import com.bfunkstudios.beatclikr.data.Playlist
 import com.bfunkstudios.beatclikr.data.PlaylistRepository
 import com.bfunkstudios.beatclikr.data.PlaylistWithEntries
 import com.bfunkstudios.beatclikr.data.SongRepository
+import com.bfunkstudios.beatclikr.services.FailureDomain
+import com.bfunkstudios.beatclikr.services.OperationalFailureReporter
 import com.bfunkstudios.beatclikr.ui.PlaylistViewModel
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -17,6 +19,7 @@ import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
 import org.junit.Before
@@ -95,5 +98,18 @@ class PlaylistViewModelTest {
         coVerify { repository.renamePlaylist(playlist.playlist, "New") }
         assertNull(viewModel.playlistToRename)
         assertEquals("", viewModel.renamePlaylistName)
+    }
+
+    @Test
+    fun `database failure is reported and create callback is not called`() {
+        val reporter = OperationalFailureReporter()
+        var callbackCalled = false
+        coEvery { repository.createPlaylist("Broken") } throws IllegalStateException("database unavailable")
+        viewModel = PlaylistViewModel(repository, songRepository, reporter)
+
+        viewModel.createPlaylist("Broken") { callbackCalled = true }
+
+        assertFalse(callbackCalled)
+        assertEquals(FailureDomain.DATABASE, reporter.failure.value?.domain)
     }
 }

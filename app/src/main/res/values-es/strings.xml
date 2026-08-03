@@ -155,6 +155,10 @@
     <string name="audio_route_other">otra salida de audio</string>
     <string name="audio_route_unknown">salida no disponible</string>
 
+    <string name="data_operation_failed">No se pudieron actualizar tus datos. Tus datos anteriores están seguros; inténtalo de nuevo.</string>
+    <string name="reminder_operation_failed">No se pudo actualizar el recordatorio. Revisa los ajustes de notificaciones e inténtalo de nuevo.</string>
+    <string name="dismiss">Cerrar</string>
+
     <plurals name="day_count">
         <item quantity="one">%1$d día</item>
         <item quantity="other">%1$d días</item>

@@ -11,12 +11,16 @@ import com.bfunkstudios.beatclikr.data.PlaylistRepository
 import com.bfunkstudios.beatclikr.data.PlaylistWithEntries
 import com.bfunkstudios.beatclikr.data.Song
 import com.bfunkstudios.beatclikr.data.SongRepository
+import com.bfunkstudios.beatclikr.services.OperationalFailureReporter
+import com.bfunkstudios.beatclikr.services.databaseFailure
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -27,19 +31,23 @@ import javax.inject.Inject
 @HiltViewModel
 class PlaylistViewModel @Inject constructor(
     private val repository: PlaylistRepository,
-    private val songRepository: SongRepository
+    private val songRepository: SongRepository,
+    private val failureReporter: OperationalFailureReporter = OperationalFailureReporter()
 ) : ViewModel() {
 
     val playlists: StateFlow<List<PlaylistWithEntries>> = repository.getAllPlaylists()
+        .catch { failureReporter.report(databaseFailure("playlist_read")); emit(emptyList()) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     private val _selectedPlaylistId = MutableStateFlow<UUID?>(null)
 
     val selectedPlaylist: StateFlow<PlaylistWithEntries?> = _selectedPlaylistId
         .flatMapLatest { id -> id?.let { repository.getPlaylist(it) } ?: flowOf(null) }
+        .catch { failureReporter.report(databaseFailure("playlist_read")); emit(null) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     val allSongs: StateFlow<List<Song>> = songRepository.getAllSongs()
+        .catch { failureReporter.report(databaseFailure("song_read")); emit(emptyList()) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     var currentEntryId by mutableStateOf<UUID?>(null)
@@ -77,7 +85,7 @@ class PlaylistViewModel @Inject constructor(
     }
 
     fun createPlaylist(name: String, onCreated: (UUID) -> Unit = {}) {
-        viewModelScope.launch {
+        launchDatabase("playlist_create") {
             val playlist = repository.createPlaylist(name)
             onCreated(playlist.id)
         }
@@ -106,11 +114,11 @@ class PlaylistViewModel @Inject constructor(
     }
 
     fun renamePlaylist(playlist: Playlist, name: String) {
-        viewModelScope.launch { repository.renamePlaylist(playlist, name) }
+        launchDatabase("playlist_rename") { repository.renamePlaylist(playlist, name) }
     }
 
     fun deletePlaylist(playlistWithEntries: PlaylistWithEntries) {
-        viewModelScope.launch { repository.deletePlaylist(playlistWithEntries.playlist) }
+        launchDatabase("playlist_delete") { repository.deletePlaylist(playlistWithEntries.playlist) }
     }
 
     // --- Entry operations ---
@@ -118,16 +126,16 @@ class PlaylistViewModel @Inject constructor(
     fun addSong(songId: UUID) {
         val playlistId = _selectedPlaylistId.value ?: return
         val count = selectedPlaylist.value?.entries?.size ?: 0
-        viewModelScope.launch { repository.addEntry(playlistId, songId, count) }
+        launchDatabase("playlist_add_song") { repository.addEntry(playlistId, songId, count) }
     }
 
     fun deleteEntry(entry: PlaylistEntryWithSong, entries: List<PlaylistEntryWithSong>) {
-        viewModelScope.launch { repository.deleteEntry(entry.entry) }
+        launchDatabase("playlist_delete_song") { repository.deleteEntry(entry.entry) }
     }
 
     fun reorderEntries(reorderedEntries: List<PlaylistEntryWithSong>) {
         val resequenced = reorderedEntries.mapIndexed { i, e -> e.copy(entry = e.entry.copy(sequence = i)) }
-        viewModelScope.launch { repository.reorderEntries(resequenced) }
+        launchDatabase("playlist_reorder") { repository.reorderEntries(resequenced) }
     }
 
     // --- Transport ---
@@ -170,5 +178,17 @@ class PlaylistViewModel @Inject constructor(
         val entry = entries.getOrNull(idx + 1) ?: return
         currentEntryId = entry.entry.id
         onPlay(entry.song)
+    }
+
+    private fun launchDatabase(code: String, action: suspend () -> Unit) {
+        viewModelScope.launch {
+            try {
+                action()
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                failureReporter.report(databaseFailure(code))
+            }
+        }
     }
 }

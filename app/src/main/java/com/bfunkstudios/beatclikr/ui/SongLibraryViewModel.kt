@@ -12,11 +12,15 @@ import com.bfunkstudios.beatclikr.data.BeatPattern
 import com.bfunkstudios.beatclikr.data.Groove
 import com.bfunkstudios.beatclikr.data.Song
 import com.bfunkstudios.beatclikr.data.SongRepository
+import com.bfunkstudios.beatclikr.services.OperationalFailureReporter
+import com.bfunkstudios.beatclikr.services.databaseFailure
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.util.UUID
@@ -24,7 +28,8 @@ import javax.inject.Inject
 
 @HiltViewModel
 class SongLibraryViewModel @Inject constructor(
-    private val repository: SongRepository
+    private val repository: SongRepository,
+    private val failureReporter: OperationalFailureReporter = OperationalFailureReporter()
 ) : ViewModel() {
 
     private val _selectedSong = MutableStateFlow<Song?>(null)
@@ -34,6 +39,9 @@ class SongLibraryViewModel @Inject constructor(
         _selectedSong
     ) { songs, selected ->
         SongLibraryUiState(songList = songs, selectedSong = selected)
+    }.catch {
+        failureReporter.report(databaseFailure("song_read"))
+        emit(SongLibraryUiState(selectedSong = _selectedSong.value))
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5_000),
@@ -141,10 +149,22 @@ class SongLibraryViewModel @Inject constructor(
     // --- Repository operations ---
 
     fun saveSong(song: Song) {
-        viewModelScope.launch { repository.upsert(song) }
+        launchDatabase("song_save") { repository.upsert(song) }
     }
 
     fun deleteSong(song: Song) {
-        viewModelScope.launch { repository.delete(song) }
+        launchDatabase("song_delete") { repository.delete(song) }
+    }
+
+    private fun launchDatabase(code: String, action: suspend () -> Unit) {
+        viewModelScope.launch {
+            try {
+                action()
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                failureReporter.report(databaseFailure(code))
+            }
+        }
     }
 }
