@@ -4,13 +4,13 @@
 
 The accepted normative contracts are [`Decisions/0001-Musical-Time.md`](Decisions/0001-Musical-Time.md), [`Decisions/0002-Playback-Lifecycle-and-Outputs.md`](Decisions/0002-Playback-Lifecycle-and-Outputs.md), and [`Decisions/0003-Practice-History.md`](Decisions/0003-Practice-History.md). Quantitative release gates are in [`Timing-Budgets.md`](Timing-Budgets.md).
 
-The current engine schedules against a monotonic nanosecond clock. Wall-clock time is only for user-visible dates and history; it must not drive beat intervals. Tempo conversion advances from the previous scheduled deadline rather than callback time, so callback delay does not normally accumulate as drift.
+Production audio schedules exact rational musical events in sample frames against the stream's obtained sample rate. Wall-clock time is only for user-visible dates and history; it never drives beat intervals. One-shot visual callbacks use monotonic nanoseconds and derive each successor from the intended event time rather than callback arrival.
 
 ```text
 intervalNs = 60,000,000,000 / bpm
 ```
 
-Subdivisions and polyrhythms derive deadlines from that interval. The replacement scheduler must meet contract clauses MT-030 through MT-032 by dropping expired events, avoiding catch-up bursts, preserving the session time base, and carrying fractional sample-frame remainder.
+Subdivisions and polyrhythms derive exact frame positions from that interval. The scheduler satisfies MT-030 through MT-032 by dropping expired events, avoiding catch-up bursts, preserving the session origin, and independently rounding exact rational frame positions without accumulated drift.
 
 The production frame core implements that recovery policy. `DeadlineRecovery` counts events arithmetically between the first unprocessed frame and the current render-window start, without enumerating overdue events, then queries committed events directly from the current window against the unchanged absolute origin.
 

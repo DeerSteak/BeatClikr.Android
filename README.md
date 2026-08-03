@@ -123,15 +123,20 @@ The project currently uses:
 - Hilt for application-level dependency injection;
 - Room for songs, playlists, and practice history;
 - SharedPreferences behind `IAppPreferences`;
-- `MetronomeAudioEngine` for timing and `AudioTrackEngine` for PCM rendering;
-- ViewModels for feature state and coordination.
+- Android-free exact musical timelines and frame-event models;
+- one application-scoped `PlaybackCoordinator` for authoritative transport;
+- prepared PCM frame rendering through `AudioTrackRenderBackend`;
+- transactional repositories and duration-based practice accounting;
+- ViewModels that own draft UI state and project coordinator state.
 
-This describes the present implementation, not the target architecture. The remediation plan calls for a pure sample-frame scheduler, a single playback coordinator, transactional data mutations, and measured hardware acceptance gates.
+This describes the present implementation. Final presentation-time correlation and release-equivalent physical qualification remain Phase 8 work.
 
 ## Documentation
 
 | File | Contents |
 | --- | --- |
+| [ADVERSARIAL_PROJECT_REVIEW.md](ADVERSARIAL_PROJECT_REVIEW.md) | Historical review findings and current remediation-status appendix |
+| [BEATCLIKR_ACTION_PLAN.md](BEATCLIKR_ACTION_PLAN.md) | Live phased remediation checklist and next actions |
 | [Docs/Architecture.md](Docs/Architecture.md) | Current layers, ownership, persistence, flows, and limits |
 | [Docs/Models.md](Docs/Models.md) | Room entities, relations, musical models, and schema policy |
 | [Docs/ViewModels.md](Docs/ViewModels.md) | Feature state, dependency injection, and ownership |
@@ -146,7 +151,7 @@ This describes the present implementation, not the target architecture. The reme
 | [Docs/Decisions/0002-Playback-Lifecycle-and-Outputs.md](Docs/Decisions/0002-Playback-Lifecycle-and-Outputs.md) | Playback ownership, focus, lifecycle, routes, and secondary outputs |
 | [Docs/Decisions/0003-Practice-History.md](Docs/Decisions/0003-Practice-History.md) | Practice qualification, duration, identity, and local-day behavior |
 | [Docs/Decisions/Review-Guide.md](Docs/Decisions/Review-Guide.md) | Phase 1 internal findings and product-owner approval checklist |
-| [Docs/Decisions/Current-Implementation-Audit.md](Docs/Decisions/Current-Implementation-Audit.md) | Clause-by-clause Android conformance and divergence audit |
+| [Docs/Decisions/Current-Implementation-Audit.md](Docs/Decisions/Current-Implementation-Audit.md) | Historical pre-remediation clause-by-clause gap audit |
 | [Docs/Validation.md](Docs/Validation.md) | Local, CI, instrumentation, and production release checks |
 | [benchmarks/2026-07-28-android-17-emulator.md](benchmarks/2026-07-28-android-17-emulator.md) | Current emulator correctness baseline |
 | [benchmarks/2026-07-28-pixel-8a-android-17.md](benchmarks/2026-07-28-pixel-8a-android-17.md) | Initial Pixel 8a real-device engine baseline |

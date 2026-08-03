@@ -10,7 +10,7 @@ Draft validation currently requires nonblank title and artist, clamps tempo to 3
 
 Playlists contain ordered `PlaylistEntry` rows referencing songs. Users can create, rename, and delete playlists; add or remove songs; reorder entries; and play through previous/next controls or Focus Mode.
 
-Ordering mutations are currently coordinated in repository/ViewModel code. Moving add, delete, resequence, and reorder invariants into Room transactions is required before concurrent mutation is considered safe.
+Add, delete, resequence, and reorder operations execute through Room transactions. Per-playlist sequence uniqueness and deterministic normalization preserve ordering under concurrent or cancelled mutations.
 
 ## Practice history
 
@@ -18,7 +18,7 @@ Practice activity is aggregated per local calendar day and stable practiced-item
 
 The accepted normative behavior is in [`Decisions/0003-Practice-History.md`](Decisions/0003-Practice-History.md). It defines confirmed playback, the cumulative 30-second daily threshold, repeated-period accounting, stable identity, iOS-parity local-day checkpoint attribution, travel, timezone changes, and daylight-saving transitions.
 
-The current transport records practice from ViewModel behavior and does not yet implement that contract. The target playback state machine must confirm meaningful audible playback before history is written, preventing focus-denied or immediately interrupted sessions from counting.
+The application-scoped accounting coordinator implements that contract from authoritative lifecycle transitions. Focus-denied starts, preparation failures, and sessions stopped before confirmed playback do not count; short confirmed periods accumulate invisibly until the item reaches the daily threshold.
 
 ## Reminders
 
