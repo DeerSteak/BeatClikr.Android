@@ -82,7 +82,7 @@ The publication-boundary suite accepts regular, additive, and polyrhythm request
 
 The production-selection tripwire requires standard and polyrhythm starts to use frame audio and prohibits the pending-click queue, waveform enqueue method, trigger methods, and legacy render runnable from the production output owner. Existing instrumentation metrics are backed by frame-rendered role counters, written-frame ownership, obtained stream facts, and the real `AudioTrack` underrun count.
 
-The same tripwire prohibits the former check-interval polling fields and methods and requires one-shot standard and polyrhythm scheduling helpers.
+Production and instrumentation compilation verify that no legacy Handler timeline or timing-delegate API remains. Standard and polyrhythm device helpers consume frame-rendered events from the same engine port used by production.
 
 The frame-session tripwire requires one reusable timestamp holder, captures written/presented frame correlation into the consistent snapshot, and requires an advancing underrun count to skip timestamp-estimated missing presentation frames before owner resynchronization. Pure policy tests cover timestamp-gap conversion and constant-time visual event dropping.
 

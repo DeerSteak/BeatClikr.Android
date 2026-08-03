@@ -3,10 +3,7 @@ package com.bfunkstudios.beatclikr
 import android.os.SystemClock
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.LargeTest
-import androidx.test.platform.app.InstrumentationRegistry
-import com.bfunkstudios.beatclikr.data.SoundFile
 import com.bfunkstudios.beatclikr.services.MetronomeAudioEngine
-import com.bfunkstudios.beatclikr.services.MetronomeAudioEngineDelegate
 import java.util.Collections
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
@@ -21,13 +18,10 @@ import org.junit.runner.RunWith
 @RunWith(AndroidJUnit4::class)
 class StandardMetronomeContractInstrumentedTest {
 
-    private val context
-        get() = InstrumentationRegistry.getInstrumentation().targetContext
-
     @Test
     fun mt001_mt003_supportedTempoBoundsAndDecimalBpmAreScheduledWithoutRounding() {
         StandardMetronomeContractFixtures.tempoCases.forEach { fixture ->
-            withEngine { engine ->
+            withPreparedAudioEngine { engine ->
                 val capture = captureEvents(engine, fixture, TEMPO_EVENT_COUNT)
                 assertIntervals(fixture, capture.scheduledTimes)
                 assertEquals(fixture.events(TEMPO_EVENT_COUNT).map { it.isBeat }, capture.beatFlags)
@@ -38,7 +32,7 @@ class StandardMetronomeContractInstrumentedTest {
     @Test
     fun mt004_mt008_standardGroovesStartAtTickZeroAndUseExpectedSoundRoles() {
         StandardMetronomeContractFixtures.grooveCases.forEach { fixture ->
-            withEngine { engine ->
+            withPreparedAudioEngine { engine ->
                 val eventCount = fixture.subdivisions * GROOVE_CYCLE_COUNT
                 val capture = captureEvents(engine, fixture, eventCount)
                 val expected = fixture.events(eventCount)
@@ -56,15 +50,17 @@ class StandardMetronomeContractInstrumentedTest {
     @Test
     fun mt010_mutingSuppressesAudioWithoutRemovingEventsOrPhase() {
         val fixture = StandardMetronomeFixture(bpm = 240f, subdivisions = 4)
-        withEngine { engine ->
+        withPreparedAudioEngine { engine ->
             val scheduledTimes = Collections.synchronizedList(mutableListOf<Long>())
             val beatFlags = Collections.synchronizedList(mutableListOf<Boolean>())
             val eventIndex = AtomicInteger()
             val latch = CountDownLatch(MUTE_EVENT_COUNT)
-            val delegate = object : MetronomeTestDelegate() {
-                override fun metronomeBeatFired(isBeat: Boolean, beatInterval: Float, beatTimeNanos: Long) {
-                    scheduledTimes += beatTimeNanos
-                    beatFlags += isBeat
+            val session = RenderedEventTestSession.standard(
+                engine, fixture.bpm, fixture.subdivisions, null, false
+            ) { records, sampleRate ->
+                records.forEach { event ->
+                    scheduledTimes += event.intendedFrame * 1_000_000_000L / sampleRate
+                    beatFlags += event.roleIndex == 0
                     when (eventIndex.incrementAndGet()) {
                         MUTE_START_EVENT -> engine.isMuted = true
                         MUTE_END_EVENT -> engine.isMuted = false
@@ -72,24 +68,14 @@ class StandardMetronomeContractInstrumentedTest {
                     latch.countDown()
                 }
             }
-
-            engine.startMetronome(fixture.bpm, fixture.subdivisions, null, false, delegate)
             assertTrue("Timed out waiting for mute-continuity events", latch.await(TIMEOUT_SECONDS, TimeUnit.SECONDS))
-            engine.stopMetronome()
-            settle()
+            session.close()
 
             val times = synchronized(scheduledTimes) { scheduledTimes.toList() }
             val flags = synchronized(beatFlags) { beatFlags.toList() }
             val metrics = requireNotNull(engine.getFrameAudioMetricsSnapshot())
-            val phaseTimes = times.mapIndexed { index, time ->
-                if (index < MUTE_START_EVENT || index >= MUTE_END_EVENT) {
-                    time - metrics.estimatedOutputLatencyNanos
-                } else {
-                    time
-                }
-            }
             assertEquals(fixture.events(MUTE_EVENT_COUNT).map { it.isBeat }, flags)
-            assertIntervals(fixture, phaseTimes)
+            assertIntervals(fixture, times)
             assertTrue("Audio renderer produced no blocks", metrics.renderedChunks > 0)
         }
     }
@@ -97,19 +83,19 @@ class StandardMetronomeContractInstrumentedTest {
     @Test
     fun mt011_mt013_mt014_restartBeginsAtTickZeroWithoutCountInAndStopEndsPhase() {
         val fixture = StandardMetronomeFixture(bpm = 240f, subdivisions = 4)
-        withEngine { engine ->
+        withPreparedAudioEngine { engine ->
             val firstSessionCallbacks = AtomicInteger()
             val firstSessionLatch = CountDownLatch(fixture.subdivisions)
-            val firstSessionDelegate = object : MetronomeTestDelegate() {
-                override fun metronomeBeatFired(isBeat: Boolean, beatInterval: Float, beatTimeNanos: Long) {
+            val firstSession = RenderedEventTestSession.standard(
+                engine, fixture.bpm, fixture.subdivisions, null, false
+            ) { records, _ ->
+                records.forEach { _ ->
                     firstSessionCallbacks.incrementAndGet()
                     firstSessionLatch.countDown()
                 }
             }
-            engine.startMetronome(fixture.bpm, fixture.subdivisions, null, false, firstSessionDelegate)
             assertTrue("Timed out waiting for first session", firstSessionLatch.await(TIMEOUT_SECONDS, TimeUnit.SECONDS))
-            engine.stopMetronome()
-            settle()
+            firstSession.close()
             val callbacksAfterStop = firstSessionCallbacks.get()
             Thread.sleep(STOP_OBSERVATION_MILLIS)
             assertEquals(callbacksAfterStop, firstSessionCallbacks.get())
@@ -125,19 +111,6 @@ class StandardMetronomeContractInstrumentedTest {
         }
     }
 
-    private fun withEngine(block: (MetronomeAudioEngine) -> Unit) {
-        val engine = MetronomeAudioEngine(context)
-        try {
-            engine.loadSounds(
-                requireNotNull(SoundFile.CLICK_HI.resourceId),
-                requireNotNull(SoundFile.CLICK_LO.resourceId)
-            )
-            block(engine)
-        } finally {
-            engine.release()
-        }
-    }
-
     private fun captureEvents(
         engine: MetronomeAudioEngine,
         fixture: StandardMetronomeFixture,
@@ -146,20 +119,20 @@ class StandardMetronomeContractInstrumentedTest {
         val scheduledTimes = Collections.synchronizedList(mutableListOf<Long>())
         val beatFlags = Collections.synchronizedList(mutableListOf<Boolean>())
         val latch = CountDownLatch(eventCount)
-        val delegate = object : MetronomeTestDelegate() {
-            override fun metronomeBeatFired(isBeat: Boolean, beatInterval: Float, beatTimeNanos: Long) {
-                if (latch.count == 0L) return
-                scheduledTimes += beatTimeNanos
-                beatFlags += isBeat
-                latch.countDown()
+        val session = RenderedEventTestSession.standard(
+            engine, fixture.bpm, fixture.subdivisions, null, false
+        ) { records, sampleRate ->
+            records.forEach { event ->
+                if (latch.count > 0L) {
+                    scheduledTimes += event.intendedFrame * 1_000_000_000L / sampleRate
+                    beatFlags += event.roleIndex == 0
+                    latch.countDown()
+                }
             }
         }
-
-        engine.startMetronome(fixture.bpm, fixture.subdivisions, null, false, delegate)
         assertTrue("Timed out waiting for contract events", latch.await(TIMEOUT_SECONDS, TimeUnit.SECONDS))
-        awaitRenderedClicks(engine, eventCount)
-        engine.stopMetronome()
-        settle()
+        awaitFrameAudioMetrics(engine, TIMEOUT_SECONDS * 1_000) { it.queuedClicks >= eventCount }
+        session.close()
         return EventCapture(
             scheduledTimes = synchronized(scheduledTimes) { scheduledTimes.toList() },
             beatFlags = synchronized(beatFlags) { beatFlags.toList() }
@@ -175,20 +148,6 @@ class StandardMetronomeContractInstrumentedTest {
         }
     }
 
-    private fun settle() {
-        Thread.sleep(STOP_SETTLE_MILLIS)
-    }
-
-    private fun awaitRenderedClicks(engine: MetronomeAudioEngine, minimum: Int) {
-        val deadline = SystemClock.elapsedRealtime() + TIMEOUT_SECONDS * 1_000
-        while (
-            requireNotNull(engine.getFrameAudioMetricsSnapshot()).queuedClicks < minimum &&
-            SystemClock.elapsedRealtime() < deadline
-        ) {
-            Thread.sleep(10)
-        }
-    }
-
     private data class EventCapture(
         val scheduledTimes: List<Long>,
         val beatFlags: List<Boolean>
@@ -201,7 +160,6 @@ class StandardMetronomeContractInstrumentedTest {
         const val MUTE_START_EVENT = 4
         const val MUTE_END_EVENT = 8
         const val TIMEOUT_SECONDS = 6L
-        const val STOP_SETTLE_MILLIS = 150L
         const val STOP_OBSERVATION_MILLIS = 300L
         const val INTERVAL_TOLERANCE_NANOS = 100_000L
         const val NO_COUNT_IN_LIMIT_NANOS = 500_000_000L

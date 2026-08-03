@@ -7,7 +7,6 @@ import androidx.test.filters.LargeTest
 import androidx.test.platform.app.InstrumentationRegistry
 import com.bfunkstudios.beatclikr.data.SoundFile
 import com.bfunkstudios.beatclikr.services.MetronomeAudioEngine
-import com.bfunkstudios.beatclikr.services.MetronomeAudioEngineDelegate
 import com.bfunkstudios.beatclikr.services.AudioBackendType
 import java.util.Collections
 import java.util.concurrent.CountDownLatch
@@ -40,37 +39,28 @@ class AudioEngineStressInstrumentedTest {
         val arrivalTimes = Collections.synchronizedList(ArrayList<Long>(expectedEvents))
         val latch = CountDownLatch(expectedEvents)
         val engine = MetronomeAudioEngine(context)
-        val delegate = object : MetronomeTestDelegate() {
-            override fun metronomeBeatFired(
-                isBeat: Boolean,
-                beatInterval: Float,
-                beatTimeNanos: Long
-            ) {
-                if (latch.count == 0L) return
-                scheduledTimes += beatTimeNanos
-                arrivalTimes += SystemClock.elapsedRealtimeNanos()
-                latch.countDown()
-            }
-        }
-
         try {
             engine.loadSounds(
                 requireNotNull(SoundFile.CLICK_HI.resourceId),
                 requireNotNull(SoundFile.CLICK_LO.resourceId)
             )
-            engine.startMetronome(
-                bpm = TEST_BPM,
-                subdivisions = TEST_SUBDIVISIONS,
-                accentPattern = null,
-                alternateSixteenth = false,
-                delegate = delegate
-            )
+            val session = RenderedEventTestSession.standard(
+                engine, TEST_BPM, TEST_SUBDIVISIONS, null, false
+            ) { records, sampleRate ->
+                records.forEach { event ->
+                    if (latch.count > 0L) {
+                        scheduledTimes += event.intendedFrame * 1_000_000_000L / sampleRate
+                        arrivalTimes += SystemClock.elapsedRealtimeNanos()
+                        latch.countDown()
+                    }
+                }
+            }
             logProgress(durationMinutes, latch)
             assertTrue(
                 "Timed out with ${latch.count} callbacks missing",
                 latch.await(STOP_GRACE_SECONDS, TimeUnit.SECONDS)
             )
-            engine.stopMetronome()
+            session.close()
 
             val scheduled = synchronized(scheduledTimes) { scheduledTimes.toList() }
             val arrivals = synchronized(arrivalTimes) { arrivalTimes.toList() }

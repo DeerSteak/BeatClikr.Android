@@ -197,86 +197,6 @@ sealed interface EventPresentation {
     ) : EventPresentation
 }
 
-interface PlaybackEnginePort {
-    var soundPreparationObserver: ((SoundPreparationPublication) -> Unit)?
-    var transportObserver: PlaybackEngineTransportObserver?
-    var delegate: MetronomeAudioEngineDelegate?
-    var polyrhythmDelegate: PolyrhythmAudioEngineDelegate?
-    var isMuted: Boolean
-
-    fun activeSoundConfiguration(): ActiveSoundConfiguration?
-    fun soundPreparationFailure(): SoundPreparationFailure?
-    fun prewarmAudioTrack()
-    fun getFrameAudioMetricsSnapshot(): FrameAudioMetricsSnapshot?
-    fun release()
-    fun beginStandardSession(
-        sessionId: PlaybackSessionId,
-        configuration: ValidatedStandardConfiguration
-    )
-    fun beginPolyrhythmSession(
-        sessionId: PlaybackSessionId,
-        configuration: ValidatedPolyrhythmConfiguration
-    )
-    fun updateStandardSession(
-        sessionId: PlaybackSessionId,
-        configuration: ValidatedStandardConfiguration,
-        completion: (PlaybackEngineUpdateResult) -> Unit
-    )
-    fun updatePolyrhythmSession(
-        sessionId: PlaybackSessionId,
-        configuration: ValidatedPolyrhythmConfiguration,
-        completion: (PlaybackEngineUpdateResult) -> Unit
-    )
-    fun stopSession(sessionId: PlaybackSessionId, mode: PlaybackMode)
-    fun drainRenderedEvents(afterCaptureSequence: Long): FrameAudioRenderedEventBatch?
-    fun selectSounds(
-        requestSequence: Long,
-        beatResourceId: Int,
-        rhythmResourceId: Int
-    )
-    fun selectSoundBank(requestSequence: Long, bank: SoundBank)
-    fun prepareSounds(requestSequence: Long, sounds: Collection<SoundFile>)
-}
-
-sealed interface PlaybackEngineUpdateResult {
-    val sessionId: PlaybackSessionId
-
-    data class Accepted(override val sessionId: PlaybackSessionId) : PlaybackEngineUpdateResult
-
-    data class Rejected(
-        override val sessionId: PlaybackSessionId,
-        val reason: PlaybackCoordinatorFailureCode,
-        val diagnostic: String? = null
-    ) : PlaybackEngineUpdateResult
-}
-
-data class SoundPreparationPublication(
-    val requestSequence: Long?,
-    val sessionId: PlaybackSessionId?,
-    val adopted: Boolean,
-    val active: ActiveSoundConfiguration?,
-    val failure: SoundPreparationFailure?
-)
-
-data class PlaybackEngineStartEvidence(
-    val sessionId: PlaybackSessionId,
-    val audibleSounds: ActiveSoundConfiguration,
-    val route: AudioOutputRoute,
-    val backend: AudioBackendType,
-    val firstEventFrame: Long
-)
-
-interface PlaybackEngineTransportObserver {
-    fun engineStarted(evidence: PlaybackEngineStartEvidence)
-    fun audioFocusUnavailable(sessionId: PlaybackSessionId)
-    fun engineStartFailed(sessionId: PlaybackSessionId, diagnostic: String)
-    fun engineStopped(sessionId: PlaybackSessionId)
-    fun engineInterrupted(
-        sessionId: PlaybackSessionId,
-        reason: PlaybackInterruptionReason
-    )
-}
-
 class PlaybackCoordinator(
     private val engine: PlaybackEnginePort,
     private val executor: ExecutorService = Executors.newSingleThreadExecutor { runnable ->
@@ -289,8 +209,8 @@ class PlaybackCoordinator(
     private val monotonicNanos: () -> Long = System::nanoTime,
     private val wallClockMillis: () -> Long = System::currentTimeMillis,
     private val timeZoneIdentifier: () -> String = { ZoneId.systemDefault().id }
-) : IAudioPlayerService, MetronomeAudioEngineDelegate, PolyrhythmAudioEngineDelegate,
-    PlaybackEngineTransportObserver, PlaybackObservation, PlaybackLifecycleObservation {
+) : IAudioPlayerService, PlaybackEngineTransportObserver, PlaybackObservation,
+    PlaybackLifecycleObservation {
     private val mutableOwnership = MutableStateFlow(PlaybackOwnershipSnapshot())
     private val mutableControlEvents = MutableSharedFlow<PlaybackControlEvent>(
         replay = CONTROL_EVENT_CAPACITY,
@@ -298,12 +218,7 @@ class PlaybackCoordinator(
     )
     private val mutableTransportState =
         MutableStateFlow<PlaybackTransportState>(PlaybackTransportState.Idle)
-    private val lifecycleJournalLock = Any()
-    private val lifecycleJournal = ArrayDeque<PlaybackStateTransition>()
-    private var acknowledgedLifecycleSequence = 0L
-    private val mutableLifecycleCheckpoint = MutableStateFlow(
-        PlaybackLifecycleCheckpoint(0, PlaybackTransportState.Idle)
-    )
+    private val lifecycleJournal = PlaybackLifecycleJournal()
     private val mutableStateTransitions = MutableSharedFlow<PlaybackStateTransition>(
         replay = TRANSPORT_EVENT_CAPACITY,
         onBufferOverflow = BufferOverflow.DROP_OLDEST
@@ -315,14 +230,15 @@ class PlaybackCoordinator(
     private var nextCommandSequence = 1L
     private var nextSessionId = 1L
     private var nextTransitionSequence = 1L
-    private var nextCommittedEventSequence = 1L
-    private var nextEngineCaptureSequence = 0L
+    private val renderedEventPublisher = PlaybackRenderedEventPublisher(engine) {
+        mutableCommittedEvents.tryEmit(it)
+    }
     private var lastBackendFailure: AudioBackendFailure? = null
     private var eventDrainFuture: ScheduledFuture<*>? = null
     private var pendingReplacement: PendingStart? = null
     private val pendingUpdates = ArrayDeque<PendingUpdate>()
     private var inFlightUpdate: PendingUpdate? = null
-    private var latestSoundRequestSequence = 0L
+    private val soundState = PlaybackSoundState(mutableOwnership.value.requestedSounds)
     @Volatile
     private var controlThread: Thread? = null
     @Volatile
@@ -332,7 +248,7 @@ class PlaybackCoordinator(
     val controlEvents: SharedFlow<PlaybackControlEvent> = mutableControlEvents
     override val transportState: StateFlow<PlaybackTransportState> = mutableTransportState
     override val lifecycleCheckpoint: StateFlow<PlaybackLifecycleCheckpoint> =
-        mutableLifecycleCheckpoint
+        lifecycleJournal.checkpoint
     val stateTransitions: SharedFlow<PlaybackStateTransition> = mutableStateTransitions
     override val committedEvents: SharedFlow<PlaybackCommittedEvent> = mutableCommittedEvents
 
@@ -347,44 +263,16 @@ class PlaybackCoordinator(
             }
 
     override fun lifecycleTransitionsAfter(sequence: Long): PlaybackLifecycleBatch {
-        require(sequence >= 0) { "Lifecycle sequence must not be negative" }
-        return synchronized(lifecycleJournalLock) {
-            require(sequence >= acknowledgedLifecycleSequence) {
-                "Lifecycle sequence $sequence was already acknowledged"
-            }
-            val oldestAvailable = lifecycleJournal.firstOrNull()?.sequence
-                ?: mutableLifecycleCheckpoint.value.latestTransitionSequence + 1
-            PlaybackLifecycleBatch(
-                lifecycleJournal.filter { it.sequence > sequence },
-                mutableLifecycleCheckpoint.value,
-                if (sequence + 1 < oldestAvailable) {
-                    PlaybackLifecycleGap(sequence, oldestAvailable)
-                } else {
-                    null
-                }
-            )
-        }
+        return lifecycleJournal.transitionsAfter(sequence)
     }
 
     override fun acknowledgeLifecycleTransitionsThrough(sequence: Long) {
-        require(sequence >= 0) { "Lifecycle sequence must not be negative" }
-        synchronized(lifecycleJournalLock) {
-            require(sequence <= mutableLifecycleCheckpoint.value.latestTransitionSequence) {
-                "Cannot acknowledge an unpublished lifecycle sequence"
-            }
-            if (sequence <= acknowledgedLifecycleSequence) return
-            while (lifecycleJournal.firstOrNull()?.sequence?.let { it <= sequence } == true) {
-                lifecycleJournal.removeFirst()
-            }
-            acknowledgedLifecycleSequence = sequence
-        }
+        lifecycleJournal.acknowledgeThrough(sequence)
     }
 
     init {
         engine.soundPreparationObserver = ::onSoundPreparation
         engine.transportObserver = this
-        engine.delegate = this
-        engine.polyrhythmDelegate = this
         refreshAudibleSounds()
     }
 
@@ -462,33 +350,11 @@ class PlaybackCoordinator(
                 }
                 engine.soundPreparationObserver = null
                 engine.transportObserver = null
-                engine.delegate = null
-                engine.polyrhythmDelegate = null
                 settleReleasedTransport()
             }
         }
         executor.shutdown()
         eventDrainScheduler.shutdownNow()
-    }
-
-    override fun metronomeBeatFired(
-        isBeat: Boolean,
-        beatInterval: Float,
-        beatTimeNanos: Long
-    ) {
-        onControlContext(::publishRenderedEvents)
-    }
-
-    override fun polyrhythmBeatFired(
-        beatFired: Boolean,
-        rhythmFired: Boolean,
-        beatIndex: Int,
-        rhythmIndex: Int,
-        stepTimeNanos: Long,
-        beatDurationNanos: Long,
-        rhythmDurationNanos: Long
-    ) {
-        onControlContext(::publishRenderedEvents)
     }
 
     override fun engineStarted(evidence: PlaybackEngineStartEvidence) {
@@ -526,6 +392,10 @@ class PlaybackCoordinator(
         }
     }
 
+    internal fun drainRenderedEventsForTesting() {
+        onControlContext(::publishRenderedEvents)
+    }
+
     private fun applyIntent(sequence: Long, intent: PlaybackIntent) {
         controlThread = Thread.currentThread()
         val validation = validate(intent)
@@ -558,8 +428,9 @@ class PlaybackCoordinator(
             var awaitsEngineAcknowledgement = false
             when (intent) {
                 is PlaybackIntent.SelectSounds -> {
-                    latestSoundRequestSequence = sequence
-                    updateRequestedSounds(beat = intent.beat, rhythm = intent.rhythm)
+                    updateRequestedSounds(
+                        soundState.select(sequence, beat = intent.beat, rhythm = intent.rhythm)
+                    )
                     engine.selectSounds(
                         sequence,
                         requireNotNull(intent.beat.resourceId),
@@ -567,8 +438,7 @@ class PlaybackCoordinator(
                     )
                 }
                 is PlaybackIntent.SelectSoundBank -> {
-                    latestSoundRequestSequence = sequence
-                    updateRequestedSounds(bank = intent.bank)
+                    updateRequestedSounds(soundState.select(sequence, bank = intent.bank))
                     engine.selectSoundBank(sequence, intent.bank)
                 }
                 is PlaybackIntent.SetMuted -> {
@@ -645,7 +515,7 @@ class PlaybackCoordinator(
                 PlaybackIntent.Stop -> applyStop(sequence)
                 PlaybackIntent.Prewarm -> engine.prewarmAudioTrack()
                 is PlaybackIntent.PrepareSounds -> {
-                    latestSoundRequestSequence = sequence
+                    soundState.select(sequence)
                     engine.prepareSounds(sequence, intent.sounds)
                 }
             }
@@ -1044,13 +914,7 @@ class PlaybackCoordinator(
             backend = evidence.backend
         )
         lastBackendFailure = null
-        mutableCommittedEvents.tryEmit(
-            PlaybackCommittedEvent.FirstEventScheduled(
-                nextCommittedEventSequence++,
-                evidence.sessionId,
-                evidence.firstEventFrame
-            )
-        )
+        renderedEventPublisher.firstEventScheduled(evidence.sessionId, evidence.firstEventFrame)
         transitionTo(PlaybackTransportState.Playing(committed))
         publishRenderedEvents()
         mutateOwnership { it.copy(audibleSounds = evidence.audibleSounds) }
@@ -1078,31 +942,7 @@ class PlaybackCoordinator(
         sessionId: PlaybackSessionId,
         detectRuntimeFailure: Boolean
     ) {
-        val batch = engine.drainRenderedEvents(nextEngineCaptureSequence) ?: return
-        nextEngineCaptureSequence = batch.events.nextCaptureSequence
-        if (batch.events.droppedRecords > 0) {
-            mutableCommittedEvents.tryEmit(
-                PlaybackCommittedEvent.RecordsDropped(
-                    nextCommittedEventSequence++,
-                    batch.events.droppedRecords
-                )
-            )
-        }
-        batch.events.records.forEach { record ->
-            if (record.sessionId != sessionId.value) return@forEach
-            mutableCommittedEvents.tryEmit(
-                PlaybackCommittedEvent.Rendered(
-                    nextCommittedEventSequence++,
-                    sessionId,
-                    record.eventSequence,
-                    record.role,
-                    record.intendedFrame,
-                    record.muted,
-                    presentationFor(record.intendedFrame, batch),
-                    record.roleIndex
-                )
-            )
-        }
+        renderedEventPublisher.drain(sessionId)
         if (detectRuntimeFailure) {
             val current = transportState.value as? PlaybackTransportState.Playing ?: return
             if (current.context.sessionId == sessionId) publishRuntimeFailure(current)
@@ -1126,28 +966,6 @@ class PlaybackCoordinator(
                 "${failure.operation}: ${failure.code}"
             )
         )
-    }
-
-    private fun presentationFor(
-        intendedFrame: Long,
-        batch: FrameAudioRenderedEventBatch
-    ): EventPresentation {
-        val correlation = batch.correlation ?: return EventPresentation.Unavailable
-        return try {
-            val frameDelta = Math.subtractExact(intendedFrame, correlation.presentedFrame)
-            val wholeSeconds = Math.floorDiv(frameDelta, batch.sampleRate.toLong())
-            val remainderFrames = Math.floorMod(frameDelta, batch.sampleRate.toLong())
-            val deltaNanos = Math.addExact(
-                Math.multiplyExact(wholeSeconds, NANOS_PER_SECOND),
-                Math.multiplyExact(remainderFrames, NANOS_PER_SECOND) / batch.sampleRate
-            )
-            EventPresentation.Correlated(
-                Math.addExact(correlation.presentationNanoTime, deltaNanos),
-                correlation
-            )
-        } catch (_: ArithmeticException) {
-            EventPresentation.Unavailable
-        }
     }
 
     private fun applyEngineStartFailed(
@@ -1237,7 +1055,7 @@ class PlaybackCoordinator(
             wallClockMillis(),
             timeZoneIdentifier()
         )
-        recordLifecycleTransition(transition)
+        lifecycleJournal.record(transition)
         mutableStateTransitions.tryEmit(transition)
         if (previous !is PlaybackTransportState.Playing &&
             next is PlaybackTransportState.Playing &&
@@ -1247,19 +1065,6 @@ class PlaybackCoordinator(
                 0,
                 EVENT_DRAIN_PERIOD_MILLIS,
                 TimeUnit.MILLISECONDS
-            )
-        }
-    }
-
-    private fun recordLifecycleTransition(transition: PlaybackStateTransition) {
-        synchronized(lifecycleJournalLock) {
-            lifecycleJournal += transition
-            if (lifecycleJournal.size > LIFECYCLE_JOURNAL_CAPACITY) {
-                lifecycleJournal.removeFirst()
-            }
-            mutableLifecycleCheckpoint.value = PlaybackLifecycleCheckpoint(
-                transition.sequence,
-                transition.to
             )
         }
     }
@@ -1390,69 +1195,40 @@ class PlaybackCoordinator(
         data class Rejected(val diagnostic: String) : IntentValidation
     }
 
-    private fun updateRequestedSounds(
-        bank: SoundBank? = null,
-        beat: SoundFile? = null,
-        rhythm: SoundFile? = null
-    ) {
-        mutateOwnership { current ->
-            current.copy(
-                requestedSounds = current.requestedSounds.copy(
-                    bank = bank ?: current.requestedSounds.bank,
-                    beatSound = beat ?: current.requestedSounds.beatSound,
-                    rhythmSound = rhythm ?: current.requestedSounds.rhythmSound
-                )
-            )
-        }
-    }
+    private fun updateRequestedSounds(requested: RequestedSoundConfiguration) =
+        mutateOwnership { it.copy(requestedSounds = requested) }
 
-    @Synchronized
     private fun onSoundPreparation(publication: SoundPreparationPublication) {
         if (released) return
         executeControl("Sound preparation callback failed") {
-            if (publication.requestSequence != null &&
-                publication.requestSequence < latestSoundRequestSequence) {
-                return@executeControl
-            }
             val current = transportState.value as? PlaybackTransportState.Playing
-            if (publication.sessionId != null &&
-                publication.sessionId != current?.context?.sessionId) {
-                return@executeControl
-            }
-            val active = publication.active
-            val failure = publication.failure
-            val requested = ownership.value.requestedSounds
-            val matches = active != null &&
-                active.bank == requested.bank &&
-                active.beatSound == requested.beatSound &&
-                active.rhythmSound == requested.rhythmSound
-            val adopted = matches &&
-                publication.adopted &&
-                publication.sessionId == current?.context?.sessionId
+            val decision = soundState.apply(publication, current?.context?.sessionId)
+                ?: return@executeControl
             mutateOwnership {
                 it.copy(
-                    audibleSounds = if (adopted) active else it.audibleSounds,
-                    soundPreparationFailure = failure
+                    audibleSounds = decision.adopted ?: it.audibleSounds,
+                    soundPreparationFailure = decision.failure
                 )
             }
-            if (adopted) {
-                val adoptedSounds = requireNotNull(active)
+            if (decision.adopted != null) {
                 val adoptedState = requireNotNull(current)
                 transitionTo(
                     adoptedState.copy(
                         context = adoptedState.context.copy(
-                            audibleSounds = adoptedSounds,
+                            audibleSounds = decision.adopted,
                             soundPreparationFailure = null
                         )
                     )
                 )
-            } else if (failure != null && current != null) {
+            } else if (decision.failure != null && current != null) {
                 transitionTo(
-                    current.copy(context = current.context.copy(soundPreparationFailure = failure))
+                    current.copy(
+                        context = current.context.copy(soundPreparationFailure = decision.failure)
+                    )
                 )
             }
-            if (failure != null) {
-                publication.requestSequence?.let { requestSequence ->
+            decision.failure?.let { failure ->
+                decision.requestSequence?.let { requestSequence ->
                     mutableControlEvents.tryEmit(
                         PlaybackControlEvent.SoundPreparationFailed(
                             requestSequence,
@@ -1491,10 +1267,8 @@ class PlaybackCoordinator(
     }
 
     private companion object {
-        const val LIFECYCLE_JOURNAL_CAPACITY = 4_096
         const val CONTROL_EVENT_CAPACITY = 64
         const val TRANSPORT_EVENT_CAPACITY = 64
-        const val NANOS_PER_SECOND = 1_000_000_000L
         const val EVENT_DRAIN_PERIOD_MILLIS = 10L
     }
 }

@@ -8,7 +8,6 @@ import com.bfunkstudios.beatclikr.services.AudioOutputRoute
 import com.bfunkstudios.beatclikr.services.CommittedPlaybackConfiguration
 import com.bfunkstudios.beatclikr.services.FrameAudioMetricsSnapshot
 import com.bfunkstudios.beatclikr.services.FrameAudioRenderedEventBatch
-import com.bfunkstudios.beatclikr.services.MetronomeAudioEngineDelegate
 import com.bfunkstudios.beatclikr.services.PlaybackCoordinator
 import com.bfunkstudios.beatclikr.services.PlaybackEnginePort
 import com.bfunkstudios.beatclikr.services.PlaybackEngineStartEvidence
@@ -18,7 +17,6 @@ import com.bfunkstudios.beatclikr.services.PlaybackIntent
 import com.bfunkstudios.beatclikr.services.PlaybackMode
 import com.bfunkstudios.beatclikr.services.PlaybackSessionId
 import com.bfunkstudios.beatclikr.services.PlaybackTransportState
-import com.bfunkstudios.beatclikr.services.PolyrhythmAudioEngineDelegate
 import com.bfunkstudios.beatclikr.services.SoundPreparationFailure
 import com.bfunkstudios.beatclikr.services.SoundPreparationPublication
 import kotlin.random.Random
@@ -339,8 +337,6 @@ class PureCoreQualificationTest {
     ) : PlaybackEnginePort {
         override var soundPreparationObserver: ((SoundPreparationPublication) -> Unit)? = null
         override var transportObserver: PlaybackEngineTransportObserver? = null
-        override var delegate: MetronomeAudioEngineDelegate? = null
-        override var polyrhythmDelegate: PolyrhythmAudioEngineDelegate? = null
         override var isMuted = false
         val standardUpdates = mutableListOf<CommittedPlaybackConfiguration.Standard>()
         val polyrhythmUpdates = mutableListOf<CommittedPlaybackConfiguration.Polyrhythm>()

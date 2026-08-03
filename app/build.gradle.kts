@@ -47,7 +47,13 @@ android {
         }
     }
     testBuildType = providers.gradleProperty("beatclikr.testBuildType").orElse("debug").get()
-    sourceSets.getByName("androidTest").assets.directories.add("$projectDir/schemas")
+    sourceSets {
+        getByName("test").kotlin.directories.add("$projectDir/src/sharedTest/java")
+        getByName("androidTest") {
+            kotlin.directories.add("$projectDir/src/sharedTest/java")
+            assets.directories.add("$projectDir/schemas")
+        }
+    }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17

@@ -308,7 +308,7 @@ class MetronomeViewModelTest {
         viewModel.updateRampEnabled(false)
         viewModel.updateRampInterval(4)
         viewModel.updateRampIncrement(5)
-        repeat(10) { viewModel.metronomeBeatFired(isBeat = true, beatInterval = 0.5f) }
+        repeat(10) { viewModel.applyStandardEvent(isBeat = true, beatInterval = 0.5f, beatTimeNanos = 0) }
         assertEquals(100f, viewModel.beatsPerMinute)
     }
 
@@ -318,7 +318,7 @@ class MetronomeViewModelTest {
         viewModel.updateRampEnabled(true)
         viewModel.updateRampInterval(4)
         viewModel.updateRampIncrement(5)
-        repeat(20) { viewModel.metronomeBeatFired(isBeat = false, beatInterval = 0.5f) }
+        repeat(20) { viewModel.applyStandardEvent(isBeat = false, beatInterval = 0.5f, beatTimeNanos = 0) }
         assertEquals(100f, viewModel.beatsPerMinute)
     }
 
@@ -328,7 +328,7 @@ class MetronomeViewModelTest {
         viewModel.updateRampEnabled(true)
         viewModel.updateRampInterval(4)
         viewModel.updateRampIncrement(5)
-        repeat(5) { viewModel.metronomeBeatFired(isBeat = true, beatInterval = 0.5f) }
+        repeat(5) { viewModel.applyStandardEvent(isBeat = true, beatInterval = 0.5f, beatTimeNanos = 0) }
         assertEquals(105f, viewModel.beatsPerMinute)
     }
 
@@ -338,7 +338,7 @@ class MetronomeViewModelTest {
         viewModel.updateRampEnabled(true)
         viewModel.updateRampInterval(4)
         viewModel.updateRampIncrement(10)
-        repeat(5) { viewModel.metronomeBeatFired(isBeat = true, beatInterval = 0.5f) }
+        repeat(5) { viewModel.applyStandardEvent(isBeat = true, beatInterval = 0.5f, beatTimeNanos = 0) }
         assertEquals(MetronomeConstants.MAX_BPM, viewModel.beatsPerMinute)
     }
 
@@ -349,7 +349,7 @@ class MetronomeViewModelTest {
         viewModel.updateRampInterval(4)
         viewModel.updateRampIncrement(5)
         viewModel.start()
-        repeat(5) { viewModel.metronomeBeatFired(isBeat = true, beatInterval = 0.5f) }
+        repeat(5) { viewModel.applyStandardEvent(isBeat = true, beatInterval = 0.5f, beatTimeNanos = 0) }
         assertEquals(105f, viewModel.beatsPerMinute)
         viewModel.stop()
         assertEquals(100f, viewModel.beatsPerMinute)
@@ -372,7 +372,7 @@ class MetronomeViewModelTest {
         viewModel.loadSong(song, ClickerType.PLAYLIST)
         viewModel.start()
 
-        repeat(10) { viewModel.metronomeBeatFired(isBeat = true, beatInterval = 0.5f) }
+        repeat(10) { viewModel.applyStandardEvent(isBeat = true, beatInterval = 0.5f, beatTimeNanos = 0) }
 
         assertEquals(100f, viewModel.beatsPerMinute)
     }
@@ -601,26 +601,26 @@ class MetronomeViewModelTest {
     // --- Beat fired ---
 
     @Test
-    fun `metronomeBeatFired on beat sets iconScale to max`() {
-        viewModel.metronomeBeatFired(isBeat = true, beatInterval = 0.5f)
+    fun `standard event on beat sets iconScale to max`() {
+        viewModel.applyStandardEvent(isBeat = true, beatInterval = 0.5f, beatTimeNanos = 0)
         assertEquals(MetronomeConstants.ICON_SCALE_MAX, viewModel.iconScale)
     }
 
     @Test
-    fun `metronomeBeatFired without scheduled time does not start beat pulse`() {
-        viewModel.metronomeBeatFired(isBeat = true, beatInterval = 0.5f)
+    fun `standard event without presentation time does not start beat pulse`() {
+        viewModel.applyStandardEvent(isBeat = true, beatInterval = 0.5f, beatTimeNanos = 0)
         assertEquals(0f, viewModel.beatPulse)
     }
 
     @Test
-    fun `metronomeBeatFired on subdivision does not set iconScale to max`() {
-        viewModel.metronomeBeatFired(isBeat = false, beatInterval = 0.5f)
+    fun `standard event on subdivision does not set iconScale to max`() {
+        viewModel.applyStandardEvent(isBeat = false, beatInterval = 0.5f, beatTimeNanos = 0)
         assertEquals(MetronomeConstants.ICON_SCALE_MIN, viewModel.iconScale)
     }
 
     @Test
     fun `stop resets beat pulse`() {
-        viewModel.metronomeBeatFired(isBeat = true, beatInterval = 0.5f)
+        viewModel.applyStandardEvent(isBeat = true, beatInterval = 0.5f, beatTimeNanos = 0)
         viewModel.stop()
         assertEquals(0f, viewModel.beatPulse)
     }

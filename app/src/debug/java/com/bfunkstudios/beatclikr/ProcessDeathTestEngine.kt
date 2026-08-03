@@ -9,7 +9,6 @@ import com.bfunkstudios.beatclikr.services.AudioOutputRoute
 import com.bfunkstudios.beatclikr.services.CommittedPlaybackConfiguration
 import com.bfunkstudios.beatclikr.services.FrameAudioMetricsSnapshot
 import com.bfunkstudios.beatclikr.services.FrameAudioRenderedEventBatch
-import com.bfunkstudios.beatclikr.services.MetronomeAudioEngineDelegate
 import com.bfunkstudios.beatclikr.services.PlaybackEnginePort
 import com.bfunkstudios.beatclikr.services.PlaybackEngineStartEvidence
 import com.bfunkstudios.beatclikr.services.PlaybackEngineTransportObserver
@@ -17,7 +16,6 @@ import com.bfunkstudios.beatclikr.services.PlaybackEngineUpdateResult
 import com.bfunkstudios.beatclikr.services.PlaybackInterruptionReason
 import com.bfunkstudios.beatclikr.services.PlaybackMode
 import com.bfunkstudios.beatclikr.services.PlaybackSessionId
-import com.bfunkstudios.beatclikr.services.PolyrhythmAudioEngineDelegate
 import com.bfunkstudios.beatclikr.services.SoundPreparationFailure
 import com.bfunkstudios.beatclikr.services.SoundPreparationPublication
 import com.bfunkstudios.beatclikr.services.ValidatedPolyrhythmConfiguration
@@ -34,8 +32,6 @@ class ProcessDeathTestEngine private constructor(private val mode: String) : Pla
 
     override var soundPreparationObserver: ((SoundPreparationPublication) -> Unit)? = null
     override var transportObserver: PlaybackEngineTransportObserver? = null
-    override var delegate: MetronomeAudioEngineDelegate? = null
-    override var polyrhythmDelegate: PolyrhythmAudioEngineDelegate? = null
     override var isMuted = false
 
     override fun activeSoundConfiguration(): ActiveSoundConfiguration {

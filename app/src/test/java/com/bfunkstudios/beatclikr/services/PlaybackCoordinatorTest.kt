@@ -1343,7 +1343,7 @@ class PlaybackCoordinatorTest {
             val first = (coordinator.transportState.value as PlaybackTransportState.Playing)
                 .context.sessionId
             engine.renderedBatch = renderedBatch(first, 31)
-            coordinator.metronomeBeatFired(true, 0.5f, 0)
+            coordinator.drainRenderedEventsForTesting()
             assertTrue(coordinator.awaitControlIdle())
 
             coordinator.submit(PlaybackIntent.StartPolyrhythm(120f, 3, 2))
@@ -1351,7 +1351,7 @@ class PlaybackCoordinatorTest {
             val second = (coordinator.transportState.value as PlaybackTransportState.Playing)
                 .context.sessionId
             engine.renderedBatch = renderedBatch(first, 32)
-            coordinator.metronomeBeatFired(true, 0.5f, 0)
+            coordinator.drainRenderedEventsForTesting()
             assertTrue(coordinator.awaitControlIdle())
 
             assertEquals(second, (coordinator.transportState.value as PlaybackTransportState.Playing).context.sessionId)
@@ -1760,7 +1760,7 @@ class PlaybackCoordinatorTest {
                 )
             )
 
-            coordinator.metronomeBeatFired(true, 0.5f, 2_010_000_000)
+            coordinator.drainRenderedEventsForTesting()
             assertTrue(coordinator.awaitControlIdle())
 
             val rendered = coordinator.committedEvents.replayCache
@@ -1826,7 +1826,7 @@ class PlaybackCoordinatorTest {
                 null
             )
 
-            coordinator.metronomeBeatFired(true, 0.5f, 0)
+            coordinator.drainRenderedEventsForTesting()
             assertTrue(coordinator.awaitControlIdle())
 
             assertTrue(
@@ -2068,8 +2068,6 @@ class PlaybackCoordinatorTest {
 
         override var soundPreparationObserver: ((SoundPreparationPublication) -> Unit)? = null
         override var transportObserver: PlaybackEngineTransportObserver? = null
-        override var delegate: MetronomeAudioEngineDelegate? = null
-        override var polyrhythmDelegate: PolyrhythmAudioEngineDelegate? = null
         override var isMuted: Boolean = false
         override fun prewarmAudioTrack() = call("prewarm")
         override fun getFrameAudioMetricsSnapshot(): FrameAudioMetricsSnapshot? =

@@ -119,7 +119,7 @@ fun PlaylistDetailView(
                                 ),
                                 editMode = editMode,
                                 isCurrent = isCurrent,
-                                onDelete = { viewModel.deleteEntry(entryWithSong, localEntries.toList()) },
+                                onDelete = { viewModel.deleteEntry(entryWithSong) },
                                 onEdit = { onEditSong(entryWithSong.song) },
                                 dragHandleModifier = Modifier.draggableHandle(
                                     onDragStopped = { viewModel.reorderEntries(localEntries.toList()) }
