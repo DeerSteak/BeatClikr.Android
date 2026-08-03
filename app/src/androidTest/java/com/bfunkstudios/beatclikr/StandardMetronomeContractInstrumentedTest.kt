@@ -60,10 +60,12 @@ class StandardMetronomeContractInstrumentedTest {
             val beatFlags = Collections.synchronizedList(mutableListOf<Boolean>())
             val eventIndex = AtomicInteger()
             val latch = CountDownLatch(MUTE_EVENT_COUNT)
-            val delegate = object : MetronomeTestDelegate() {
-                override fun metronomeBeatFired(isBeat: Boolean, beatInterval: Float, beatTimeNanos: Long) {
-                    scheduledTimes += beatTimeNanos
-                    beatFlags += isBeat
+            val session = RenderedEventTestSession.standard(
+                engine, fixture.bpm, fixture.subdivisions, null, false
+            ) { records, sampleRate ->
+                records.forEach { event ->
+                    scheduledTimes += event.intendedFrame * 1_000_000_000L / sampleRate
+                    beatFlags += event.roleIndex == 0
                     when (eventIndex.incrementAndGet()) {
                         MUTE_START_EVENT -> engine.isMuted = true
                         MUTE_END_EVENT -> engine.isMuted = false
@@ -71,10 +73,8 @@ class StandardMetronomeContractInstrumentedTest {
                     latch.countDown()
                 }
             }
-
-            engine.startMetronome(fixture.bpm, fixture.subdivisions, null, false, delegate)
             assertTrue("Timed out waiting for mute-continuity events", latch.await(TIMEOUT_SECONDS, TimeUnit.SECONDS))
-            engine.stopMetronome()
+            session.close()
             settle()
 
             val times = synchronized(scheduledTimes) { scheduledTimes.toList() }
@@ -92,15 +92,16 @@ class StandardMetronomeContractInstrumentedTest {
         withEngine { engine ->
             val firstSessionCallbacks = AtomicInteger()
             val firstSessionLatch = CountDownLatch(fixture.subdivisions)
-            val firstSessionDelegate = object : MetronomeTestDelegate() {
-                override fun metronomeBeatFired(isBeat: Boolean, beatInterval: Float, beatTimeNanos: Long) {
+            val firstSession = RenderedEventTestSession.standard(
+                engine, fixture.bpm, fixture.subdivisions, null, false
+            ) { records, _ ->
+                records.forEach { _ ->
                     firstSessionCallbacks.incrementAndGet()
                     firstSessionLatch.countDown()
                 }
             }
-            engine.startMetronome(fixture.bpm, fixture.subdivisions, null, false, firstSessionDelegate)
             assertTrue("Timed out waiting for first session", firstSessionLatch.await(TIMEOUT_SECONDS, TimeUnit.SECONDS))
-            engine.stopMetronome()
+            firstSession.close()
             settle()
             val callbacksAfterStop = firstSessionCallbacks.get()
             Thread.sleep(STOP_OBSERVATION_MILLIS)
@@ -138,19 +139,20 @@ class StandardMetronomeContractInstrumentedTest {
         val scheduledTimes = Collections.synchronizedList(mutableListOf<Long>())
         val beatFlags = Collections.synchronizedList(mutableListOf<Boolean>())
         val latch = CountDownLatch(eventCount)
-        val delegate = object : MetronomeTestDelegate() {
-            override fun metronomeBeatFired(isBeat: Boolean, beatInterval: Float, beatTimeNanos: Long) {
-                if (latch.count == 0L) return
-                scheduledTimes += beatTimeNanos
-                beatFlags += isBeat
-                latch.countDown()
+        val session = RenderedEventTestSession.standard(
+            engine, fixture.bpm, fixture.subdivisions, null, false
+        ) { records, sampleRate ->
+            records.forEach { event ->
+                if (latch.count > 0L) {
+                    scheduledTimes += event.intendedFrame * 1_000_000_000L / sampleRate
+                    beatFlags += event.roleIndex == 0
+                    latch.countDown()
+                }
             }
         }
-
-        engine.startMetronome(fixture.bpm, fixture.subdivisions, null, false, delegate)
         assertTrue("Timed out waiting for contract events", latch.await(TIMEOUT_SECONDS, TimeUnit.SECONDS))
         awaitRenderedClicks(engine, eventCount)
-        engine.stopMetronome()
+        session.close()
         settle()
         return EventCapture(
             scheduledTimes = synchronized(scheduledTimes) { scheduledTimes.toList() },

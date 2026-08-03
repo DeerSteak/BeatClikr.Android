@@ -59,26 +59,19 @@ class AudioStartupLatencyInstrumentedTest {
         val latch = CountDownLatch(1)
         var predictedPresentationNanos = 0L
         val requestNanos = SystemClock.elapsedRealtimeNanos()
-        engine.startMetronome(
-            bpm = TEST_BPM,
-            subdivisions = TEST_SUBDIVISIONS,
-            accentPattern = null,
-            alternateSixteenth = false,
-            delegate = object : MetronomeTestDelegate() {
-                override fun metronomeBeatFired(
-                    isBeat: Boolean,
-                    beatInterval: Float,
-                    beatTimeNanos: Long
-                ) {
-                    if (firstCallback.compareAndSet(true, false)) {
-                        predictedPresentationNanos = beatTimeNanos
-                        latch.countDown()
-                    }
+        val session = RenderedEventTestSession.standard(
+            engine, TEST_BPM, TEST_SUBDIVISIONS, null, false
+        ) { records, sampleRate ->
+            records.forEach { event ->
+                if (firstCallback.compareAndSet(true, false)) {
+                    predictedPresentationNanos =
+                        event.intendedFrame * 1_000_000_000L / sampleRate
+                    latch.countDown()
                 }
             }
-        )
+        }
         assertTrue("First beat timed out", latch.await(START_TIMEOUT_SECONDS, TimeUnit.SECONDS))
-        engine.stopMetronome()
+        session.close()
         Thread.sleep(STOP_SETTLE_MILLIS)
         return predictedPresentationNanos - requestNanos
     }

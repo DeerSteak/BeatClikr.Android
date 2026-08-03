@@ -52,29 +52,20 @@ class AudioEngineInstrumentedTest {
         val arrivalTimes = Collections.synchronizedList(mutableListOf<Long>())
         val beatFlags = Collections.synchronizedList(mutableListOf<Boolean>())
         val latch = CountDownLatch(METRONOME_EVENT_COUNT)
-        val delegate = object : MetronomeTestDelegate() {
-            override fun metronomeBeatFired(
-                isBeat: Boolean,
-                beatInterval: Float,
-                beatTimeNanos: Long
-            ) {
-                if (latch.count == 0L) return
-                scheduledTimes += beatTimeNanos
-                arrivalTimes += SystemClock.elapsedRealtimeNanos()
-                beatFlags += isBeat
-                latch.countDown()
-            }
-        }
-
         try {
             engine.loadSounds(requireNotNull(SoundFile.CLICK_HI.resourceId), requireNotNull(SoundFile.CLICK_LO.resourceId))
-            engine.startMetronome(
-                bpm = MAX_TEST_BPM,
-                subdivisions = TEST_SUBDIVISIONS,
-                accentPattern = null,
-                alternateSixteenth = false,
-                delegate = delegate
-            )
+            val session = RenderedEventTestSession.standard(
+                engine, MAX_TEST_BPM, TEST_SUBDIVISIONS, null, false
+            ) { records, sampleRate ->
+                records.forEach { event ->
+                    if (latch.count > 0L) {
+                        scheduledTimes += event.intendedFrame * 1_000_000_000L / sampleRate
+                        arrivalTimes += SystemClock.elapsedRealtimeNanos()
+                        beatFlags += event.roleIndex == 0
+                        latch.countDown()
+                    }
+                }
+            }
             assertTrue("Timed out waiting for metronome callbacks", latch.await(10, TimeUnit.SECONDS))
             val renderDeadline = SystemClock.elapsedRealtime() + 1_000
             while (
@@ -84,7 +75,7 @@ class AudioEngineInstrumentedTest {
             ) {
                 SystemClock.sleep(5)
             }
-            engine.stopMetronome()
+            session.close()
 
             val scheduled = synchronized(scheduledTimes) { scheduledTimes.toList() }
             val arrivals = synchronized(arrivalTimes) { arrivalTimes.toList() }
@@ -134,28 +125,23 @@ class AudioEngineInstrumentedTest {
         val events = Collections.synchronizedList(mutableListOf<Pair<Boolean, Boolean>>())
         val scheduledTimes = Collections.synchronizedList(mutableListOf<Long>())
         val latch = CountDownLatch(POLYRHYTHM_EVENT_COUNT)
-        engine.installPolyrhythmTestDelegate(object : PolyrhythmTestDelegate() {
-            override fun polyrhythmBeatFired(
-                beatFired: Boolean,
-                rhythmFired: Boolean,
-                beatIndex: Int,
-                rhythmIndex: Int,
-                stepTimeNanos: Long,
-                beatDurationNanos: Long,
-                rhythmDurationNanos: Long
-            ) {
-                if (latch.count == 0L) return
-                events += beatFired to rhythmFired
-                scheduledTimes += stepTimeNanos
-                latch.countDown()
-            }
-        })
-
         try {
             engine.loadSounds(requireNotNull(SoundFile.CLICK_HI.resourceId), requireNotNull(SoundFile.CLICK_LO.resourceId))
-            engine.startPolyrhythm(bpm = MAX_TEST_BPM, beats = 3, against = 2)
+            val session = RenderedEventTestSession.polyrhythm(
+                engine, MAX_TEST_BPM, 3, 2
+            ) { records, sampleRate ->
+                records.groupBy { it.intendedFrame }.values.forEach { simultaneous ->
+                    if (latch.count > 0L) {
+                        events += simultaneous.any { it.role.name == "POLYRHYTHM_BEAT" } to
+                            simultaneous.any { it.role.name == "POLYRHYTHM_RHYTHM" }
+                        scheduledTimes +=
+                            simultaneous.first().intendedFrame * 1_000_000_000L / sampleRate
+                        latch.countDown()
+                    }
+                }
+            }
             assertTrue("Timed out waiting for polyrhythm callbacks", latch.await(10, TimeUnit.SECONDS))
-            engine.stopPolyrhythm()
+            session.close()
 
             val captured = synchronized(events) { events.toList() }
             val times = synchronized(scheduledTimes) { scheduledTimes.toList() }

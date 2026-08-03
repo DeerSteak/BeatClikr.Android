@@ -97,19 +97,20 @@ class AccentContractInstrumentedTest {
         val scheduledTimes = Collections.synchronizedList(mutableListOf<Long>())
         val beatFlags = Collections.synchronizedList(mutableListOf<Boolean>())
         val latch = CountDownLatch(eventCount)
-        val delegate = object : MetronomeTestDelegate() {
-            override fun metronomeBeatFired(isBeat: Boolean, beatInterval: Float, beatTimeNanos: Long) {
-                if (latch.count == 0L) return
-                scheduledTimes += beatTimeNanos
-                beatFlags += isBeat
-                latch.countDown()
+        val session = RenderedEventTestSession.standard(
+            engine, TEST_BPM, subdivisions, accentPattern, alternateSixteenth
+        ) { records, sampleRate ->
+            records.forEach { event ->
+                if (latch.count > 0L) {
+                    scheduledTimes += event.intendedFrame * 1_000_000_000L / sampleRate
+                    beatFlags += accentPattern?.getOrNull(event.roleIndex) ?: (event.roleIndex == 0)
+                    latch.countDown()
+                }
             }
         }
-
-        engine.startMetronome(TEST_BPM, subdivisions, accentPattern, alternateSixteenth, delegate)
         assertTrue("Timed out waiting for accent contract events", latch.await(TIMEOUT_SECONDS, TimeUnit.SECONDS))
         awaitRenderedClicks(engine, eventCount)
-        engine.stopMetronome()
+        session.close()
         Thread.sleep(STOP_SETTLE_MILLIS)
         return EventCapture(
             scheduledTimes = synchronized(scheduledTimes) { scheduledTimes.toList() },

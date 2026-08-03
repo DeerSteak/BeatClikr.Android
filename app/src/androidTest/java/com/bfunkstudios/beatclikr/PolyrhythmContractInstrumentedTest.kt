@@ -5,6 +5,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.LargeTest
 import androidx.test.platform.app.InstrumentationRegistry
 import com.bfunkstudios.beatclikr.data.SoundFile
+import com.bfunkstudios.beatclikr.music.MusicalEventRole
 import com.bfunkstudios.beatclikr.services.FrameAudioMetricsSnapshot
 import com.bfunkstudios.beatclikr.services.MetronomeAudioEngine
 import java.util.Collections
@@ -60,31 +61,31 @@ class PolyrhythmContractInstrumentedTest {
         val eventCount = fixture.events.size + 1
         val events = Collections.synchronizedList(mutableListOf<CapturedPolyrhythmEvent>())
         val latch = CountDownLatch(eventCount)
-        engine.installPolyrhythmTestDelegate(object : PolyrhythmTestDelegate() {
-            override fun polyrhythmBeatFired(
-                beatFired: Boolean,
-                rhythmFired: Boolean,
-                beatIndex: Int,
-                rhythmIndex: Int,
-                stepTimeNanos: Long,
-                beatDurationNanos: Long,
-                rhythmDurationNanos: Long
-            ) {
-                if (latch.count == 0L) return
-                events += CapturedPolyrhythmEvent(
-                    identity = EventIdentity(beatFired, rhythmFired, beatIndex, rhythmIndex),
-                    stepTimeNanos = stepTimeNanos,
-                    beatDurationNanos = beatDurationNanos,
-                    rhythmDurationNanos = rhythmDurationNanos
-                )
-                latch.countDown()
+        var beatIndex = 0
+        var rhythmIndex = 0
+        val session = RenderedEventTestSession.polyrhythm(
+            engine, TEST_BPM, fixture.beats, fixture.against
+        ) { records, sampleRate ->
+            records.groupBy { it.intendedFrame }.values.forEach { simultaneous ->
+                val beat = simultaneous.firstOrNull { it.role == MusicalEventRole.POLYRHYTHM_BEAT }
+                val rhythm = simultaneous.firstOrNull { it.role == MusicalEventRole.POLYRHYTHM_RHYTHM }
+                beat?.let { beatIndex = it.roleIndex }
+                rhythm?.let { rhythmIndex = it.roleIndex }
+                if (latch.count > 0L) {
+                    events += CapturedPolyrhythmEvent(
+                        EventIdentity(beat != null, rhythm != null, beatIndex, rhythmIndex),
+                        simultaneous.first().intendedFrame * 1_000_000_000L / sampleRate,
+                        (60_000_000_000.0 / TEST_BPM).toLong(),
+                        (60_000_000_000.0 * fixture.against /
+                            (TEST_BPM * fixture.beats)).toLong()
+                    )
+                    latch.countDown()
+                }
             }
-        })
-
-        engine.startPolyrhythm(TEST_BPM, fixture.beats, fixture.against)
+        }
         assertTrue("${fixture.beats}:${fixture.against} timed out", latch.await(TIMEOUT_SECONDS, TimeUnit.SECONDS))
         awaitRenderedPrefix(engine, fixture, eventCount)
-        engine.stopPolyrhythm()
+        session.close()
         Thread.sleep(STOP_SETTLE_MILLIS)
         return CycleCapture(synchronized(events) { events.toList() })
     }

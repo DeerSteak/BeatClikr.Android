@@ -10,7 +10,6 @@
 -keep,allowoptimization class com.bfunkstudios.beatclikr.services.FrameAudioRenderedEventBatch { *; }
 -keep,allowoptimization class com.bfunkstudios.beatclikr.services.RenderedEventBatch { *; }
 -keep,allowoptimization class com.bfunkstudios.beatclikr.services.RenderedFrameEvent { *; }
--keep,allowoptimization class com.bfunkstudios.beatclikr.services.AudioFrameCorrelation { *; }
 -keep class com.bfunkstudios.beatclikr.services.PcmFileCache { *; }
 -keep class com.bfunkstudios.beatclikr.services.PreparedSoundBank { *; }
 -keep class com.bfunkstudios.beatclikr.services.PreparedPcmWaveform { *; }
