@@ -112,7 +112,6 @@ class AudioEngineInstrumentedTest {
             assertEquals(METRONOME_EVENT_COUNT / TEST_SUBDIVISIONS, flags.count { it })
             assertTrue(
                 "No frame events rendered: metrics=$metrics " +
-                    "publication=${engine.getFramePublicationFailure()} " +
                     "preparation=${engine.getSoundPreparationFailure()}",
                 metrics.queuedClicks >= minimumRenderedEvents
             )

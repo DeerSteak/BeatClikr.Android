@@ -361,34 +361,29 @@ class PureCoreQualificationTest {
 
         override fun beginStandardSession(
             sessionId: PlaybackSessionId,
-            bpm: Float,
-            subdivisions: Int,
-            accentPattern: List<Boolean>?,
-            alternateSixteenth: Boolean
+            configuration: com.bfunkstudios.beatclikr.services.ValidatedStandardConfiguration
         ) = publishStarted(sessionId)
 
         override fun beginPolyrhythmSession(
             sessionId: PlaybackSessionId,
-            bpm: Float,
-            beats: Int,
-            against: Int
+            configuration: com.bfunkstudios.beatclikr.services.ValidatedPolyrhythmConfiguration
         ) = publishStarted(sessionId)
 
         override fun updateStandardSession(
             sessionId: PlaybackSessionId,
-            configuration: CommittedPlaybackConfiguration.Standard,
+            configuration: com.bfunkstudios.beatclikr.services.ValidatedStandardConfiguration,
             completion: (PlaybackEngineUpdateResult) -> Unit
         ) {
-            standardUpdates += configuration
+            standardUpdates += configuration.committed
             completeOrQueue(sessionId, completion)
         }
 
         override fun updatePolyrhythmSession(
             sessionId: PlaybackSessionId,
-            configuration: CommittedPlaybackConfiguration.Polyrhythm,
+            configuration: com.bfunkstudios.beatclikr.services.ValidatedPolyrhythmConfiguration,
             completion: (PlaybackEngineUpdateResult) -> Unit
         ) {
-            polyrhythmUpdates += configuration
+            polyrhythmUpdates += configuration.committed
             completeOrQueue(sessionId, completion)
         }
 

@@ -3,7 +3,6 @@ package com.bfunkstudios.beatclikr.services
 import android.media.AudioManager
 import com.bfunkstudios.beatclikr.data.SoundBank
 import com.bfunkstudios.beatclikr.data.SoundFile
-import com.bfunkstudios.beatclikr.music.PlaybackInputResult
 import com.bfunkstudios.beatclikr.music.SessionID
 import com.bfunkstudios.beatclikr.music.SessionOrigin
 
@@ -172,63 +171,19 @@ class FrameAudioEngine(
         frameSession?.setMuted(muted)
     }
 
-    fun updateStandard(
-        bpm: Float,
-        subdivisions: Int,
-        accentPattern: List<Boolean>?,
-        alternateSixteenth: Boolean,
-        muted: Boolean
-    ): Boolean {
-        val configuration = when (
-            val result = FramePlaybackPublicationBoundary.standardConfiguration(
-                bpm = bpm,
-                subdivisions = subdivisions,
-                accentPattern = accentPattern,
-                alternateSixteenth = alternateSixteenth,
-                muted = muted
-            )
-        ) {
-            is PlaybackInputResult.Accepted -> result.value
-            is PlaybackInputResult.Rejected -> return false
-        }
-        return frameSession?.updateStandard(configuration) == true
-    }
+    fun updateStandard(configuration: ValidatedStandardConfiguration): Boolean =
+        frameSession?.updateStandard(configuration.render) == true
 
-    fun updatePolyrhythm(
-        bpm: Float,
-        beats: Int,
-        against: Int,
-        muted: Boolean
-    ): Boolean {
-        val configuration = when (
-            val result = FramePlaybackPublicationBoundary.polyrhythmConfiguration(
-                bpm = bpm,
-                beats = beats,
-                against = against,
-                muted = muted
-            )
-        ) {
-            is PlaybackInputResult.Accepted -> result.value
-            is PlaybackInputResult.Rejected -> return false
-        }
-        return frameSession?.updatePolyrhythm(configuration) == true
-    }
+    fun updatePolyrhythm(configuration: ValidatedPolyrhythmConfiguration): Boolean =
+        frameSession?.updatePolyrhythm(configuration.render) == true
 
     fun startStandard(
-        bpm: Float,
-        subdivisions: Int,
-        accentPattern: List<Boolean>?,
-        alternateSixteenth: Boolean,
-        muted: Boolean,
+        configuration: ValidatedStandardConfiguration,
         startDelayMillis: Long,
         sessionId: PlaybackSessionId
     ): Boolean = startFramePublication(
         FramePlaybackPublicationBoundary.standard(
-            bpm = bpm,
-            subdivisions = subdivisions,
-            accentPattern = accentPattern,
-            alternateSixteenth = alternateSixteenth,
-            muted = muted,
+            configuration = configuration.render,
             origin = nextOrigin(sessionId),
             sounds = soundSelection.active,
             startDelayMillis = startDelayMillis,
@@ -237,18 +192,12 @@ class FrameAudioEngine(
     )
 
     fun startPolyrhythm(
-        bpm: Float,
-        beats: Int,
-        against: Int,
-        muted: Boolean,
+        configuration: ValidatedPolyrhythmConfiguration,
         startDelayMillis: Long,
         sessionId: PlaybackSessionId
     ): Boolean = startFramePublication(
         FramePlaybackPublicationBoundary.polyrhythm(
-            bpm = bpm,
-            beats = beats,
-            against = against,
-            muted = muted,
+            configuration = configuration.render,
             origin = nextOrigin(sessionId),
             sounds = soundSelection.active,
             startDelayMillis = startDelayMillis,

@@ -20,6 +20,8 @@ import com.bfunkstudios.beatclikr.services.PlaybackSessionId
 import com.bfunkstudios.beatclikr.services.PolyrhythmAudioEngineDelegate
 import com.bfunkstudios.beatclikr.services.SoundPreparationFailure
 import com.bfunkstudios.beatclikr.services.SoundPreparationPublication
+import com.bfunkstudios.beatclikr.services.ValidatedPolyrhythmConfiguration
+import com.bfunkstudios.beatclikr.services.ValidatedStandardConfiguration
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.atomic.AtomicInteger
 
@@ -48,10 +50,7 @@ class ProcessDeathTestEngine private constructor(private val mode: String) : Pla
 
     override fun beginStandardSession(
         sessionId: PlaybackSessionId,
-        bpm: Float,
-        subdivisions: Int,
-        accentPattern: List<Boolean>?,
-        alternateSixteenth: Boolean
+        configuration: ValidatedStandardConfiguration
     ) {
         startCount.incrementAndGet()
         focusHeld = true
@@ -70,20 +69,22 @@ class ProcessDeathTestEngine private constructor(private val mode: String) : Pla
 
     override fun beginPolyrhythmSession(
         sessionId: PlaybackSessionId,
-        bpm: Float,
-        beats: Int,
-        against: Int
-    ) = beginStandardSession(sessionId, bpm, beats, null, false)
+        configuration: ValidatedPolyrhythmConfiguration
+    ) {
+        startCount.incrementAndGet()
+        focusHeld = true
+        transportObserver?.engineStarted(startEvidence(sessionId))
+    }
 
     override fun updateStandardSession(
         sessionId: PlaybackSessionId,
-        configuration: CommittedPlaybackConfiguration.Standard,
+        configuration: ValidatedStandardConfiguration,
         completion: (PlaybackEngineUpdateResult) -> Unit
     ) = completion(PlaybackEngineUpdateResult.Accepted(sessionId))
 
     override fun updatePolyrhythmSession(
         sessionId: PlaybackSessionId,
-        configuration: CommittedPlaybackConfiguration.Polyrhythm,
+        configuration: ValidatedPolyrhythmConfiguration,
         completion: (PlaybackEngineUpdateResult) -> Unit
     ) = completion(PlaybackEngineUpdateResult.Accepted(sessionId))
 

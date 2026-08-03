@@ -2110,18 +2110,9 @@ class PlaybackCoordinatorTest {
         ) = call("prepareSounds")
         override fun beginStandardSession(
             sessionId: PlaybackSessionId,
-            bpm: Float,
-            subdivisions: Int,
-            accentPattern: List<Boolean>?,
-            alternateSixteenth: Boolean
+            configuration: ValidatedStandardConfiguration
         ) {
-            standardStarts += CommittedPlaybackConfiguration.Standard(
-                bpm,
-                subdivisions,
-                accentPattern?.toList(),
-                alternateSixteenth,
-                isMuted
-            )
+            standardStarts += configuration.committed
             call("startStandard") {
                 if (throwOnStart) error("start failed")
                 if (blockStart) {
@@ -2134,9 +2125,7 @@ class PlaybackCoordinatorTest {
 
         override fun beginPolyrhythmSession(
             sessionId: PlaybackSessionId,
-            bpm: Float,
-            beats: Int,
-            against: Int
+            configuration: ValidatedPolyrhythmConfiguration
         ) {
             call("startPolyrhythm") {
                 if (throwOnStart) error("start failed")
@@ -2146,7 +2135,7 @@ class PlaybackCoordinatorTest {
 
         override fun updateStandardSession(
             sessionId: PlaybackSessionId,
-            configuration: CommittedPlaybackConfiguration.Standard,
+            configuration: ValidatedStandardConfiguration,
             completion: (PlaybackEngineUpdateResult) -> Unit
         ) = call("updateStandard") {
             if (throwOnUpdate) error("asynchronous port failed")
@@ -2155,7 +2144,7 @@ class PlaybackCoordinatorTest {
 
         override fun updatePolyrhythmSession(
             sessionId: PlaybackSessionId,
-            configuration: CommittedPlaybackConfiguration.Polyrhythm,
+            configuration: ValidatedPolyrhythmConfiguration,
             completion: (PlaybackEngineUpdateResult) -> Unit
         ) = call("updatePolyrhythm") {
             if (throwOnUpdate) error("asynchronous port failed")

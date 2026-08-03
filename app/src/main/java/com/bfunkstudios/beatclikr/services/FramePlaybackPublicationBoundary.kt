@@ -25,6 +25,20 @@ enum class FramePublicationFailureCode {
     INVALID_CONFIGURATION
 }
 
+sealed interface ValidatedPlaybackConfiguration {
+    val committed: CommittedPlaybackConfiguration
+}
+
+data class ValidatedStandardConfiguration(
+    override val committed: CommittedPlaybackConfiguration.Standard,
+    val render: StandardMetronomeConfiguration
+) : ValidatedPlaybackConfiguration
+
+data class ValidatedPolyrhythmConfiguration(
+    override val committed: CommittedPlaybackConfiguration.Polyrhythm,
+    val render: PolyrhythmConfiguration
+) : ValidatedPlaybackConfiguration
+
 object FramePlaybackPublicationBoundary {
     fun standardConfiguration(
         bpm: Float,
@@ -32,36 +46,25 @@ object FramePlaybackPublicationBoundary {
         accentPattern: List<Boolean>?,
         alternateSixteenth: Boolean,
         muted: Boolean
-    ): PlaybackInputResult<StandardMetronomeConfiguration> =
+    ): PlaybackInputResult<ValidatedStandardConfiguration> =
         PlaybackInputBoundary.translate {
-            createStandardConfiguration(
-                bpm,
-                subdivisions,
-                accentPattern,
-                alternateSixteenth,
-                muted
+            ValidatedStandardConfiguration(
+                CommittedPlaybackConfiguration.Standard(
+                    bpm, subdivisions, accentPattern?.toList(), alternateSixteenth, muted
+                ),
+                createStandardConfiguration(bpm, subdivisions, accentPattern, alternateSixteenth, muted)
             )
         }
 
     fun standard(
-        bpm: Float,
-        subdivisions: Int,
-        accentPattern: List<Boolean>?,
-        alternateSixteenth: Boolean,
-        muted: Boolean,
+        configuration: StandardMetronomeConfiguration,
         origin: SessionOrigin,
         sounds: ActivePreparedSounds?,
         startDelayMillis: Long = 0,
         eventCapture: RenderedEventRing? = null
     ): FramePublicationResult = translate(sounds) { preparedSounds ->
         StandardPreparedFrameRendererFactory(
-            createStandardConfiguration(
-                bpm,
-                subdivisions,
-                accentPattern,
-                alternateSixteenth,
-                muted
-            ),
+            configuration,
             origin = origin,
             sounds = preparedSounds,
             startDelayMillis = startDelayMillis,
@@ -96,17 +99,14 @@ object FramePlaybackPublicationBoundary {
     }
 
     fun polyrhythm(
-        bpm: Float,
-        beats: Int,
-        against: Int,
-        muted: Boolean,
+        configuration: PolyrhythmConfiguration,
         origin: SessionOrigin,
         sounds: ActivePreparedSounds?,
         startDelayMillis: Long = 0,
         eventCapture: RenderedEventRing? = null
     ): FramePublicationResult = translate(sounds) { preparedSounds ->
         PolyrhythmPreparedFrameRendererFactory(
-            createPolyrhythmConfiguration(bpm, beats, against, muted),
+            configuration,
             origin = origin,
             sounds = preparedSounds,
             startDelayMillis = startDelayMillis,
@@ -119,9 +119,12 @@ object FramePlaybackPublicationBoundary {
         beats: Int,
         against: Int,
         muted: Boolean
-    ): PlaybackInputResult<PolyrhythmConfiguration> =
+    ): PlaybackInputResult<ValidatedPolyrhythmConfiguration> =
         PlaybackInputBoundary.translate {
-            createPolyrhythmConfiguration(bpm, beats, against, muted)
+            ValidatedPolyrhythmConfiguration(
+                CommittedPlaybackConfiguration.Polyrhythm(bpm, beats, against, muted),
+                createPolyrhythmConfiguration(bpm, beats, against, muted)
+            )
         }
 
     private fun createPolyrhythmConfiguration(

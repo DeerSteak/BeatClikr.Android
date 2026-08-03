@@ -119,4 +119,4 @@ jobs:
           pre-emulator-launch-script: adb start-server
           script: >-
             ./gradlew --no-daemon :app:connectedDebugAndroidTest
-            -Pandroid.testInstrumentationRunnerArguments.class=com.bfunkstudios.beatclikr.ExampleInstrumentedTest,com.bfunkstudios.beatclikr.InstantMetronomeViewTest,com.bfunkstudios.beatclikr.AudioEngineInstrumentedTest,com.bfunkstudios.beatclikr.StandardMetronomeContractInstrumentedTest,com.bfunkstudios.beatclikr.AccentContractInstrumentedTest,com.bfunkstudios.beatclikr.PolyrhythmContractInstrumentedTest
+            -Pandroid.testInstrumentationRunnerArguments.class=com.bfunkstudios.beatclikr.InstantMetronomeViewTest,com.bfunkstudios.beatclikr.AudioEngineInstrumentedTest,com.bfunkstudios.beatclikr.StandardMetronomeContractInstrumentedTest,com.bfunkstudios.beatclikr.AccentContractInstrumentedTest,com.bfunkstudios.beatclikr.PolyrhythmContractInstrumentedTest
