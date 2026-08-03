@@ -17,6 +17,7 @@ import com.bfunkstudios.beatclikr.services.CommittedPlaybackConfiguration
 import com.bfunkstudios.beatclikr.services.EventPresentation
 import com.bfunkstudios.beatclikr.services.IAudioPlayerService
 import com.bfunkstudios.beatclikr.services.PlaybackCommittedEvent
+import com.bfunkstudios.beatclikr.services.PlaybackIntent
 import com.bfunkstudios.beatclikr.services.PlaybackMode
 import com.bfunkstudios.beatclikr.services.PlaybackFailureReason
 import com.bfunkstudios.beatclikr.services.PlaybackInterruptionReason
@@ -82,11 +83,16 @@ class MetronomeViewModelTest {
         every { prefs.rampIncrement } returns 2
         every { prefs.rampInterval } returns 8
         every { prefs.muteMetronome } returns false
-        every { audio.startMetronome(any(), any(), any(), any(), any()) } answers {
-            transportState.value = standardPreparing()
-        }
-        every { audio.stopIfCurrent(PlaybackSessionId(1)) } answers {
-            transportState.value = PlaybackTransportState.Idle
+        every { audio.submit(any()) } answers {
+            when (val intent = firstArg<PlaybackIntent>()) {
+                is PlaybackIntent.StartStandard -> transportState.value = standardPreparing()
+                is PlaybackIntent.ReplaceStandard -> transportState.value = standardPreparing()
+                is PlaybackIntent.StopIfCurrent -> if (intent.expectedSessionId == PlaybackSessionId(1)) {
+                    transportState.value = PlaybackTransportState.Idle
+                }
+                else -> Unit
+            }
+            0L
         }
         viewModel = MetronomeViewModel(audio, playback, prefs, secondaryOutputs)
     }
@@ -197,8 +203,10 @@ class MetronomeViewModelTest {
         viewModel.togglePlayPause()
         viewModel.togglePlayPause()
 
-        verify(exactly = 2) { audio.startMetronome(any(), any(), any(), any()) }
-        verify(exactly = 1) { audio.stopIfCurrent(PlaybackSessionId(1)) }
+        verify(exactly = 2) { audio.submit(ofType<PlaybackIntent.StartStandard>()) }
+        verify(exactly = 1) {
+            audio.submit(match { it == PlaybackIntent.StopIfCurrent(PlaybackSessionId(1)) })
+        }
         assertTrue(viewModel.isPlaying)
     }
 
@@ -249,13 +257,13 @@ class MetronomeViewModelTest {
     fun `updateBPM while playing calls updateTempo`() {
         viewModel.start()
         viewModel.updateBPM(150f)
-        verify { audio.updateTempo(150f, any()) }
+        verify { audio.submit(match { it is PlaybackIntent.UpdateStandard && it.bpm == 150f }) }
     }
 
     @Test
     fun `updateBPM while stopped does not call updateTempo`() {
         viewModel.updateBPM(150f)
-        verify(exactly = 0) { audio.updateTempo(any(), any()) }
+        verify(exactly = 0) { audio.submit(ofType<PlaybackIntent.UpdateStandard>()) }
     }
 
     @Test
@@ -381,13 +389,15 @@ class MetronomeViewModelTest {
     fun `updateGroove while playing calls updateTempo`() {
         viewModel.start()
         viewModel.updateGroove(Groove.Sixteenth)
-        verify { audio.updateTempo(any(), 4) }
+        verify {
+            audio.submit(match { it is PlaybackIntent.UpdateStandard && it.subdivisions == 4 })
+        }
     }
 
     @Test
     fun `updateGroove while stopped does not call updateTempo`() {
         viewModel.updateGroove(Groove.Eighth)
-        verify(exactly = 0) { audio.updateTempo(any(), any()) }
+        verify(exactly = 0) { audio.submit(ofType<PlaybackIntent.UpdateStandard>()) }
     }
 
     @Test
@@ -400,10 +410,20 @@ class MetronomeViewModelTest {
     fun `odd meter grooves expose iOS subdivision values`() {
         viewModel.updateGroove(Groove.OddMeterQuarter)
         viewModel.start()
-        verify { audio.startMetronome(any(), 1, BeatPattern.default.accentArray) }
+        verify {
+            audio.submit(match {
+                it is PlaybackIntent.StartStandard &&
+                    it.subdivisions == 1 && it.accentPattern == BeatPattern.default.accentArray
+            })
+        }
 
         viewModel.updateGroove(Groove.OddMeterEighth)
-        verify { audio.updateTempo(any(), 2, BeatPattern.default.accentArray) }
+        verify {
+            audio.submit(match {
+                it is PlaybackIntent.UpdateStandard &&
+                    it.subdivisions == 2 && it.accentPattern == BeatPattern.default.accentArray
+            })
+        }
     }
 
     @Test
@@ -413,7 +433,12 @@ class MetronomeViewModelTest {
         viewModel.updateBeatPattern(BeatPattern.FiveEightA)
         assertEquals(BeatPattern.FiveEightA, viewModel.selectedBeatPattern)
         verify { prefs.instantBeatPattern = BeatPattern.FiveEightA }
-        verify { audio.updateTempo(any(), 2, BeatPattern.FiveEightA.accentArray) }
+        verify {
+            audio.submit(match {
+                it is PlaybackIntent.UpdateStandard &&
+                    it.subdivisions == 2 && it.accentPattern == BeatPattern.FiveEightA.accentArray
+            })
+        }
     }
 
     // --- Play / Stop ---
@@ -434,14 +459,14 @@ class MetronomeViewModelTest {
     @Test
     fun `start calls audio startMetronome`() {
         viewModel.start()
-        verify { audio.startMetronome(any(), any()) }
+        verify { audio.submit(ofType<PlaybackIntent.StartStandard>()) }
     }
 
     @Test
     fun `stop submits owner scoped session stop`() {
         viewModel.start()
         viewModel.stop()
-        verify { audio.stopIfCurrent(PlaybackSessionId(1)) }
+        verify { audio.submit(match { it == PlaybackIntent.StopIfCurrent(PlaybackSessionId(1)) }) }
         assertFalse(viewModel.isPlaying)
     }
 
@@ -454,16 +479,18 @@ class MetronomeViewModelTest {
 
         viewModel.stop()
 
-        verify { audio.stopIfCurrent(PlaybackSessionId(1)) }
-        verify(exactly = 0) { audio.stopIfCurrent(PlaybackSessionId(2)) }
+        verify { audio.submit(match { it == PlaybackIntent.StopIfCurrent(PlaybackSessionId(1)) }) }
+        verify(exactly = 0) {
+            audio.submit(match { it == PlaybackIntent.StopIfCurrent(PlaybackSessionId(2)) })
+        }
     }
 
     @Test
     fun `top level navigation uses intentional global stop`() {
         viewModel.stopPlaybackForTopLevelNavigation()
 
-        verify { audio.stopPlayback() }
-        verify(exactly = 0) { audio.stopIfCurrent(PlaybackSessionId(1)) }
+        verify { audio.submit(PlaybackIntent.Stop) }
+        verify(exactly = 0) { audio.submit(ofType<PlaybackIntent.StopIfCurrent>()) }
     }
 
     // --- Mute ---
@@ -473,8 +500,8 @@ class MetronomeViewModelTest {
         every { prefs.muteMetronome } returns false
         viewModel.start()
         verifyOrder {
-            audio.isMuted = false
-            audio.startMetronome(any(), any())
+            audio.submit(PlaybackIntent.SetMuted(false))
+            audio.submit(ofType<PlaybackIntent.StartStandard>())
         }
     }
 
@@ -483,8 +510,8 @@ class MetronomeViewModelTest {
         every { prefs.muteMetronome } returns true
         viewModel.start()
         verifyOrder {
-            audio.isMuted = true
-            audio.startMetronome(any(), any())
+            audio.submit(PlaybackIntent.SetMuted(true))
+            audio.submit(ofType<PlaybackIntent.StartStandard>())
         }
     }
 
@@ -529,7 +556,11 @@ class MetronomeViewModelTest {
         viewModel.start()
         val song = Song(title = "Test", artist = "Artist", beatsPerMinute = 140f, beatsPerMeasure = 4, groove = Groove.Eighth, liveSequence = null, rehearsalSequence = null)
         viewModel.loadSong(song, ClickerType.INSTANT)
-        verify { audio.updateTempo(140f, 2) }
+        verify {
+            audio.submit(match {
+                it is PlaybackIntent.UpdateStandard && it.bpm == 140f && it.subdivisions == 2
+            })
+        }
     }
 
     @Test
@@ -539,32 +570,32 @@ class MetronomeViewModelTest {
 
         viewModel.playSong(song)
 
-        verify(exactly = 0) { audio.updateTempo(any(), any(), any(), any()) }
+        verify(exactly = 0) { audio.submit(ofType<PlaybackIntent.UpdateStandard>()) }
         verify(exactly = 1) {
-            audio.replaceMetronome(
-                140f,
-                2,
-                any(),
-                any(),
-                match { it.itemId == song.id.toString() && it.title == "Next" }
-            )
+            audio.submit(match {
+                it is PlaybackIntent.ReplaceStandard &&
+                    it.bpm == 140f && it.subdivisions == 2 &&
+                    it.practiceItem.itemId == song.id.toString() &&
+                    it.practiceItem.title == "Next"
+            })
         }
     }
 
     @Test
     fun `playing another song adopts replacement session ownership`() {
         viewModel.start()
-        every { audio.replaceMetronome(any(), any(), any(), any(), any()) } answers {
+        every { audio.submit(ofType<PlaybackIntent.ReplaceStandard>()) } answers {
             transportState.value = standardPreparing().copy(
                 context = standardPreparing().context.copy(sessionId = PlaybackSessionId(2))
             )
+            0L
         }
         val song = Song(title = "Next", artist = "Artist", beatsPerMinute = 140f, beatsPerMeasure = 4, groove = Groove.Eighth, liveSequence = null, rehearsalSequence = null)
 
         viewModel.playSong(song)
         viewModel.stop()
 
-        verify { audio.stopIfCurrent(PlaybackSessionId(2)) }
+        verify { audio.submit(match { it == PlaybackIntent.StopIfCurrent(PlaybackSessionId(2)) }) }
     }
 
     // --- Beat fired ---

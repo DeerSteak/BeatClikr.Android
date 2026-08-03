@@ -17,6 +17,8 @@
 - For long-running tests or commands, write console output to a timestamped file and return control to the user instead of continuously polling.
 - Leave the process running when practical. Check its status and report progress only when the user asks.
 - Tell the user where the output file is and how to ask for a status check.
+- Look at the code's existing conventions and follow them.
+- Do not write tests that draw bad assumptions. Tests need to look for valid functionality and not assume the current code is correct.
 
 ## Local verification
 

@@ -66,11 +66,7 @@ fun MetronomeView(
 ) {
     val motionEnabled = ValueAnimator.areAnimatorsEnabled()
     LaunchedEffect(Unit) {
-        val beatResId = viewModel.selectedBeatSound.resourceId
-        val rhythmResId = viewModel.selectedRhythmSound.resourceId
-        if (beatResId != null && rhythmResId != null) {
-            viewModel.setupMetronome(beatResId, rhythmResId)
-        }
+        viewModel.setupMetronome()
     }
 
     Column(

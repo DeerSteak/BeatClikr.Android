@@ -2,7 +2,6 @@ package com.bfunkstudios.beatclikr
 
 import com.bfunkstudios.beatclikr.data.SoundBank
 import com.bfunkstudios.beatclikr.data.SoundFile
-import com.bfunkstudios.beatclikr.data.PracticeItemSnapshot
 import com.bfunkstudios.beatclikr.services.FrameAudioMetricsSnapshot
 import com.bfunkstudios.beatclikr.services.ActiveSoundConfiguration
 import com.bfunkstudios.beatclikr.services.AudioBackendType
@@ -13,6 +12,7 @@ import com.bfunkstudios.beatclikr.services.PlaybackCommittedEvent
 import com.bfunkstudios.beatclikr.services.PlaybackMode
 import com.bfunkstudios.beatclikr.services.PlaybackFailureReason
 import com.bfunkstudios.beatclikr.services.PlaybackInterruptionReason
+import com.bfunkstudios.beatclikr.services.PlaybackIntent
 import com.bfunkstudios.beatclikr.services.PlaybackObservation
 import com.bfunkstudios.beatclikr.services.PlaybackSessionContext
 import com.bfunkstudios.beatclikr.services.PlaybackSessionId
@@ -22,8 +22,7 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 
 class FakeAudioPlayerService : IAudioPlayerService, PlaybackObservation {
-    override var isMuted: Boolean = false
-    override var soundBank: SoundBank = SoundBank.ACOUSTIC
+    private var isMuted = false
 
     var startCount = 0
     var stopCount = 0
@@ -36,58 +35,69 @@ class FakeAudioPlayerService : IAudioPlayerService, PlaybackObservation {
     )
     override val committedEvents = MutableSharedFlow<PlaybackCommittedEvent>()
 
-    override fun setupAudioPlayer(beatResourceId: Int, rhythmResourceId: Int) {}
-    override fun startMetronome(
-        bpm: Float,
-        subdivisions: Int,
-        accentPattern: List<Boolean>?,
-        alternateSixteenth: Boolean,
-        practiceItem: PracticeItemSnapshot
-    ) {
+    override fun submit(intent: PlaybackIntent): Long {
+        when (intent) {
+            is PlaybackIntent.SetMuted -> isMuted = intent.muted
+            is PlaybackIntent.StartStandard -> startStandard(intent)
+            is PlaybackIntent.ReplaceStandard -> startStandard(intent)
+            is PlaybackIntent.StartPolyrhythm -> startPolyrhythm(intent)
+            is PlaybackIntent.StopIfCurrent -> stopIfCurrent(intent.expectedSessionId)
+            PlaybackIntent.Stop -> stopPlayback()
+            else -> Unit
+        }
+        return 0
+    }
+
+    private fun startStandard(intent: PlaybackIntent.StartStandard) {
         startCount++
         transportState.value = preparing(
             PlaybackMode.STANDARD,
             CommittedPlaybackConfiguration.Standard(
-                bpm,
-                subdivisions,
-                accentPattern,
-                alternateSixteenth,
+                intent.bpm,
+                intent.subdivisions,
+                intent.accentPattern,
+                intent.alternateSixteenth,
                 isMuted
             )
         )
     }
-    override fun replaceMetronome(
-        bpm: Float,
-        subdivisions: Int,
-        accentPattern: List<Boolean>?,
-        alternateSixteenth: Boolean,
-        practiceItem: PracticeItemSnapshot
-    ) = startMetronome(bpm, subdivisions, accentPattern, alternateSixteenth, practiceItem)
-    override fun stopIfCurrent(expectedSessionId: PlaybackSessionId) {
+
+    private fun startStandard(intent: PlaybackIntent.ReplaceStandard) =
+        startStandard(
+            PlaybackIntent.StartStandard(
+                intent.bpm,
+                intent.subdivisions,
+                intent.accentPattern,
+                intent.alternateSixteenth,
+                intent.practiceItem
+            )
+        )
+
+    private fun stopIfCurrent(expectedSessionId: PlaybackSessionId) {
         val current = transportState.value as? PlaybackTransportState.SessionState ?: return
         if (current.context.sessionId != expectedSessionId) return
         recordStop(current.context.mode)
     }
-    override fun stopPlayback() {
+    private fun stopPlayback() {
         val current = transportState.value as? PlaybackTransportState.SessionState ?: return
         recordStop(current.context.mode)
     }
-    override fun updateTempo(
-        bpm: Float,
-        subdivisions: Int,
-        accentPattern: List<Boolean>?,
-        alternateSixteenth: Boolean
-    ) {}
-    override fun startPolyrhythm(
-        bpm: Float,
-        beats: Int,
-        against: Int,
-        practiceItem: PracticeItemSnapshot
-    ) {
+
+    fun stopPlaybackForTest() = stopPlayback()
+
+    fun startMetronomeForTest(bpm: Float, subdivisions: Int) {
+        submit(PlaybackIntent.StartStandard(bpm, subdivisions, null, false))
+    }
+    private fun startPolyrhythm(intent: PlaybackIntent.StartPolyrhythm) {
         polyrhythmStartCount++
         transportState.value = preparing(
             PlaybackMode.POLYRHYTHM,
-            CommittedPlaybackConfiguration.Polyrhythm(bpm, beats, against, isMuted)
+            CommittedPlaybackConfiguration.Polyrhythm(
+                intent.bpm,
+                intent.beats,
+                intent.against,
+                isMuted
+            )
         )
     }
     private fun recordStop(mode: PlaybackMode) {
@@ -95,8 +105,6 @@ class FakeAudioPlayerService : IAudioPlayerService, PlaybackObservation {
         if (mode == PlaybackMode.POLYRHYTHM) polyrhythmStopCount++
         transportState.value = PlaybackTransportState.Idle
     }
-    override fun prewarmAudioTrack() {}
-    override fun prepareAudioTrackSounds(soundFiles: Collection<SoundFile>) {}
     override fun getFrameAudioMetricsSnapshot(): FrameAudioMetricsSnapshot? = null
     override fun release() {}
 

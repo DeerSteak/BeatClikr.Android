@@ -44,7 +44,7 @@ class PlaybackCoordinatorArchitectureTest {
         val coordinator = locateMainSource("services/PlaybackCoordinator.kt").readText()
         val port = coordinator.substringAfter("interface PlaybackEnginePort {")
             .substringBefore("sealed interface PlaybackEngineUpdateResult")
-        val service = locateMainSource("services/AudioPlayerService.kt").readText()
+        val engine = locateMainSource("services/MetronomeAudioEngine.kt").readText()
 
         assertFalse(coordinator.contains("interface PlaybackEnginePort : IAudioPlayerService"))
         listOf(
@@ -55,8 +55,8 @@ class PlaybackCoordinatorArchitectureTest {
             "fun stopPolyrhythm("
         ).forEach { sessionless ->
             assertFalse("Engine port exposes $sessionless", port.contains(sessionless))
-            assertFalse("Production adapter exposes $sessionless", service.contains(sessionless))
         }
+        assertTrue(engine.contains(": PlaybackEnginePort"))
         assertTrue(port.contains("fun beginStandardSession("))
         assertTrue(port.contains("fun stopSession(sessionId: PlaybackSessionId"))
     }
@@ -68,7 +68,7 @@ class PlaybackCoordinatorArchitectureTest {
             .substringBefore("private val audioFocusRequest")
 
         assertTrue(listener.contains("activeCoordinatorSessionId"))
-        assertTrue(listener.contains("playbackInterruptionObserver?.invoke("))
+        assertTrue(listener.contains("publishInterruption("))
         assertTrue(listener.contains("PlaybackInterruptionReason.AudioFocusLost"))
         assertFalse(listener.contains("stopMetronome()"))
         assertFalse(listener.contains("stopPolyrhythm()"))
@@ -94,8 +94,8 @@ class PlaybackCoordinatorArchitectureTest {
                 .filter(Path::isRegularFile)
                 .filter { it.toString().endsWith(".kt") }
                 .filter { it.fileName.toString() != "AppModule.kt" }
-                .filter { it.fileName.toString() != "AudioPlayerService.kt" }
-                .filter { it.readText().contains("AudioPlayerService(") }
+                .filter { it.fileName.toString() != "MetronomeAudioEngine.kt" }
+                .filter { it.readText().contains("MetronomeAudioEngine(") }
                 .toList()
         }
 
@@ -115,12 +115,12 @@ class PlaybackCoordinatorArchitectureTest {
     }
 
     @Test
-    fun legacyOwnershipModeIsProjectedOnlyFromTransportTransitions() {
+    fun ownershipDoesNotDuplicateActiveTransportMode() {
         val source = locateMainSource("services/PlaybackCoordinator.kt").readText()
-        val transition = source.substringAfter("private fun transitionTo(")
-            .substringBefore("private fun newSessionId")
+        val ownership = source.substringAfter("data class PlaybackOwnershipSnapshot(")
+            .substringBefore("sealed interface PlaybackIntent")
 
-        assertTrue(transition.contains("activeMode = (next as? PlaybackTransportState.Playing)"))
+        assertFalse(ownership.contains("activeMode"))
     }
 
     @Test

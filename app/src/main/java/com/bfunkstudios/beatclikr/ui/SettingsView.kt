@@ -135,12 +135,34 @@ fun SettingsView(
             metronomeViewModel = metronomeViewModel,
             onKeepScreenAwakeChange = onKeepScreenAwakeChange,
         )
-        MetronomeInstrumentsSection(
-            viewModel = viewModel,
-            metronomeViewModel = metronomeViewModel
+        InstrumentSection(
+            title = stringResource(R.string.settings_metronome_instruments),
+            beat = viewModel.metronomeBeatSound,
+            rhythm = viewModel.metronomeRhythmSound,
+            onBeat = {
+                viewModel.updateMetronomeBeatSound(it)
+                metronomeViewModel.applyMetronomeSoundSettings(it, viewModel.metronomeRhythmSound)
+            },
+            onRhythm = {
+                viewModel.updateMetronomeRhythmSound(it)
+                metronomeViewModel.applyMetronomeSoundSettings(viewModel.metronomeBeatSound, it)
+            }
         )
-        PlaylistInstrumentsSection(viewModel = viewModel)
-        PolyrhythmInstrumentsSection(viewModel = viewModel)
+        InstrumentSection(
+            title = stringResource(R.string.settings_playlist_instruments),
+            beat = viewModel.playlistBeatSound,
+            rhythm = viewModel.playlistRhythmSound,
+            onBeat = viewModel::updatePlaylistBeatSound,
+            onRhythm = viewModel::updatePlaylistRhythmSound,
+            footer = stringResource(R.string.settings_instruments_description)
+        )
+        InstrumentSection(
+            title = stringResource(R.string.settings_polyrhythm_instruments),
+            beat = viewModel.polyrhythmBeatSound,
+            rhythm = viewModel.polyrhythmRhythmSound,
+            onBeat = viewModel::updatePolyrhythmBeatSound,
+            onRhythm = viewModel::updatePolyrhythmRhythmSound
+        )
         AboutSection(viewModel, context)
     }
 
@@ -346,73 +368,31 @@ private fun MetronomePlaybackSection(
 }
 
 @Composable
-private fun MetronomeInstrumentsSection(
-    viewModel: SettingsViewModel,
-    metronomeViewModel: MetronomeViewModel
+private fun InstrumentSection(
+    title: String,
+    beat: SoundFile,
+    rhythm: SoundFile,
+    onBeat: (SoundFile) -> Unit,
+    onRhythm: (SoundFile) -> Unit,
+    footer: String? = null
 ) {
-    SettingsSectionTitle(stringResource(R.string.settings_metronome_instruments))
+    SettingsSectionTitle(title)
     SectionCard {
         SoundPickerRow(
             label = stringResource(R.string.beat),
-            selected = viewModel.metronomeBeatSound,
+            selected = beat,
             options = SoundFile.beatSounds,
-            onSelect = {
-                viewModel.updateMetronomeBeatSound(it)
-                metronomeViewModel.applyMetronomeSoundSettings(it, viewModel.metronomeRhythmSound)
-            }
+            onSelect = onBeat
         )
         SettingsDivider()
         SoundPickerRow(
             label = stringResource(R.string.rhythm),
-            selected = viewModel.metronomeRhythmSound,
+            selected = rhythm,
             options = SoundFile.rhythmSounds,
-            onSelect = {
-                viewModel.updateMetronomeRhythmSound(it)
-                metronomeViewModel.applyMetronomeSoundSettings(viewModel.metronomeBeatSound, it)
-            }
+            onSelect = onRhythm
         )
     }
-}
-
-@Composable
-private fun PlaylistInstrumentsSection(viewModel: SettingsViewModel) {
-    SettingsSectionTitle(stringResource(R.string.settings_playlist_instruments))
-    SectionCard {
-        SoundPickerRow(
-            label = stringResource(R.string.beat),
-            selected = viewModel.playlistBeatSound,
-            options = SoundFile.beatSounds,
-            onSelect = { viewModel.updatePlaylistBeatSound(it) }
-        )
-        SettingsDivider()
-        SoundPickerRow(
-            label = stringResource(R.string.rhythm),
-            selected = viewModel.playlistRhythmSound,
-            options = SoundFile.rhythmSounds,
-            onSelect = { viewModel.updatePlaylistRhythmSound(it) }
-        )
-    }
-    SettingsFooter(stringResource(R.string.settings_instruments_description))
-}
-
-@Composable
-private fun PolyrhythmInstrumentsSection(viewModel: SettingsViewModel) {
-    SettingsSectionTitle(stringResource(R.string.settings_polyrhythm_instruments))
-    SectionCard {
-        SoundPickerRow(
-            label = stringResource(R.string.beat),
-            selected = viewModel.polyrhythmBeatSound,
-            options = SoundFile.beatSounds,
-            onSelect = { viewModel.updatePolyrhythmBeatSound(it) }
-        )
-        SettingsDivider()
-        SoundPickerRow(
-            label = stringResource(R.string.rhythm),
-            selected = viewModel.polyrhythmRhythmSound,
-            options = SoundFile.rhythmSounds,
-            onSelect = { viewModel.updatePolyrhythmRhythmSound(it) }
-        )
-    }
+    footer?.let { SettingsFooter(it) }
 }
 
 @Composable

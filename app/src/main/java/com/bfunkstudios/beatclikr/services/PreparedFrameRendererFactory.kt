@@ -96,9 +96,7 @@ class PolyrhythmPreparedFrameRendererFactory(
                 PolyrhythmTimeline(
                     replacement,
                     properties.sampleRate,
-                    origin.copy(originFrame = continuation.frame),
-                    initialEventIndex = continuation.eventIndex,
-                    initialCycleIndex = continuation.cycleIndex
+                    origin.copy(originFrame = continuation.frame)
                 ).also { activeTimeline = it }
             }
         )

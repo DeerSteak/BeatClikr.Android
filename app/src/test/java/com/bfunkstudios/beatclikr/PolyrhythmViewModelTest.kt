@@ -13,6 +13,7 @@ import com.bfunkstudios.beatclikr.services.AudioOutputRoute
 import com.bfunkstudios.beatclikr.services.CommittedPlaybackConfiguration
 import com.bfunkstudios.beatclikr.services.EventPresentation
 import com.bfunkstudios.beatclikr.services.PlaybackCommittedEvent
+import com.bfunkstudios.beatclikr.services.PlaybackIntent
 import com.bfunkstudios.beatclikr.services.PlaybackMode
 import com.bfunkstudios.beatclikr.services.PlaybackFailureReason
 import com.bfunkstudios.beatclikr.services.PlaybackObservation
@@ -75,11 +76,15 @@ class PolyrhythmViewModelTest {
         every { prefs.polyrhythmBeatSound } returns SoundFile.CLICK_HI
         every { prefs.polyrhythmRhythmSound } returns SoundFile.CLICK_LO
         every { prefs.muteMetronome } returns false
-        every { audio.startPolyrhythm(any(), any(), any()) } answers {
-            transportState.value = polyrhythmPreparing()
-        }
-        every { audio.stopIfCurrent(PlaybackSessionId(2)) } answers {
-            transportState.value = PlaybackTransportState.Idle
+        every { audio.submit(any()) } answers {
+            when (val intent = firstArg<PlaybackIntent>()) {
+                is PlaybackIntent.StartPolyrhythm -> transportState.value = polyrhythmPreparing()
+                is PlaybackIntent.StopIfCurrent -> if (intent.expectedSessionId == PlaybackSessionId(2)) {
+                    transportState.value = PlaybackTransportState.Idle
+                }
+                else -> Unit
+            }
+            0L
         }
         viewModel = PolyrhythmViewModel(audio, playback, prefs, secondaryOutputs)
     }
@@ -211,8 +216,13 @@ class PolyrhythmViewModelTest {
     fun `start begins polyrhythm playback`() {
         viewModel.start()
         assertTrue(viewModel.isPlaying)
-        verify { audio.isMuted = false }
-        verify { audio.startPolyrhythm(120f, 3, 2) }
+        verify { audio.submit(PlaybackIntent.SetMuted(false)) }
+        verify {
+            audio.submit(match {
+                it is PlaybackIntent.StartPolyrhythm &&
+                    it.bpm == 120f && it.beats == 3 && it.against == 2
+            })
+        }
     }
 
     @Test
@@ -220,7 +230,7 @@ class PolyrhythmViewModelTest {
         viewModel.start()
         viewModel.stop()
         assertFalse(viewModel.isPlaying)
-        verify { audio.stopIfCurrent(PlaybackSessionId(2)) }
+        verify { audio.submit(match { it == PlaybackIntent.StopIfCurrent(PlaybackSessionId(2)) }) }
     }
 
     @Test
@@ -231,7 +241,12 @@ class PolyrhythmViewModelTest {
         assertEquals(4, viewModel.beats)
         assertEquals(resetId, viewModel.playheadResetID)
         verify { prefs.polyrhythmBeats = 4 }
-        verify { audio.startPolyrhythm(120f, 4, 2) }
+        verify {
+            audio.submit(match {
+                it is PlaybackIntent.StartPolyrhythm &&
+                    it.bpm == 120f && it.beats == 4 && it.against == 2
+            })
+        }
     }
 
     @Test
@@ -242,7 +257,12 @@ class PolyrhythmViewModelTest {
         assertEquals(5, viewModel.against)
         assertEquals(resetId, viewModel.playheadResetID)
         verify { prefs.polyrhythmAgainst = 5 }
-        verify { audio.startPolyrhythm(120f, 3, 5) }
+        verify {
+            audio.submit(match {
+                it is PlaybackIntent.StartPolyrhythm &&
+                    it.bpm == 120f && it.beats == 3 && it.against == 5
+            })
+        }
     }
 
     @Test
@@ -253,7 +273,12 @@ class PolyrhythmViewModelTest {
         assertEquals(144f, viewModel.bpm)
         assertEquals(resetId, viewModel.playheadResetID)
         verify { prefs.polyrhythmBpm = 144f }
-        verify { audio.startPolyrhythm(144f, 3, 2) }
+        verify {
+            audio.submit(match {
+                it is PlaybackIntent.StartPolyrhythm &&
+                    it.bpm == 144f && it.beats == 3 && it.against == 2
+            })
+        }
     }
 
     @Test
@@ -285,8 +310,8 @@ class PolyrhythmViewModelTest {
         assertEquals(SoundFile.SNARE, viewModel.selectedRhythmSound)
         verify { prefs.polyrhythmBeatSound = SoundFile.KICK }
         verify { prefs.polyrhythmRhythmSound = SoundFile.SNARE }
-        verify { audio.setupAudioPlayer(SoundFile.KICK.resourceId!!, SoundFile.CLICK_LO.resourceId!!) }
-        verify { audio.setupAudioPlayer(SoundFile.KICK.resourceId!!, SoundFile.SNARE.resourceId!!) }
+        verify { audio.submit(PlaybackIntent.SelectSounds(SoundFile.KICK, SoundFile.CLICK_LO)) }
+        verify { audio.submit(PlaybackIntent.SelectSounds(SoundFile.KICK, SoundFile.SNARE)) }
     }
 
     @Test
@@ -295,8 +320,13 @@ class PolyrhythmViewModelTest {
 
         viewModel.start()
 
-        verify { audio.isMuted = true }
-        verify { audio.startPolyrhythm(120f, 3, 2) }
+        verify { audio.submit(PlaybackIntent.SetMuted(true)) }
+        verify {
+            audio.submit(match {
+                it is PlaybackIntent.StartPolyrhythm &&
+                    it.bpm == 120f && it.beats == 3 && it.against == 2
+            })
+        }
     }
 
     @Test

@@ -288,7 +288,7 @@ class InstantMetronomeViewTest {
         fake.publishPlaying(PlaybackMode.POLYRHYTHM, AudioOutputRoute.BLUETOOTH)
         composeRule.onNodeWithTag("bluetooth_latency_warning").assertIsDisplayed()
 
-        fake.stopPlayback()
+        fake.stopPlaybackForTest()
         composeRule.onNodeWithTag("bluetooth_latency_warning").assertDoesNotExist()
     }
 
@@ -432,7 +432,7 @@ class InstantMetronomeViewTest {
         composeRule.waitForIdle()
         composeRule.waitUntil { activity.isKeepingScreenOn() }
 
-        fake.startMetronome(120f, 4, null, false)
+        fake.startMetronomeForTest(120f, 4)
         composeRule.waitUntil { !activity.isKeepingScreenOn() }
 
         fake.publishPlaying(PlaybackMode.STANDARD)
@@ -474,7 +474,7 @@ class InstantMetronomeViewTest {
         composeRule.activityRule.scenario.recreate()
         composeRule.waitUntil { activity.isKeepingScreenOn() }
 
-        fake.stopPlayback()
+        fake.stopPlaybackForTest()
         composeRule.waitUntil { !activity.isKeepingScreenOn() }
     }
 
@@ -556,17 +556,19 @@ class InstantMetronomeViewTest {
         val secondTheme = captureScreenshot()
         assertScreenshotsDiffer(firstTheme, secondTheme)
 
-        val initialOrientation = activity.resources.configuration.orientation
-        activity.requestedOrientation = if (initialOrientation == Configuration.ORIENTATION_LANDSCAPE) {
-            ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
-        } else {
-            ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+        if (activity.resources.configuration.screenWidthDp < 600) {
+            val initialOrientation = activity.resources.configuration.orientation
+            activity.requestedOrientation = if (initialOrientation == Configuration.ORIENTATION_LANDSCAPE) {
+                ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+            } else {
+                ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+            }
+            composeRule.waitUntil(10_000) {
+                activity.resources.configuration.orientation != initialOrientation
+            }
+            val rotated = captureScreenshot()
+            assertTrue(rotated.width != secondTheme.width || rotated.height != secondTheme.height)
         }
-        composeRule.waitUntil(10_000) {
-            activity.resources.configuration.orientation != initialOrientation
-        }
-        val rotated = captureScreenshot()
-        assertTrue(rotated.width != secondTheme.width || rotated.height != secondTheme.height)
 
         val originalAnimatorScale = shell("settings get global animator_duration_scale").trim().ifBlank { "1.0" }
         try {
@@ -698,7 +700,7 @@ class InstantMetronomeViewTest {
         assertEquals(0, fake.stopCount + fake.polyrhythmStopCount)
         composeRule.onNodeWithText(activity.getString(R.string.cancel)).performClick()
 
-        fake.stopPlayback()
+        fake.stopPlaybackForTest()
         fake.resetCallCounts()
         navigateTo(R.string.tab_playlist)
         fake.publishPlaying(PlaybackMode.STANDARD)

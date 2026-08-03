@@ -37,12 +37,11 @@ sealed interface AudioEngineStartResult {
     data object StreamFailed : AudioEngineStartResult
 }
 
-class MetronomeAudioEngine(private val context: Context) {
+class MetronomeAudioEngine(private val context: Context) : PlaybackEnginePort {
     @Volatile
-    var soundPreparationObserver: ((SoundPreparationPublication) -> Unit)? = null
+    override var soundPreparationObserver: ((SoundPreparationPublication) -> Unit)? = null
     @Volatile
-    var playbackInterruptionObserver:
-        ((PlaybackSessionId, PlaybackInterruptionReason) -> Unit)? = null
+    override var transportObserver: PlaybackEngineTransportObserver? = null
     @Volatile
     private var frameAudioEngine: FrameAudioEngine? = null
     private val handlerThread = HandlerThread("MetronomeThread").also { it.start() }
@@ -68,14 +67,14 @@ class MetronomeAudioEngine(private val context: Context) {
     @Volatile
     private var activeCoordinatorSessionId: PlaybackSessionId? = null
 
-    private var delegate: MetronomeAudioEngineDelegate? = null
+    override var delegate: MetronomeAudioEngineDelegate? = null
 
-    var polyrhythmDelegate: PolyrhythmAudioEngineDelegate?
+    override var polyrhythmDelegate: PolyrhythmAudioEngineDelegate?
         get() = polyrhythmEngine.delegate
         set(value) { polyrhythmEngine.delegate = value }
 
     @Volatile
-    var isMuted: Boolean = false
+    override var isMuted: Boolean = false
         set(value) {
             field = value
             frameAudioEngine?.setFrameMuted(value)
@@ -104,7 +103,7 @@ class MetronomeAudioEngine(private val context: Context) {
             AudioManager.AUDIOFOCUS_LOSS_TRANSIENT,
             AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK -> {
                 val sessionId = activeCoordinatorSessionId ?: return@OnAudioFocusChangeListener
-                playbackInterruptionObserver?.invoke(
+                publishInterruption(
                     sessionId,
                     PlaybackInterruptionReason.AudioFocusLost
                 )
@@ -152,6 +151,45 @@ class MetronomeAudioEngine(private val context: Context) {
         }
     }
 
+    override fun selectSounds(
+        requestSequence: Long,
+        beatResourceId: Int,
+        rhythmResourceId: Int
+    ) = loadSounds(beatResourceId, rhythmResourceId, requestSequence)
+
+    override fun selectSoundBank(requestSequence: Long, bank: SoundBank) {
+        selectSoundBank(bank, requestSequence)
+    }
+
+    override fun prepareSounds(requestSequence: Long, sounds: Collection<SoundFile>) {
+        prepareAudioTrackSounds(sounds, requestSequence)
+    }
+
+    override fun prewarmAudioTrack() = prewarm()
+
+    override fun activeSoundConfiguration(): ActiveSoundConfiguration? =
+        getActiveSoundConfiguration()
+
+    override fun soundPreparationFailure(): SoundPreparationFailure? =
+        getSoundPreparationFailure()
+
+    override fun beginStandardSession(
+        sessionId: PlaybackSessionId,
+        configuration: ValidatedStandardConfiguration
+    ) {
+        val callback = delegate
+        if (callback == null) {
+            transportObserver?.engineStartFailed(sessionId, "Metronome delegate unavailable")
+            return
+        }
+        startMetronome(configuration, callback, sessionId, ::publishStartResult)
+    }
+
+    override fun beginPolyrhythmSession(
+        sessionId: PlaybackSessionId,
+        configuration: ValidatedPolyrhythmConfiguration
+    ) = startPolyrhythm(sessionId, configuration, ::publishStartResult)
+
     fun selectSoundBank(bank: SoundBank, requestSequence: Long?) {
         requestedSoundBank = bank
         handler.post {
@@ -169,13 +207,26 @@ class MetronomeAudioEngine(private val context: Context) {
         sessionId: PlaybackSessionId,
         completion: (PlaybackSessionId, AudioEngineStartResult) -> Unit
     ) {
+        val configuration = FramePlaybackPublicationBoundary.standardConfiguration(
+            bpm, subdivisions, accentPattern, alternateSixteenth, isMuted
+        )
+        if (configuration !is com.bfunkstudios.beatclikr.music.PlaybackInputResult.Accepted) {
+            completion(sessionId, AudioEngineStartResult.StreamFailed)
+            return
+        }
+        startMetronome(configuration.value, delegate, sessionId, completion)
+    }
+
+    private fun startMetronome(
+        configuration: ValidatedStandardConfiguration,
+        delegate: MetronomeAudioEngineDelegate,
+        sessionId: PlaybackSessionId,
+        completion: (PlaybackSessionId, AudioEngineStartResult) -> Unit
+    ) {
         handler.post {
             handler.removeCallbacks(timerRunnable)
             doStart(
-                bpm,
-                subdivisions,
-                accentPattern,
-                alternateSixteenth,
+                configuration,
                 delegate,
                 sessionId,
                 completion
@@ -190,11 +241,29 @@ class MetronomeAudioEngine(private val context: Context) {
         against: Int,
         completion: (PlaybackSessionId, AudioEngineStartResult) -> Unit
     ) {
+        val configuration = FramePlaybackPublicationBoundary.polyrhythmConfiguration(
+            bpm, beats, against, isMuted
+        )
+        if (configuration !is com.bfunkstudios.beatclikr.music.PlaybackInputResult.Accepted) {
+            completion(sessionId, AudioEngineStartResult.StreamFailed)
+            return
+        }
+        startPolyrhythm(sessionId, configuration.value, completion)
+    }
+
+    private fun startPolyrhythm(
+        sessionId: PlaybackSessionId,
+        configuration: ValidatedPolyrhythmConfiguration,
+        completion: (PlaybackSessionId, AudioEngineStartResult) -> Unit
+    ) {
         handler.post {
+            val bpm = configuration.committed.bpm
+            val beats = configuration.committed.beats
+            val against = configuration.committed.against
             val engine = getOrCreateFrameAudioEngine()
             if (polyrhythmPlaying) {
                 if (frameAudioActive && framePolyrhythmActive) {
-                    engine.updatePolyrhythm(bpm, beats, against, isMuted)
+                    engine.updatePolyrhythm(configuration)
                 }
                 polyrhythmEngine.updateAtCycleBoundary(bpm, beats, against)
                 return@post
@@ -206,10 +275,7 @@ class MetronomeAudioEngine(private val context: Context) {
             activeCoordinatorSessionId = sessionId
             if (frameAudioActive) engine.stop()
             frameAudioActive = engine.startPolyrhythm(
-                bpm,
-                beats,
-                against,
-                isMuted,
+                configuration,
                 firstBeatDelayMs,
                 sessionId
             )
@@ -264,6 +330,10 @@ class MetronomeAudioEngine(private val context: Context) {
         }
     }
 
+    override fun stopSession(sessionId: PlaybackSessionId, mode: PlaybackMode) {
+        stopSession(sessionId, mode) { transportObserver?.engineStopped(sessionId) }
+    }
+
     fun prewarm() {
         handler.post {
             getOrCreateFrameAudioEngine().prewarm()
@@ -280,20 +350,15 @@ class MetronomeAudioEngine(private val context: Context) {
         }
     }
 
-    fun getFrameAudioMetricsSnapshot(): FrameAudioMetricsSnapshot? {
+    override fun getFrameAudioMetricsSnapshot(): FrameAudioMetricsSnapshot? {
         return frameAudioEngine?.metricsSnapshot()
     }
 
-    fun drainRenderedEvents(afterCaptureSequence: Long): FrameAudioRenderedEventBatch? =
+    override fun drainRenderedEvents(afterCaptureSequence: Long): FrameAudioRenderedEventBatch? =
         frameAudioEngine?.drainRenderedEvents(afterCaptureSequence)
 
     fun getSoundPreparationFailure(): SoundPreparationFailure? =
         frameAudioEngine?.lastSoundPreparationFailure
-
-    fun getFramePublicationFailure(): FramePublicationResult.Rejected? =
-        frameAudioEngine?.lastFramePublicationFailure
-
-    fun getActiveSoundBank(): SoundBank? = frameAudioEngine?.activeSoundBank
 
     fun getActiveSoundConfiguration(): ActiveSoundConfiguration? =
         frameAudioEngine?.activeSoundConfiguration
@@ -353,44 +418,16 @@ class MetronomeAudioEngine(private val context: Context) {
         )
     }
 
-    fun updateTempo(
-        bpm: Float,
-        subdivisions: Int,
-        accentPattern: List<Boolean>?,
-        alternateSixteenth: Boolean
-    ) {
-        handler.post {
-            currentBPM = bpm
-            currentSubdivisions = subdivisions
-            currentAccentPattern = accentPattern
-            currentAlternateSixteenth = alternateSixteenth
-            if (currentAccentPattern != null && subdivisionCounter >= currentAccentPattern!!.size) {
-                subdivisionCounter = 0
-            }
-            if (isPlaying && frameAudioActive) {
-                if (framePolyrhythmActive) return@post
-                val engine = getOrCreateFrameAudioEngine()
-                engine.updateStandard(
-                    bpm,
-                    subdivisions,
-                    accentPattern,
-                    alternateSixteenth,
-                    isMuted
-                )
-            }
-        }
-    }
-
-    fun updateStandardSession(
+    override fun updateStandardSession(
         sessionId: PlaybackSessionId,
-        configuration: CommittedPlaybackConfiguration.Standard,
+        configuration: ValidatedStandardConfiguration,
         completion: (PlaybackEngineUpdateResult) -> Unit
     ) {
         handler.post {
             val rejection = when {
-                activeCoordinatorSessionId != sessionId -> PlaybackEngineUpdateResult.Reason.STALE_SESSION
-                !isPlaying || !frameAudioActive -> PlaybackEngineUpdateResult.Reason.INACTIVE_MODE
-                framePolyrhythmActive -> PlaybackEngineUpdateResult.Reason.INACTIVE_MODE
+                activeCoordinatorSessionId != sessionId -> PlaybackCoordinatorFailureCode.STALE_SESSION
+                !isPlaying || !frameAudioActive -> PlaybackCoordinatorFailureCode.MODE_MISMATCH
+                framePolyrhythmActive -> PlaybackCoordinatorFailureCode.MODE_MISMATCH
                 else -> null
             }
             if (rejection != null) {
@@ -398,48 +435,42 @@ class MetronomeAudioEngine(private val context: Context) {
                 return@post
             }
             try {
-                val accepted = requireNotNull(frameAudioEngine).updateStandard(
-                    configuration.bpm,
-                    configuration.subdivisions,
-                    configuration.accentPattern,
-                    configuration.alternateSixteenth,
-                    isMuted
-                )
+                val accepted = requireNotNull(frameAudioEngine).updateStandard(configuration)
                 if (!accepted) {
                     completion(
                         PlaybackEngineUpdateResult.Rejected(
                             sessionId,
-                            PlaybackEngineUpdateResult.Reason.RENDERER_REJECTED
+                            PlaybackCoordinatorFailureCode.RENDERER_REJECTED
                         )
                     )
                     return@post
                 }
-                currentBPM = configuration.bpm
-                currentSubdivisions = configuration.subdivisions
-                currentAccentPattern = configuration.accentPattern
-                currentAlternateSixteenth = configuration.alternateSixteenth
+                currentBPM = configuration.committed.bpm
+                currentSubdivisions = configuration.committed.subdivisions
+                currentAccentPattern = configuration.committed.accentPattern
+                currentAlternateSixteenth = configuration.committed.alternateSixteenth
                 if (currentAccentPattern != null && subdivisionCounter >= currentAccentPattern!!.size) {
                     subdivisionCounter = 0
                 }
                 completion(PlaybackEngineUpdateResult.Accepted(sessionId))
             } catch (failure: IllegalArgumentException) {
-                completion(updateFailure(sessionId, PlaybackEngineUpdateResult.Reason.INVALID_CONFIGURATION, failure))
+                completion(updateFailure(sessionId, PlaybackCoordinatorFailureCode.INVALID_INPUT, failure))
             } catch (failure: Throwable) {
-                completion(updateFailure(sessionId, PlaybackEngineUpdateResult.Reason.ENGINE_FAILURE, failure))
+                completion(updateFailure(sessionId, PlaybackCoordinatorFailureCode.ENGINE_FAILURE, failure))
             }
         }
     }
 
-    fun updatePolyrhythmSession(
+    override fun updatePolyrhythmSession(
         sessionId: PlaybackSessionId,
-        configuration: CommittedPlaybackConfiguration.Polyrhythm,
+        configuration: ValidatedPolyrhythmConfiguration,
         completion: (PlaybackEngineUpdateResult) -> Unit
     ) {
         handler.post {
             val rejection = when {
-                activeCoordinatorSessionId != sessionId -> PlaybackEngineUpdateResult.Reason.STALE_SESSION
+                activeCoordinatorSessionId != sessionId -> PlaybackCoordinatorFailureCode.STALE_SESSION
                 !polyrhythmPlaying || !frameAudioActive || !framePolyrhythmActive ->
-                    PlaybackEngineUpdateResult.Reason.INACTIVE_MODE
+                    PlaybackCoordinatorFailureCode.MODE_MISMATCH
                 else -> null
             }
             if (rejection != null) {
@@ -447,38 +478,33 @@ class MetronomeAudioEngine(private val context: Context) {
                 return@post
             }
             try {
-                val accepted = requireNotNull(frameAudioEngine).updatePolyrhythm(
-                    configuration.bpm,
-                    configuration.beats,
-                    configuration.against,
-                    isMuted
-                )
+                val accepted = requireNotNull(frameAudioEngine).updatePolyrhythm(configuration)
                 if (!accepted) {
                     completion(
                         PlaybackEngineUpdateResult.Rejected(
                             sessionId,
-                            PlaybackEngineUpdateResult.Reason.RENDERER_REJECTED
+                            PlaybackCoordinatorFailureCode.RENDERER_REJECTED
                         )
                     )
                     return@post
                 }
                 polyrhythmEngine.updateAtCycleBoundary(
-                    configuration.bpm,
-                    configuration.beats,
-                    configuration.against
+                    configuration.committed.bpm,
+                    configuration.committed.beats,
+                    configuration.committed.against
                 )
                 completion(PlaybackEngineUpdateResult.Accepted(sessionId))
             } catch (failure: IllegalArgumentException) {
-                completion(updateFailure(sessionId, PlaybackEngineUpdateResult.Reason.INVALID_CONFIGURATION, failure))
+                completion(updateFailure(sessionId, PlaybackCoordinatorFailureCode.INVALID_INPUT, failure))
             } catch (failure: Throwable) {
-                completion(updateFailure(sessionId, PlaybackEngineUpdateResult.Reason.ENGINE_FAILURE, failure))
+                completion(updateFailure(sessionId, PlaybackCoordinatorFailureCode.ENGINE_FAILURE, failure))
             }
         }
     }
 
     private fun updateFailure(
         sessionId: PlaybackSessionId,
-        reason: PlaybackEngineUpdateResult.Reason,
+        reason: PlaybackCoordinatorFailureCode,
         failure: Throwable
     ) = PlaybackEngineUpdateResult.Rejected(
         sessionId,
@@ -486,7 +512,7 @@ class MetronomeAudioEngine(private val context: Context) {
         failure.message ?: failure::class.java.simpleName
     )
 
-    fun release() {
+    override fun release() {
         val latch = CountDownLatch(1)
         handler.post {
             isPlaying = false
@@ -496,6 +522,7 @@ class MetronomeAudioEngine(private val context: Context) {
             polyrhythmEngine.stop()
             polyrhythmEngine.delegate = null
             delegate = null
+            transportObserver = null
             audioDeviceTopologyMonitor.release()
             abandonAudioFocus()
             latch.countDown()
@@ -531,14 +558,15 @@ class MetronomeAudioEngine(private val context: Context) {
     }
 
     private fun doStart(
-        bpm: Float,
-        subdivisions: Int,
-        accentPattern: List<Boolean>?,
-        alternateSixteenth: Boolean,
+        configuration: ValidatedStandardConfiguration,
         delegate: MetronomeAudioEngineDelegate,
         sessionId: PlaybackSessionId,
         completion: (PlaybackSessionId, AudioEngineStartResult) -> Unit
     ) {
+        val bpm = configuration.committed.bpm
+        val subdivisions = configuration.committed.subdivisions
+        val accentPattern = configuration.committed.accentPattern
+        val alternateSixteenth = configuration.committed.alternateSixteenth
         if (!requestAudioFocus()) {
             completion(sessionId, AudioEngineStartResult.AudioFocusUnavailable)
             return
@@ -559,11 +587,7 @@ class MetronomeAudioEngine(private val context: Context) {
         val engine = getOrCreateFrameAudioEngine()
         if (frameAudioActive) engine.stop()
         frameAudioActive = engine.startStandard(
-            bpm,
-            subdivisions,
-            accentPattern,
-            alternateSixteenth,
-            isMuted,
+            configuration,
             firstBeatDelayMs,
             sessionId
         )
@@ -696,14 +720,6 @@ class MetronomeAudioEngine(private val context: Context) {
     }
 
     @VisibleForTesting
-    internal fun reportRouteChangeForTesting(
-        previous: AudioOutputRoute,
-        current: AudioOutputRoute
-    ) {
-        getOrCreateFrameAudioEngine().reportRouteChangeForTesting(previous, current)
-    }
-
-    @VisibleForTesting
     internal fun prepareActiveRouteForTesting(
         sessionId: PlaybackSessionId,
         route: AudioOutputRoute
@@ -721,7 +737,45 @@ class MetronomeAudioEngine(private val context: Context) {
     private fun applyObservedRoute(current: AudioOutputRoute) {
         val sessionId = activeCoordinatorSessionId ?: return
         val reason = activeOutputRoute.observe(current) ?: return
-        playbackInterruptionObserver?.invoke(sessionId, reason)
+        publishInterruption(sessionId, reason)
+    }
+
+    private fun publishInterruption(
+        sessionId: PlaybackSessionId,
+        reason: PlaybackInterruptionReason
+    ) {
+        transportObserver?.engineInterrupted(sessionId, reason)
+    }
+
+    private fun publishStartResult(
+        sessionId: PlaybackSessionId,
+        result: AudioEngineStartResult
+    ) {
+        when (result) {
+            AudioEngineStartResult.AudioFocusUnavailable ->
+                transportObserver?.audioFocusUnavailable(sessionId)
+            AudioEngineStartResult.StreamFailed ->
+                transportObserver?.engineStartFailed(sessionId, "Audio stream failed to start")
+            is AudioEngineStartResult.Started -> {
+                val sounds = activeSoundConfiguration()
+                if (sounds == null) {
+                    transportObserver?.engineStartFailed(
+                        sessionId,
+                        "Audio stream started without prepared sounds"
+                    )
+                    return
+                }
+                transportObserver?.engineStarted(
+                    PlaybackEngineStartEvidence(
+                        sessionId,
+                        sounds,
+                        result.evidence.route,
+                        result.evidence.backend,
+                        result.evidence.firstEventFrame
+                    )
+                )
+            }
+        }
     }
 
     private fun currentStepCount(): Int = currentAccentPattern?.size ?: currentSubdivisions

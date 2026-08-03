@@ -47,6 +47,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.bfunkstudios.beatclikr.R
+import com.bfunkstudios.beatclikr.music.PolyrhythmConfiguration
 import com.bfunkstudios.beatclikr.constants.MetronomeConstants
 import com.bfunkstudios.beatclikr.ui.components.BpmSliderControl
 import com.bfunkstudios.beatclikr.ui.components.SectionCard
@@ -219,7 +220,7 @@ private fun CountSelector(
         ) {
             IconButton(
                 onClick = onDecrease,
-                enabled = enabled && value > 1,
+                enabled = enabled && value > PolyrhythmConfiguration.SUPPORTED_COUNT.first,
                 modifier = Modifier.semantics { contentDescription = decreaseLabel }
             ) {
                 Icon(imageVector = Icons.Default.Remove, contentDescription = null)
@@ -233,7 +234,7 @@ private fun CountSelector(
             )
             IconButton(
                 onClick = onIncrease,
-                enabled = enabled && value < 15,
+                enabled = enabled && value < PolyrhythmConfiguration.SUPPORTED_COUNT.last,
                 modifier = Modifier.semantics { contentDescription = increaseLabel }
             ) {
                 Icon(imageVector = Icons.Default.Add, contentDescription = null)

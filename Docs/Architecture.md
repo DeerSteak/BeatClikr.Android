@@ -12,7 +12,7 @@ BeatClikr is a single-module Kotlin application built with Jetpack Compose.
 - `services/` contains PCM decoding, scheduling, mixing, `AudioTrack` output, and platform integrations.
 - `di/` wires the application graph with Hilt.
 
-`PlaybackCoordinator` is the application-scoped transport authority. Playback ViewModels submit commands through `IAudioPlayerService` and project the coordinator's read-only transport state and committed renderer events; they do not install engine delegates or maintain independent playback truth.
+`PlaybackCoordinator` is the application-scoped transport authority. Playback ViewModels submit `PlaybackIntent` values through `IAudioPlayerService` and project the coordinator's read-only transport state and committed renderer events; they do not install engine delegates or maintain independent playback truth.
 
 The `music/` package is a dependency leaf and cannot depend on Android classes, clocks, resources, audio objects, persistence, or presentation models. Its configuration layer contains exact standard and polyrhythm inputs, session origins, monotonic event identity, and frame-event vocabulary. `StandardMetronomeTimeline` and `PolyrhythmTimeline` provide the pure frame-range schedulers used by the production renderer.
 
@@ -40,13 +40,13 @@ An increased backend underrun count creates a discontinuity boundary. Consecutiv
 
 `FramePlaybackPublicationBoundary` translates legacy standard and polyrhythm inputs into typed frame-publication factories on the control path. Missing sounds and rejected domain inputs return explicit failure codes, and domain rejections retain their `PlaybackInputFailure` cause for later authoritative failed states. Unsupported subdivisions, additive steps, tempos, accent patterns, and ratios cannot escape toward stream start.
 
-`MetronomeAudioEngine` uses the prepared frame session as its only sound-output path. A rejected publication or stream start abandons focus, refuses to start timing callbacks, and notifies the ViewModel to roll back its optimistic play state; it cannot resurrect the removed pending-click mixer. Handler callbacks drive visual notifications only. Standard tempo, groove, and pattern changes enqueue an in-stream timeline replacement rather than stopping `AudioTrack`. The old timeline chooses its next event boundary; the replacement anchors there with the same absolute event index, preserving frame ownership, musical phase, monotonic event identity, and active waveform tails while the new tempo governs subsequent intervals.
+`MetronomeAudioEngine` uses the prepared frame session as its only sound-output path. A rejected publication or stream start abandons focus, refuses to start timing callbacks, and notifies the ViewModel to roll back its optimistic play state; it cannot resurrect the removed pending-click mixer. Handler callbacks drive visual notifications only. Standard tempo, groove, and pattern changes enqueue an in-stream timeline replacement rather than stopping `AudioTrack`. The old timeline chooses its next event boundary; the replacement anchors there with the same absolute event index, preserving frame ownership, musical phase, monotonic event identity, and active waveform tails while the new configuration governs subsequent intervals.
 
 Live mute changes update only the renderer's audible gate because muting must neither rebuild the timeline nor disturb frame continuity and retained waveform tails. Configuration updates use the same render-thread queue, so neither path blocks the metronome callback thread on stream teardown.
 
 Live sound changes prepare off the render path and publish through the frame-session control queue. A successful publication changes the binding for subsequently created voices without rebuilding the stream, timeline, phase, or event identity; ownership and transport adopt the snapshot only after that acknowledgement. A failed, rejected, stale, or superseded publication preserves the last confirmed audible snapshot. Sound changes while stopped prepare only the next session and do not claim current audibility.
 
-Live polyrhythm changes use the same in-stream replacement mechanism. Because changing either ratio invalidates the individual slot grids, the old audio and visual timelines apply the pending configuration at their next coincident cycle boundary; the replacement starts both rhythms there and carries forward event and cycle identity. An active frame polyrhythm is retuned before any new start is considered, so a rejected duplicate start cannot create another output stream.
+Live polyrhythm changes use the same in-stream replacement mechanism. Because changing either ratio invalidates the individual slot grids, the old audio and visual timelines apply the pending configuration at their next coincident cycle boundary; the replacement restarts both rhythms there at cycle zero. An active frame polyrhythm is retuned before any new start is considered, so a rejected duplicate start cannot create another output stream.
 
 Visual callbacks use one-shot monotonic delays to the next intended event minus the approved lookahead. A late callback skips every fully expired interval in constant time and emits only the current event, matching audio recovery's no-catch-up policy. Each callback advances from the intended time and schedules exactly one successor, removing the one-millisecond polling wakeup without making Handler dispatch the audio-position authority.
 
@@ -71,7 +71,7 @@ Proprietary samples are excluded from Git. A tracked requirements file defines t
 ### Standard metronome
 
 1. The Compose screen submits a user intent through `MetronomeViewModel`.
-2. The ViewModel sends a typed request through `IAudioPlayerService` and projects coordinator state.
+2. The ViewModel submits a typed `PlaybackIntent` through `IAudioPlayerService` and projects coordinator state.
 3. `PlaybackCoordinator` serializes the request, owns the session, and publishes authoritative transport state.
 4. The exact timeline and frame renderer write prepared PCM through the streaming `AudioTrack` backend.
 5. Committed renderer events drive practice accounting, restrained visual updates, and optional secondary outputs.

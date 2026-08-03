@@ -150,7 +150,7 @@ class PlaybackCoordinatorTest {
             engine.transportObserver?.engineStopped(obsolete)
             assertTrue(coordinator.awaitControlIdle())
             assertTrue(coordinator.transportState.value is PlaybackTransportState.Playing)
-            assertEquals(PlaybackMode.POLYRHYTHM, coordinator.ownership.value.activeMode)
+            assertEquals(PlaybackMode.POLYRHYTHM, coordinator.activeMode())
         } finally {
             coordinator.release()
         }
@@ -173,14 +173,14 @@ class PlaybackCoordinatorTest {
                 ),
                 engine.operations
             )
-            assertEquals(PlaybackMode.POLYRHYTHM, coordinator.ownership.value.activeMode)
+            assertEquals(PlaybackMode.POLYRHYTHM, coordinator.activeMode())
         } finally {
             coordinator.release()
         }
     }
 
     @Test
-    fun configurationAndMuteChangesDoNotTearDownTheActiveMode() {
+    fun mt022_configurationAndMuteChangesDoNotTearDownTheActiveMode() {
         val engine = FakePlaybackEngine()
         val coordinator = PlaybackCoordinator(engine)
         try {
@@ -193,7 +193,7 @@ class PlaybackCoordinatorTest {
             assertTrue(coordinator.awaitControlIdle())
 
             assertEquals(listOf("updateStandard"), engine.operations)
-            assertEquals(PlaybackMode.STANDARD, coordinator.ownership.value.activeMode)
+            assertEquals(PlaybackMode.STANDARD, coordinator.activeMode())
             assertTrue(coordinator.ownership.value.muted)
         } finally {
             coordinator.release()
@@ -205,15 +205,15 @@ class PlaybackCoordinatorTest {
         val engine = FakePlaybackEngine()
         val coordinator = PlaybackCoordinator(engine)
         try {
-            coordinator.startPolyrhythm(120f, 3, 2)
+            coordinator.submit(PlaybackIntent.StartPolyrhythm(120f, 3, 2))
             assertTrue(coordinator.awaitControlIdle())
             engine.operations.clear()
 
-            coordinator.startPolyrhythm(121f, 5, 3)
+            coordinator.submit(PlaybackIntent.StartPolyrhythm(121f, 5, 3))
             assertTrue(coordinator.awaitControlIdle())
 
             assertEquals(listOf("updatePolyrhythm"), engine.operations)
-            assertEquals(PlaybackMode.POLYRHYTHM, coordinator.ownership.value.activeMode)
+            assertEquals(PlaybackMode.POLYRHYTHM, coordinator.activeMode())
         } finally {
             coordinator.release()
         }
@@ -248,13 +248,13 @@ class PlaybackCoordinatorTest {
             coordinator.submit(PlaybackIntent.UpdateStandard(130f, 4, null, false))
             assertTrue(coordinator.awaitControlIdle())
             engine.completeNextUpdate(
-                PlaybackEngineUpdateResult.Reason.RENDERER_REJECTED,
+                PlaybackCoordinatorFailureCode.RENDERER_REJECTED,
                 "renderer rejected replacement"
             )
             assertTrue(coordinator.awaitControlIdle())
 
             assertEquals(120f, coordinator.standardConfiguration().bpm)
-            assertTrue(coordinator.ownership.value.lastOutcome is PlaybackIntentOutcome.Rejected)
+            assertTrue(coordinator.latestOutcome() is PlaybackIntentOutcome.Rejected)
             coordinator.submit(PlaybackIntent.UpdateStandard(140f, 4, null, false))
             assertTrue(coordinator.awaitControlIdle())
             engine.completeNextUpdate()
@@ -380,31 +380,26 @@ class PlaybackCoordinatorTest {
 
     @Test
     fun updateRejectionReasonsRemainStructuredCoordinatorOutcomes() {
-        val mappings = listOf(
-            PlaybackEngineUpdateResult.Reason.STALE_SESSION to
-                PlaybackCoordinatorFailureCode.STALE_SESSION,
-            PlaybackEngineUpdateResult.Reason.INACTIVE_MODE to
-                PlaybackCoordinatorFailureCode.MODE_MISMATCH,
-            PlaybackEngineUpdateResult.Reason.RENDERER_REJECTED to
-                PlaybackCoordinatorFailureCode.RENDERER_REJECTED,
-            PlaybackEngineUpdateResult.Reason.INVALID_CONFIGURATION to
-                PlaybackCoordinatorFailureCode.INVALID_INPUT,
-            PlaybackEngineUpdateResult.Reason.ENGINE_FAILURE to
-                PlaybackCoordinatorFailureCode.ENGINE_FAILURE
+        val reasons = listOf(
+            PlaybackCoordinatorFailureCode.STALE_SESSION,
+            PlaybackCoordinatorFailureCode.MODE_MISMATCH,
+            PlaybackCoordinatorFailureCode.RENDERER_REJECTED,
+            PlaybackCoordinatorFailureCode.INVALID_INPUT,
+            PlaybackCoordinatorFailureCode.ENGINE_FAILURE
         )
         val engine = FakePlaybackEngine().apply { asynchronousUpdates = true }
         val coordinator = PlaybackCoordinator(engine)
         try {
             coordinator.submit(PlaybackIntent.StartStandard(120f, 4, null, false))
             assertTrue(coordinator.awaitControlIdle())
-            mappings.forEachIndexed { index, (reason, expectedCode) ->
+            reasons.forEachIndexed { index, reason ->
                 val sequence = coordinator.submit(
                     PlaybackIntent.UpdateStandard(130f + index, 4, null, false)
                 )
                 assertTrue(coordinator.awaitControlIdle())
                 engine.completeNextUpdate(reason)
                 assertTrue(coordinator.awaitControlIdle())
-                assertFailureCode(coordinator, sequence, expectedCode)
+                assertFailureCode(coordinator, sequence, reason)
             }
         } finally {
             coordinator.release()
@@ -747,7 +742,7 @@ class PlaybackCoordinatorTest {
             )
             assertTrue(coordinator.awaitControlIdle())
 
-            val outcome = coordinator.ownership.value.lastOutcome
+            val outcome = coordinator.latestOutcome()
             assertTrue(outcome is PlaybackIntentOutcome.Rejected)
             assertEquals(sequence, outcome?.commandSequence)
             assertEquals(
@@ -772,10 +767,10 @@ class PlaybackCoordinatorTest {
 
             assertTrue(sequence > 0)
             assertTrue(engine.startEntered.await(2, TimeUnit.SECONDS))
-            assertNull(coordinator.ownership.value.lastOutcome)
+            assertNull(coordinator.outcomeOrNull(sequence))
             engine.allowStart.countDown()
             assertTrue(coordinator.awaitControlIdle())
-            assertTrue(coordinator.ownership.value.lastOutcome is PlaybackIntentOutcome.Accepted)
+            assertTrue(coordinator.outcomeOrNull(sequence) is PlaybackIntentOutcome.Accepted)
         } finally {
             engine.allowStart.countDown()
             coordinator.release()
@@ -812,7 +807,7 @@ class PlaybackCoordinatorTest {
 
             assertEquals(12, sequences.distinct().size)
             assertEquals(1, engine.maximumConcurrentCalls.get())
-            assertTrue(coordinator.ownership.value.activeMode != PlaybackMode.NONE)
+            assertTrue(coordinator.activeMode() != PlaybackMode.NONE)
             assertEquals(setOf("PlaybackCoordinatorControl"), engine.callingThreads)
         } finally {
             callers.shutdownNow()
@@ -829,7 +824,7 @@ class PlaybackCoordinatorTest {
                 PlaybackIntent.StartStandard(Float.NaN, 4, null, false)
             )
             assertTrue(coordinator.awaitControlIdle())
-            val invalid = coordinator.ownership.value.lastOutcome
+            val invalid = coordinator.outcomeOrNull(invalidSequence)
             assertTrue(invalid is PlaybackIntentOutcome.Rejected)
             assertEquals(invalidSequence, invalid?.commandSequence)
             assertEquals(
@@ -843,7 +838,7 @@ class PlaybackCoordinatorTest {
                 PlaybackIntent.StartPolyrhythm(120f, 3, 2)
             )
             assertTrue(coordinator.awaitControlIdle())
-            val failed = coordinator.ownership.value.lastOutcome
+            val failed = coordinator.outcomeOrNull(failedSequence)
             assertTrue(failed is PlaybackIntentOutcome.Rejected)
             assertEquals(failedSequence, failed?.commandSequence)
             assertEquals(
@@ -976,7 +971,7 @@ class PlaybackCoordinatorTest {
     }
 
     @Test
-    fun liveSoundAdoptionUpdatesOwnershipAndTransportTogether() {
+    fun mt022_liveSoundAdoptionUpdatesOwnershipAndTransportTogether() {
         val engine = FakePlaybackEngine()
         val coordinator = PlaybackCoordinator(engine)
         try {
@@ -1996,6 +1991,24 @@ class PlaybackCoordinatorTest {
         )
     }
 
+    private fun PlaybackCoordinator.activeMode(): PlaybackMode =
+        (transportState.value as? PlaybackTransportState.SessionState)
+            ?.context
+            ?.mode
+            ?: PlaybackMode.NONE
+
+    private fun PlaybackCoordinator.latestOutcome(): PlaybackIntentOutcome? =
+        controlEvents.replayCache
+            .filterIsInstance<PlaybackControlEvent.IntentCompleted>()
+            .lastOrNull()
+            ?.outcome
+
+    private fun PlaybackCoordinator.outcomeOrNull(sequence: Long): PlaybackIntentOutcome? =
+        controlEvents.replayCache
+            .filterIsInstance<PlaybackControlEvent.IntentCompleted>()
+            .lastOrNull { it.commandSequence == sequence }
+            ?.outcome
+
     private fun renderedBatch(
         sessionId: PlaybackSessionId,
         eventSequence: Long
@@ -2097,18 +2110,9 @@ class PlaybackCoordinatorTest {
         ) = call("prepareSounds")
         override fun beginStandardSession(
             sessionId: PlaybackSessionId,
-            bpm: Float,
-            subdivisions: Int,
-            accentPattern: List<Boolean>?,
-            alternateSixteenth: Boolean
+            configuration: ValidatedStandardConfiguration
         ) {
-            standardStarts += CommittedPlaybackConfiguration.Standard(
-                bpm,
-                subdivisions,
-                accentPattern?.toList(),
-                alternateSixteenth,
-                isMuted
-            )
+            standardStarts += configuration.committed
             call("startStandard") {
                 if (throwOnStart) error("start failed")
                 if (blockStart) {
@@ -2121,9 +2125,7 @@ class PlaybackCoordinatorTest {
 
         override fun beginPolyrhythmSession(
             sessionId: PlaybackSessionId,
-            bpm: Float,
-            beats: Int,
-            against: Int
+            configuration: ValidatedPolyrhythmConfiguration
         ) {
             call("startPolyrhythm") {
                 if (throwOnStart) error("start failed")
@@ -2133,7 +2135,7 @@ class PlaybackCoordinatorTest {
 
         override fun updateStandardSession(
             sessionId: PlaybackSessionId,
-            configuration: CommittedPlaybackConfiguration.Standard,
+            configuration: ValidatedStandardConfiguration,
             completion: (PlaybackEngineUpdateResult) -> Unit
         ) = call("updateStandard") {
             if (throwOnUpdate) error("asynchronous port failed")
@@ -2142,7 +2144,7 @@ class PlaybackCoordinatorTest {
 
         override fun updatePolyrhythmSession(
             sessionId: PlaybackSessionId,
-            configuration: CommittedPlaybackConfiguration.Polyrhythm,
+            configuration: ValidatedPolyrhythmConfiguration,
             completion: (PlaybackEngineUpdateResult) -> Unit
         ) = call("updatePolyrhythm") {
             if (throwOnUpdate) error("asynchronous port failed")
@@ -2181,7 +2183,7 @@ class PlaybackCoordinatorTest {
         }
 
         fun completeNextUpdate(
-            rejection: PlaybackEngineUpdateResult.Reason? = null,
+            rejection: PlaybackCoordinatorFailureCode? = null,
             diagnostic: String? = null
         ) {
             val (sessionId, completion) = updateCompletions.removeFirst()

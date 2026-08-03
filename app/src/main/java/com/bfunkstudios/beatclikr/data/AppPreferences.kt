@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.core.content.edit
 import com.bfunkstudios.beatclikr.constants.MetronomeConstants
 import com.bfunkstudios.beatclikr.music.TempoRampConfiguration
+import com.bfunkstudios.beatclikr.music.PolyrhythmConfiguration
 import kotlin.math.abs
 
 class AppPreferences(context: Context) : IAppPreferences {
@@ -61,12 +62,17 @@ class AppPreferences(context: Context) : IAppPreferences {
         set(value) = putBpm(Keys.POLYRHYTHM_BPM, value)
 
     override var polyrhythmBeats: Int
-        get() = intValue(Keys.POLYRHYTHM_BEATS, 3).coerceIn(1, 15)
-        set(value) = prefs.edit { putInt(Keys.POLYRHYTHM_BEATS, value.coerceIn(1, 15)) }
+        get() = intValue(Keys.POLYRHYTHM_BEATS, 3).coerceIn(PolyrhythmConfiguration.SUPPORTED_COUNT)
+        set(value) = prefs.edit {
+            putInt(Keys.POLYRHYTHM_BEATS, value.coerceIn(PolyrhythmConfiguration.SUPPORTED_COUNT))
+        }
 
     override var polyrhythmAgainst: Int
-        get() = intValue(Keys.POLYRHYTHM_AGAINST, 2).coerceIn(1, 15)
-        set(value) = prefs.edit { putInt(Keys.POLYRHYTHM_AGAINST, value.coerceIn(1, 15)) }
+        get() = intValue(Keys.POLYRHYTHM_AGAINST, 2)
+            .coerceIn(PolyrhythmConfiguration.SUPPORTED_COUNT)
+        set(value) = prefs.edit {
+            putInt(Keys.POLYRHYTHM_AGAINST, value.coerceIn(PolyrhythmConfiguration.SUPPORTED_COUNT))
+        }
 
     override var polyrhythmBeatSound: SoundFile
         get() = enumValue(Keys.POLYRHYTHM_BEAT_SOUND, SoundFile.CLICK_HI)

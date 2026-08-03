@@ -15,12 +15,14 @@ import com.bfunkstudios.beatclikr.data.IAppPreferences
 import com.bfunkstudios.beatclikr.data.PracticeItemSnapshot
 import com.bfunkstudios.beatclikr.data.SoundFile
 import com.bfunkstudios.beatclikr.music.MusicalEventRole
+import com.bfunkstudios.beatclikr.music.PolyrhythmConfiguration
 import com.bfunkstudios.beatclikr.services.CommittedPlaybackConfiguration
 import com.bfunkstudios.beatclikr.services.CommittedEventDeliveryCursor
 import com.bfunkstudios.beatclikr.services.CommittedEventDeliveryResult
 import com.bfunkstudios.beatclikr.services.EventPresentation
 import com.bfunkstudios.beatclikr.services.IAudioPlayerService
 import com.bfunkstudios.beatclikr.services.PlaybackCommittedEvent
+import com.bfunkstudios.beatclikr.services.PlaybackIntent
 import com.bfunkstudios.beatclikr.services.PlaybackMode
 import com.bfunkstudios.beatclikr.services.PlaybackObservation
 import com.bfunkstudios.beatclikr.services.PlaybackSessionId
@@ -52,7 +54,7 @@ class PolyrhythmViewModel @Inject constructor(
 
     private var transportState by mutableStateOf(playback.transportState.value)
     private var ownedSessionId: PlaybackSessionId? =
-        transportState.polyrhythmSessionId()
+        transportState.sessionIdFor(PlaybackMode.POLYRHYTHM)
     private var awaitingOwnedSession = false
 
     val isPlaying: Boolean
@@ -125,13 +127,13 @@ class PolyrhythmViewModel @Inject constructor(
     }
 
     fun updateBeats(value: Int) {
-        beats = value.coerceIn(1, 15)
+        beats = value.coerceIn(PolyrhythmConfiguration.SUPPORTED_COUNT)
         prefs.polyrhythmBeats = beats
         if (isPlaying) start()
     }
 
     fun updateAgainst(value: Int) {
-        against = value.coerceIn(1, 15)
+        against = value.coerceIn(PolyrhythmConfiguration.SUPPORTED_COUNT)
         prefs.polyrhythmAgainst = against
         if (isPlaying) start()
     }
@@ -155,11 +157,7 @@ class PolyrhythmViewModel @Inject constructor(
     }
 
     fun setupPolyrhythm() {
-        val beatResId = selectedBeatSound.resourceId
-        val rhythmResId = selectedRhythmSound.resourceId
-        if (beatResId != null && rhythmResId != null) {
-            audio.setupAudioPlayer(beatResId, rhythmResId)
-        }
+        audio.submit(PlaybackIntent.SelectSounds(selectedBeatSound, selectedRhythmSound))
     }
 
     fun togglePlayPause() {
@@ -167,19 +165,26 @@ class PolyrhythmViewModel @Inject constructor(
     }
 
     fun start() {
-        val currentSession = transportState.polyrhythmSessionId()
+        val currentSession = transportState.sessionIdFor(PlaybackMode.POLYRHYTHM)
         ownedSessionId = currentSession
         awaitingOwnedSession = currentSession == null
         setupPolyrhythm()
         beatPulse = 0f
         rhythmPulse = 0f
-        audio.isMuted = prefs.muteMetronome
-        audio.soundBank = prefs.soundBank
-        audio.startPolyrhythm(bpm, beats, against, PracticeItemSnapshot.polyrhythm())
+        audio.submit(PlaybackIntent.SetMuted(prefs.muteMetronome))
+        audio.submit(PlaybackIntent.SelectSoundBank(prefs.soundBank))
+        audio.submit(
+            PlaybackIntent.StartPolyrhythm(
+                bpm,
+                beats,
+                against,
+                PracticeItemSnapshot.polyrhythm()
+            )
+        )
     }
 
     fun stop() {
-        ownedSessionId?.let(audio::stopIfCurrent)
+        ownedSessionId?.let { audio.submit(PlaybackIntent.StopIfCurrent(it)) }
         stopChoreographerLoop()
         beatPulse = 0f
         rhythmPulse = 0f
@@ -284,7 +289,7 @@ class PolyrhythmViewModel @Inject constructor(
     private fun applyTransportState(state: PlaybackTransportState) {
         transportState = state
         if (awaitingOwnedSession) {
-            state.polyrhythmSessionId()?.let { sessionId ->
+            state.sessionIdFor(PlaybackMode.POLYRHYTHM)?.let { sessionId ->
                 ownedSessionId = sessionId
                 awaitingOwnedSession = false
             }
@@ -350,12 +355,6 @@ class PolyrhythmViewModel @Inject constructor(
     }
 
 }
-
-private fun PlaybackTransportState.polyrhythmSessionId(): PlaybackSessionId? =
-    (this as? PlaybackTransportState.SessionState)
-        ?.context
-        ?.takeIf { it.mode == PlaybackMode.POLYRHYTHM }
-        ?.sessionId
 
 internal fun polyrhythmBeatDurationNanos(bpm: Float): Long =
     (NANOS_PER_MINUTE / bpm.toDouble()).toLong()

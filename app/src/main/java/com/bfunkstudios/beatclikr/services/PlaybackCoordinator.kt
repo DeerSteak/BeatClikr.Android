@@ -30,7 +30,6 @@ data class RequestedSoundConfiguration(
 )
 
 data class PlaybackOwnershipSnapshot(
-    val activeMode: PlaybackMode = PlaybackMode.NONE,
     val muted: Boolean = false,
     val requestedSounds: RequestedSoundConfiguration = RequestedSoundConfiguration(
         SoundBank.ACOUSTIC,
@@ -38,51 +37,61 @@ data class PlaybackOwnershipSnapshot(
         SoundFile.CLICK_LO
     ),
     val audibleSounds: ActiveSoundConfiguration? = null,
-    val soundPreparationFailure: SoundPreparationFailure? = null,
-    val lastCommandSequence: Long = 0,
-    val lastOutcome: PlaybackIntentOutcome? = null
+    val soundPreparationFailure: SoundPreparationFailure? = null
 )
 
 sealed interface PlaybackIntent {
-    data class Invalid(val diagnostic: String) : PlaybackIntent
     data class SelectSounds(val beat: SoundFile, val rhythm: SoundFile) : PlaybackIntent
     data class SelectSoundBank(val bank: SoundBank) : PlaybackIntent
     data class SetMuted(val muted: Boolean) : PlaybackIntent
     data class StartStandard(
-        val bpm: Float,
-        val subdivisions: Int,
-        val accentPattern: List<Boolean>?,
-        val alternateSixteenth: Boolean,
+        override val bpm: Float,
+        override val subdivisions: Int,
+        override val accentPattern: List<Boolean>?,
+        override val alternateSixteenth: Boolean,
         val practiceItem: PracticeItemSnapshot = PracticeItemSnapshot.metronome()
-    ) : PlaybackIntent
+    ) : StandardConfigurationIntent
     data class ReplaceStandard(
-        val bpm: Float,
-        val subdivisions: Int,
-        val accentPattern: List<Boolean>?,
-        val alternateSixteenth: Boolean,
+        override val bpm: Float,
+        override val subdivisions: Int,
+        override val accentPattern: List<Boolean>?,
+        override val alternateSixteenth: Boolean,
         val practiceItem: PracticeItemSnapshot = PracticeItemSnapshot.metronome()
-    ) : PlaybackIntent
+    ) : StandardConfigurationIntent
     data class UpdateStandard(
-        val bpm: Float,
-        val subdivisions: Int,
-        val accentPattern: List<Boolean>?,
-        val alternateSixteenth: Boolean
-    ) : PlaybackIntent
+        override val bpm: Float,
+        override val subdivisions: Int,
+        override val accentPattern: List<Boolean>?,
+        override val alternateSixteenth: Boolean
+    ) : StandardConfigurationIntent
     data class StartPolyrhythm(
-        val bpm: Float,
-        val beats: Int,
-        val against: Int,
+        override val bpm: Float,
+        override val beats: Int,
+        override val against: Int,
         val practiceItem: PracticeItemSnapshot = PracticeItemSnapshot.polyrhythm()
-    ) : PlaybackIntent
+    ) : PolyrhythmConfigurationIntent
     data class UpdatePolyrhythm(
-        val bpm: Float,
-        val beats: Int,
-        val against: Int
-    ) : PlaybackIntent
+        override val bpm: Float,
+        override val beats: Int,
+        override val against: Int
+    ) : PolyrhythmConfigurationIntent
     data class StopIfCurrent(val expectedSessionId: PlaybackSessionId) : PlaybackIntent
     data object Stop : PlaybackIntent
     data object Prewarm : PlaybackIntent
     data class PrepareSounds(val sounds: Collection<SoundFile>) : PlaybackIntent
+}
+
+sealed interface StandardConfigurationIntent : PlaybackIntent {
+    val bpm: Float
+    val subdivisions: Int
+    val accentPattern: List<Boolean>?
+    val alternateSixteenth: Boolean
+}
+
+sealed interface PolyrhythmConfigurationIntent : PlaybackIntent {
+    val bpm: Float
+    val beats: Int
+    val against: Int
 }
 
 sealed interface PlaybackSystemInput {
@@ -202,25 +211,20 @@ interface PlaybackEnginePort {
     fun release()
     fun beginStandardSession(
         sessionId: PlaybackSessionId,
-        bpm: Float,
-        subdivisions: Int,
-        accentPattern: List<Boolean>?,
-        alternateSixteenth: Boolean
+        configuration: ValidatedStandardConfiguration
     )
     fun beginPolyrhythmSession(
         sessionId: PlaybackSessionId,
-        bpm: Float,
-        beats: Int,
-        against: Int
+        configuration: ValidatedPolyrhythmConfiguration
     )
     fun updateStandardSession(
         sessionId: PlaybackSessionId,
-        configuration: CommittedPlaybackConfiguration.Standard,
+        configuration: ValidatedStandardConfiguration,
         completion: (PlaybackEngineUpdateResult) -> Unit
     )
     fun updatePolyrhythmSession(
         sessionId: PlaybackSessionId,
-        configuration: CommittedPlaybackConfiguration.Polyrhythm,
+        configuration: ValidatedPolyrhythmConfiguration,
         completion: (PlaybackEngineUpdateResult) -> Unit
     )
     fun stopSession(sessionId: PlaybackSessionId, mode: PlaybackMode)
@@ -241,17 +245,9 @@ sealed interface PlaybackEngineUpdateResult {
 
     data class Rejected(
         override val sessionId: PlaybackSessionId,
-        val reason: Reason,
+        val reason: PlaybackCoordinatorFailureCode,
         val diagnostic: String? = null
     ) : PlaybackEngineUpdateResult
-
-    enum class Reason {
-        STALE_SESSION,
-        INACTIVE_MODE,
-        RENDERER_REJECTED,
-        INVALID_CONFIGURATION,
-        ENGINE_FAILURE
-    }
 }
 
 data class SoundPreparationPublication(
@@ -345,8 +341,8 @@ class PlaybackCoordinator(
             .map { transition ->
                 PlaybackLifecycleDiagnostic(
                     transition.sequence,
-                    transition.from.diagnosticName(),
-                    transition.to.diagnosticName()
+                    transition.from.diagnosticName,
+                    transition.to.diagnosticName
                 )
             }
 
@@ -392,20 +388,8 @@ class PlaybackCoordinator(
         refreshAudibleSounds()
     }
 
-    override var isMuted: Boolean
-        get() = ownership.value.muted
-        set(value) {
-            submit(PlaybackIntent.SetMuted(value))
-        }
-
-    override var soundBank: SoundBank
-        get() = ownership.value.requestedSounds.bank
-        set(value) {
-            submit(PlaybackIntent.SelectSoundBank(value))
-        }
-
     @Synchronized
-    fun submit(intent: PlaybackIntent): Long {
+    override fun submit(intent: PlaybackIntent): Long {
         val sequence = nextCommandSequence++
         val publishedIntent = intent.immutableCopy()
         if (released) {
@@ -448,93 +432,6 @@ class PlaybackCoordinator(
             }
         }
         return sequence
-    }
-
-    override fun setupAudioPlayer(beatResourceId: Int, rhythmResourceId: Int) {
-        val beat = SoundFile.fromResourceId(beatResourceId)
-        val rhythm = SoundFile.fromResourceId(rhythmResourceId)
-        if (beat == null || rhythm == null) {
-            submit(PlaybackIntent.Invalid("Unknown sound resource"))
-            return
-        }
-        submit(PlaybackIntent.SelectSounds(beat, rhythm))
-    }
-
-    override fun startMetronome(
-        bpm: Float,
-        subdivisions: Int,
-        accentPattern: List<Boolean>?,
-        alternateSixteenth: Boolean,
-        practiceItem: PracticeItemSnapshot
-    ) {
-        submit(
-            PlaybackIntent.StartStandard(
-                bpm,
-                subdivisions,
-                accentPattern?.toList(),
-                alternateSixteenth,
-                practiceItem
-            )
-        )
-    }
-
-    override fun replaceMetronome(
-        bpm: Float,
-        subdivisions: Int,
-        accentPattern: List<Boolean>?,
-        alternateSixteenth: Boolean,
-        practiceItem: PracticeItemSnapshot
-    ) {
-        submit(
-            PlaybackIntent.ReplaceStandard(
-                bpm,
-                subdivisions,
-                accentPattern?.toList(),
-                alternateSixteenth,
-                practiceItem
-            )
-        )
-    }
-
-    override fun stopIfCurrent(expectedSessionId: PlaybackSessionId) {
-        submit(PlaybackIntent.StopIfCurrent(expectedSessionId))
-    }
-
-    override fun updateTempo(
-        bpm: Float,
-        subdivisions: Int,
-        accentPattern: List<Boolean>?,
-        alternateSixteenth: Boolean
-    ) {
-        submit(
-            PlaybackIntent.UpdateStandard(
-                bpm,
-                subdivisions,
-                accentPattern?.toList(),
-                alternateSixteenth
-            )
-        )
-    }
-
-    override fun startPolyrhythm(
-        bpm: Float,
-        beats: Int,
-        against: Int,
-        practiceItem: PracticeItemSnapshot
-    ) {
-        submit(PlaybackIntent.StartPolyrhythm(bpm, beats, against, practiceItem))
-    }
-
-    override fun stopPlayback() {
-        submit(PlaybackIntent.Stop)
-    }
-
-    override fun prewarmAudioTrack() {
-        submit(PlaybackIntent.Prewarm)
-    }
-
-    override fun prepareAudioTrackSounds(soundFiles: Collection<SoundFile>) {
-        submit(PlaybackIntent.PrepareSounds(soundFiles.toList()))
     }
 
     override fun getFrameAudioMetricsSnapshot(): FrameAudioMetricsSnapshot? =
@@ -631,15 +528,15 @@ class PlaybackCoordinator(
 
     private fun applyIntent(sequence: Long, intent: PlaybackIntent) {
         controlThread = Thread.currentThread()
-        val validationFailure = validate(intent)
-        if (validationFailure != null) {
+        val validation = validate(intent)
+        if (validation is IntentValidation.Rejected) {
             recordOutcome(
                 sequence,
                 intent,
                 rejectedOutcome(
                     sequence,
                     PlaybackCoordinatorFailureCode.INVALID_INPUT,
-                    validationFailure
+                    validation.diagnostic
                 )
             )
             return
@@ -660,7 +557,6 @@ class PlaybackCoordinator(
         val outcome: PlaybackIntentOutcome? = try {
             var awaitsEngineAcknowledgement = false
             when (intent) {
-                is PlaybackIntent.Invalid -> error("Invalid intent passed validation")
                 is PlaybackIntent.SelectSounds -> {
                     latestSoundRequestSequence = sequence
                     updateRequestedSounds(beat = intent.beat, rhythm = intent.rhythm)
@@ -688,15 +584,17 @@ class PlaybackCoordinator(
                     }
                 }
                 is PlaybackIntent.StartStandard -> {
+                    val configuration = requireNotNull((validation as IntentValidation.Accepted).configuration)
+                        as ValidatedStandardConfiguration
                     if (transportState.value.activeModeOrNone() == PlaybackMode.STANDARD) {
-                        queueUpdate(sequence, intent, standardConfiguration(intent))
+                        queueUpdate(sequence, intent, configuration)
                         awaitsEngineAcknowledgement = true
                     } else {
                         replaceOrStart(
                             PendingStart.Standard(
                                 newSessionId(),
-                                intent,
-                                ownership.value.muted
+                                intent.practiceItem,
+                                configuration
                             )
                         )
                     }
@@ -704,30 +602,41 @@ class PlaybackCoordinator(
                 is PlaybackIntent.ReplaceStandard -> replaceOrStart(
                     PendingStart.Standard(
                         newSessionId(),
-                        intent.asStartIntent(),
-                        ownership.value.muted
+                        intent.practiceItem,
+                        requireNotNull((validation as IntentValidation.Accepted).configuration)
+                            as ValidatedStandardConfiguration
                     )
                 )
                 is PlaybackIntent.UpdateStandard -> {
-                    queueUpdate(sequence, intent, standardConfiguration(intent))
+                    queueUpdate(
+                        sequence,
+                        intent,
+                        requireNotNull((validation as IntentValidation.Accepted).configuration)
+                    )
                     awaitsEngineAcknowledgement = true
                 }
                 is PlaybackIntent.StartPolyrhythm -> {
+                    val configuration = requireNotNull((validation as IntentValidation.Accepted).configuration)
+                        as ValidatedPolyrhythmConfiguration
                     if (transportState.value.activeModeOrNone() == PlaybackMode.POLYRHYTHM) {
-                        queueUpdate(sequence, intent, polyrhythmConfiguration(intent))
+                        queueUpdate(sequence, intent, configuration)
                         awaitsEngineAcknowledgement = true
                     } else {
                         replaceOrStart(
                             PendingStart.Polyrhythm(
                                 newSessionId(),
                                 intent,
-                                ownership.value.muted
+                                configuration
                             )
                         )
                     }
                 }
                 is PlaybackIntent.UpdatePolyrhythm -> {
-                    queueUpdate(sequence, intent, polyrhythmConfiguration(intent))
+                    queueUpdate(
+                        sequence,
+                        intent,
+                        requireNotNull((validation as IntentValidation.Accepted).configuration)
+                    )
                     awaitsEngineAcknowledgement = true
                 }
                 is PlaybackIntent.StopIfCurrent -> {
@@ -754,44 +663,10 @@ class PlaybackCoordinator(
         outcome?.let { recordOutcome(sequence, intent, it) }
     }
 
-    private fun standardConfiguration(intent: PlaybackIntent.StartStandard) =
-        CommittedPlaybackConfiguration.Standard(
-            intent.bpm,
-            intent.subdivisions,
-            intent.accentPattern?.toList(),
-            intent.alternateSixteenth,
-            ownership.value.muted
-        )
-
-    private fun standardConfiguration(intent: PlaybackIntent.UpdateStandard) =
-        CommittedPlaybackConfiguration.Standard(
-            intent.bpm,
-            intent.subdivisions,
-            intent.accentPattern?.toList(),
-            intent.alternateSixteenth,
-            ownership.value.muted
-        )
-
-    private fun polyrhythmConfiguration(intent: PlaybackIntent.StartPolyrhythm) =
-        CommittedPlaybackConfiguration.Polyrhythm(
-            intent.bpm,
-            intent.beats,
-            intent.against,
-            ownership.value.muted
-        )
-
-    private fun polyrhythmConfiguration(intent: PlaybackIntent.UpdatePolyrhythm) =
-        CommittedPlaybackConfiguration.Polyrhythm(
-            intent.bpm,
-            intent.beats,
-            intent.against,
-            ownership.value.muted
-        )
-
     private fun queueUpdate(
         sequence: Long,
         intent: PlaybackIntent,
-        configuration: CommittedPlaybackConfiguration
+        configuration: ValidatedPlaybackConfiguration
     ) {
         val current = transportState.value as PlaybackTransportState.SessionState
         val superseded = pendingUpdates.filter {
@@ -821,7 +696,7 @@ class PlaybackCoordinator(
         val current = transportState.value as? PlaybackTransportState.Playing ?: return
         val update = pendingUpdates.removeFirstOrNull() ?: return
         if (update.sessionId != current.context.sessionId) {
-            rejectUpdate(update, PlaybackEngineUpdateResult.Reason.STALE_SESSION)
+            rejectUpdate(update, PlaybackCoordinatorFailureCode.STALE_SESSION)
             dispatchNextUpdate()
             return
         }
@@ -831,9 +706,9 @@ class PlaybackCoordinator(
         }
         try {
             when (val configuration = update.configuration) {
-                is CommittedPlaybackConfiguration.Standard ->
+                is ValidatedStandardConfiguration ->
                     engine.updateStandardSession(update.sessionId, configuration, completion)
-                is CommittedPlaybackConfiguration.Polyrhythm ->
+                is ValidatedPolyrhythmConfiguration ->
                     engine.updatePolyrhythmSession(update.sessionId, configuration, completion)
             }
         } catch (failure: RuntimeException) {
@@ -841,7 +716,7 @@ class PlaybackCoordinator(
                 update,
                 PlaybackEngineUpdateResult.Rejected(
                     update.sessionId,
-                    PlaybackEngineUpdateResult.Reason.ENGINE_FAILURE,
+                    PlaybackCoordinatorFailureCode.ENGINE_FAILURE,
                     failure.message
                 )
             )
@@ -856,13 +731,15 @@ class PlaybackCoordinator(
         inFlightUpdate = null
         val current = transportState.value as? PlaybackTransportState.Playing
         if (result.sessionId != update.sessionId || current?.context?.sessionId != update.sessionId) {
-            rejectUpdate(update, PlaybackEngineUpdateResult.Reason.STALE_SESSION)
+            rejectUpdate(update, PlaybackCoordinatorFailureCode.STALE_SESSION)
             dispatchNextUpdate()
             return
         }
         when (result) {
             is PlaybackEngineUpdateResult.Accepted -> {
-                amendTransportConfiguration { update.configuration.withMuted(ownership.value.muted) }
+                amendTransportConfiguration {
+                    update.configuration.committed.withMuted(ownership.value.muted)
+                }
                 recordOutcome(
                     update.sequence,
                     update.intent,
@@ -880,7 +757,7 @@ class PlaybackCoordinator(
 
     private fun rejectUpdate(
         update: PendingUpdate,
-        reason: PlaybackEngineUpdateResult.Reason,
+        reason: PlaybackCoordinatorFailureCode,
         diagnostic: String? = null
     ) {
         recordOutcome(
@@ -888,36 +765,23 @@ class PlaybackCoordinator(
             update.intent,
             rejectedOutcome(
                 update.sequence,
-                reason.coordinatorFailureCode(),
+                reason,
                 diagnostic ?: "Playback update rejected: $reason"
             )
         )
-    }
-
-    private fun PlaybackEngineUpdateResult.Reason.coordinatorFailureCode() = when (this) {
-        PlaybackEngineUpdateResult.Reason.STALE_SESSION ->
-            PlaybackCoordinatorFailureCode.STALE_SESSION
-        PlaybackEngineUpdateResult.Reason.INACTIVE_MODE ->
-            PlaybackCoordinatorFailureCode.MODE_MISMATCH
-        PlaybackEngineUpdateResult.Reason.RENDERER_REJECTED ->
-            PlaybackCoordinatorFailureCode.RENDERER_REJECTED
-        PlaybackEngineUpdateResult.Reason.INVALID_CONFIGURATION ->
-            PlaybackCoordinatorFailureCode.INVALID_INPUT
-        PlaybackEngineUpdateResult.Reason.ENGINE_FAILURE ->
-            PlaybackCoordinatorFailureCode.ENGINE_FAILURE
     }
 
     private fun cancelUpdatesFor(sessionId: PlaybackSessionId) {
         val inFlight = inFlightUpdate
         if (inFlight?.sessionId == sessionId) {
             inFlightUpdate = null
-            rejectUpdate(inFlight, PlaybackEngineUpdateResult.Reason.STALE_SESSION)
+            rejectUpdate(inFlight, PlaybackCoordinatorFailureCode.STALE_SESSION)
         }
         val retained = ArrayDeque<PendingUpdate>()
         while (pendingUpdates.isNotEmpty()) {
             val update = pendingUpdates.removeFirst()
             if (update.sessionId == sessionId) {
-                rejectUpdate(update, PlaybackEngineUpdateResult.Reason.STALE_SESSION)
+                rejectUpdate(update, PlaybackCoordinatorFailureCode.STALE_SESSION)
             } else {
                 retained.addLast(update)
             }
@@ -932,68 +796,57 @@ class PlaybackCoordinator(
         is CommittedPlaybackConfiguration.Polyrhythm -> copy(muted = muted)
     }
 
-    private fun validate(intent: PlaybackIntent): String? = when (intent) {
-        is PlaybackIntent.Invalid -> intent.diagnostic
-        is PlaybackIntent.StartStandard,
-        is PlaybackIntent.ReplaceStandard,
-        is PlaybackIntent.UpdateStandard -> {
-            val standard = when (intent) {
-                is PlaybackIntent.StartStandard -> intent
-                is PlaybackIntent.ReplaceStandard -> intent.asStartIntent()
-                is PlaybackIntent.UpdateStandard -> PlaybackIntent.StartStandard(
+    private fun validate(intent: PlaybackIntent): IntentValidation = when (intent) {
+        is StandardConfigurationIntent -> {
+            when (
+                val result = FramePlaybackPublicationBoundary.standardConfiguration(
                     intent.bpm,
                     intent.subdivisions,
                     intent.accentPattern,
-                    intent.alternateSixteenth
-                )
-            }
-            when (
-                val result = FramePlaybackPublicationBoundary.standardConfiguration(
-                    standard.bpm,
-                    standard.subdivisions,
-                    standard.accentPattern,
-                    standard.alternateSixteenth,
+                    intent.alternateSixteenth,
                     ownership.value.muted
                 )
             ) {
-                is com.bfunkstudios.beatclikr.music.PlaybackInputResult.Accepted -> null
+                is com.bfunkstudios.beatclikr.music.PlaybackInputResult.Accepted ->
+                    IntentValidation.Accepted(result.value)
                 is com.bfunkstudios.beatclikr.music.PlaybackInputResult.Rejected ->
-                    result.failure.toString()
+                    IntentValidation.Rejected(result.failure.diagnostic)
             }
         }
-        is PlaybackIntent.StartPolyrhythm,
-        is PlaybackIntent.UpdatePolyrhythm -> {
-            val polyrhythm = when (intent) {
-                is PlaybackIntent.StartPolyrhythm -> intent
-                is PlaybackIntent.UpdatePolyrhythm -> PlaybackIntent.StartPolyrhythm(
-                    intent.bpm,
-                    intent.beats,
-                    intent.against
-                )
-            }
+        is PolyrhythmConfigurationIntent -> {
             when (
             val result = FramePlaybackPublicationBoundary.polyrhythmConfiguration(
-                polyrhythm.bpm,
-                polyrhythm.beats,
-                polyrhythm.against,
+                intent.bpm,
+                intent.beats,
+                intent.against,
                 ownership.value.muted
             )
         ) {
-            is com.bfunkstudios.beatclikr.music.PlaybackInputResult.Accepted -> null
+            is com.bfunkstudios.beatclikr.music.PlaybackInputResult.Accepted ->
+                IntentValidation.Accepted(result.value)
             is com.bfunkstudios.beatclikr.music.PlaybackInputResult.Rejected ->
-                result.failure.toString()
+                IntentValidation.Rejected(result.failure.diagnostic)
             }
         }
         is PlaybackIntent.SelectSounds ->
             if (intent.beat.resourceId == null || intent.rhythm.resourceId == null) {
-                "Selected sounds have no Android resources"
+                IntentValidation.Rejected("Selected sounds have no Android resources")
             } else {
-                null
+                IntentValidation.Accepted()
             }
         is PlaybackIntent.PrepareSounds ->
-            if (intent.sounds.isEmpty()) "Sound preparation set is empty" else null
-        else -> null
+            if (intent.sounds.isEmpty()) {
+                IntentValidation.Rejected("Sound preparation set is empty")
+            } else {
+                IntentValidation.Accepted()
+            }
+        else -> IntentValidation.Accepted()
     }
+
+    private val com.bfunkstudios.beatclikr.music.PlaybackInputFailure.diagnostic: String
+        get() = when (this) {
+            is com.bfunkstudios.beatclikr.music.PlaybackInputFailure.InvalidDomainInput -> diagnostic
+        }
 
     private fun validateMode(intent: PlaybackIntent): String? = when (intent) {
         is PlaybackIntent.UpdateStandard ->
@@ -1025,12 +878,6 @@ class PlaybackCoordinator(
         intent: PlaybackIntent,
         outcome: PlaybackIntentOutcome
     ) {
-        mutateOwnership {
-            it.copy(
-                lastCommandSequence = sequence,
-                lastOutcome = outcome
-            )
-        }
         mutableControlEvents.tryEmit(
             PlaybackControlEvent.IntentCompleted(sequence, intent, outcome)
         )
@@ -1043,7 +890,6 @@ class PlaybackCoordinator(
         val currentSession = transportState.value as? PlaybackTransportState.SessionState
         if (expectedSessionId != null &&
             (currentSession?.context?.sessionId != expectedSessionId || pendingReplacement != null)) {
-            mutateOwnership { it.copy(lastCommandSequence = sequence) }
             return
         }
         pendingReplacement = null
@@ -1062,7 +908,6 @@ class PlaybackCoordinator(
                 engine.stopSession(current.context.sessionId, current.context.mode)
             }
         }
-        mutateOwnership { it.copy(lastCommandSequence = sequence) }
     }
 
     private fun applySystemInput(input: PlaybackSystemInput) {
@@ -1095,7 +940,6 @@ class PlaybackCoordinator(
                         PlaybackFailureReason.Engine(input.diagnostic)
                     )
                 )
-                mutateOwnership { it.copy(activeMode = PlaybackMode.NONE) }
                 engine.stopSession(current.context.sessionId, current.context.mode)
             }
         }
@@ -1107,7 +951,6 @@ class PlaybackCoordinator(
     ) {
         publishRenderedEvents(current.context.sessionId, detectRuntimeFailure = false)
         transitionTo(PlaybackTransportState.Interrupted(current.context, reason))
-        mutateOwnership { it.copy(activeMode = PlaybackMode.NONE) }
         engine.stopSession(current.context.sessionId, current.context.mode)
     }
 
@@ -1123,7 +966,6 @@ class PlaybackCoordinator(
             else -> PlaybackFailureReason.Engine("Playback interrupted during startup: $reason")
         }
         transitionTo(PlaybackTransportState.Failed(current.context, failure))
-        mutateOwnership { it.copy(activeMode = PlaybackMode.NONE) }
         engine.stopSession(current.context.sessionId, current.context.mode)
     }
 
@@ -1164,7 +1006,6 @@ class PlaybackCoordinator(
                     PlaybackFailureReason.Engine("Prepared sounds are unavailable")
                 )
             )
-            mutateOwnership { it.copy(activeMode = PlaybackMode.NONE) }
             return
         }
         val prepared = requested.copy(audibleSounds = sounds)
@@ -1175,16 +1016,11 @@ class PlaybackCoordinator(
         when (start) {
             is PendingStart.Standard -> engine.beginStandardSession(
                 start.sessionId,
-                start.intent.bpm,
-                start.intent.subdivisions,
-                start.intent.accentPattern,
-                start.intent.alternateSixteenth
+                start.configuration
             )
             is PendingStart.Polyrhythm -> engine.beginPolyrhythmSession(
                 start.sessionId,
-                start.intent.bpm,
-                start.intent.beats,
-                start.intent.against
+                start.configuration
             )
         }
     }
@@ -1199,7 +1035,6 @@ class PlaybackCoordinator(
                     PlaybackFailureReason.RouteUnavailable
                 )
             )
-            mutateOwnership { it.copy(activeMode = PlaybackMode.NONE) }
             engine.stopSession(current.context.sessionId, current.context.mode)
             return
         }
@@ -1218,9 +1053,7 @@ class PlaybackCoordinator(
         )
         transitionTo(PlaybackTransportState.Playing(committed))
         publishRenderedEvents()
-        mutateOwnership {
-            it.copy(activeMode = committed.mode, audibleSounds = evidence.audibleSounds)
-        }
+        mutateOwnership { it.copy(audibleSounds = evidence.audibleSounds) }
         dispatchNextUpdate()
     }
 
@@ -1233,7 +1066,6 @@ class PlaybackCoordinator(
                 PlaybackFailureReason.AudioFocusUnavailable
             )
         )
-        mutateOwnership { it.copy(activeMode = PlaybackMode.NONE) }
         engine.stopSession(current.context.sessionId, current.context.mode)
     }
 
@@ -1330,7 +1162,6 @@ class PlaybackCoordinator(
                 PlaybackFailureReason.StreamStart(diagnostic)
             )
         )
-        mutateOwnership { it.copy(activeMode = PlaybackMode.NONE) }
         engine.stopSession(current.context.sessionId, current.context.mode)
     }
 
@@ -1343,7 +1174,6 @@ class PlaybackCoordinator(
             return
         }
         if (current !is PlaybackTransportState.Stopping) return
-        mutateOwnership { it.copy(activeMode = PlaybackMode.NONE) }
         val replacement = pendingReplacement
         if (replacement == null) {
             transitionTo(PlaybackTransportState.Idle)
@@ -1399,14 +1229,6 @@ class PlaybackCoordinator(
             eventDrainFuture = null
         }
         mutableTransportState.value = next
-        mutateOwnership {
-            it.copy(
-                activeMode = (next as? PlaybackTransportState.Playing)
-                    ?.context
-                    ?.mode
-                    ?: PlaybackMode.NONE
-            )
-        }
         val transition = PlaybackStateTransition(
             nextTransitionSequence++,
             previous,
@@ -1520,44 +1342,33 @@ class PlaybackCoordinator(
 
     private sealed interface PendingStart {
         val sessionId: PlaybackSessionId
-        val muted: Boolean
+        val configuration: ValidatedPlaybackConfiguration
 
         fun context(): PlaybackSessionContext
 
         data class Standard(
             override val sessionId: PlaybackSessionId,
-            val intent: PlaybackIntent.StartStandard,
-            override val muted: Boolean
+            val practiceItem: PracticeItemSnapshot,
+            override val configuration: ValidatedStandardConfiguration
         ) : PendingStart {
             override fun context() = PlaybackSessionContext(
                 sessionId,
                 PlaybackMode.STANDARD,
-                CommittedPlaybackConfiguration.Standard(
-                    intent.bpm,
-                    intent.subdivisions,
-                    intent.accentPattern?.toList(),
-                    intent.alternateSixteenth,
-                    muted
-                ),
+                configuration.committed,
                 startOrigin = PlaybackStartOrigin.USER,
-                practiceItem = intent.practiceItem
+                practiceItem = practiceItem
             )
         }
 
         data class Polyrhythm(
             override val sessionId: PlaybackSessionId,
             val intent: PlaybackIntent.StartPolyrhythm,
-            override val muted: Boolean
+            override val configuration: ValidatedPolyrhythmConfiguration
         ) : PendingStart {
             override fun context() = PlaybackSessionContext(
                 sessionId,
                 PlaybackMode.POLYRHYTHM,
-                CommittedPlaybackConfiguration.Polyrhythm(
-                    intent.bpm,
-                    intent.beats,
-                    intent.against,
-                    muted
-                ),
+                configuration.committed,
                 startOrigin = PlaybackStartOrigin.USER,
                 practiceItem = intent.practiceItem
             )
@@ -1568,8 +1379,16 @@ class PlaybackCoordinator(
         val sequence: Long,
         val intent: PlaybackIntent,
         val sessionId: PlaybackSessionId,
-        val configuration: CommittedPlaybackConfiguration
+        val configuration: ValidatedPlaybackConfiguration
     )
+
+    private sealed interface IntentValidation {
+        data class Accepted(
+            val configuration: ValidatedPlaybackConfiguration? = null
+        ) : IntentValidation
+
+        data class Rejected(val diagnostic: String) : IntentValidation
+    }
 
     private fun updateRequestedSounds(
         bank: SoundBank? = null,
@@ -1665,15 +1484,6 @@ class PlaybackCoordinator(
         else -> this
     }
 
-    private fun PlaybackIntent.ReplaceStandard.asStartIntent() =
-        PlaybackIntent.StartStandard(
-            bpm,
-            subdivisions,
-            accentPattern?.toList(),
-            alternateSixteenth,
-            practiceItem
-        )
-
     private inline fun mutateOwnership(
         transform: (PlaybackOwnershipSnapshot) -> PlaybackOwnershipSnapshot
     ) {
@@ -1687,14 +1497,4 @@ class PlaybackCoordinator(
         const val NANOS_PER_SECOND = 1_000_000_000L
         const val EVENT_DRAIN_PERIOD_MILLIS = 10L
     }
-}
-
-private fun PlaybackTransportState.diagnosticName(): String = when (this) {
-    PlaybackTransportState.Idle -> "Idle"
-    is PlaybackTransportState.Preparing -> "Preparing"
-    is PlaybackTransportState.Starting -> "Starting"
-    is PlaybackTransportState.Playing -> "Playing"
-    is PlaybackTransportState.Stopping -> "Stopping"
-    is PlaybackTransportState.Interrupted -> "Interrupted"
-    is PlaybackTransportState.Failed -> "Failed"
 }

@@ -5,7 +5,6 @@ import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Transaction
-import androidx.room.Update
 import com.bfunkstudios.beatclikr.data.PracticeAccountingCheckpoint
 import com.bfunkstudios.beatclikr.data.PracticeDayIdentity
 import com.bfunkstudios.beatclikr.data.PracticeItemSnapshot
@@ -28,21 +27,8 @@ interface PracticeHistoryDao {
     @Query("SELECT * FROM practice_sessions WHERE local_day_key = :localDayKey LIMIT 1")
     suspend fun getSessionForLocalDay(localDayKey: String): PracticeSession?
 
-    @Query("SELECT * FROM practice_sessions WHERE date >= :start AND date < :end LIMIT 1")
-    suspend fun getSessionForDay(start: Long, end: Long): PracticeSession?
-
-    @Transaction
-    @Query("SELECT * FROM practice_sessions WHERE date >= :start AND date < :end LIMIT 1")
-    suspend fun getSessionWithSongsForDay(start: Long, end: Long): PracticeSessionWithSongs?
-
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun upsertSession(session: PracticeSession)
-
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertSessionIfAbsent(session: PracticeSession): Long
-
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertPracticedSong(song: PracticedSong)
 
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertPracticedSongIfAbsent(song: PracticedSong): Long
@@ -63,9 +49,6 @@ interface PracticeHistoryDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertAccountingCheckpoint(checkpoint: PracticeAccountingCheckpoint)
-
-    @Update
-    suspend fun updatePracticedSong(song: PracticedSong)
 
     @Transaction
     suspend fun applyAccountingUpdate(

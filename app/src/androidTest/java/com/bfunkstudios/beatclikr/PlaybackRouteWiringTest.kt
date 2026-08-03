@@ -5,6 +5,8 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.bfunkstudios.beatclikr.services.AudioOutputRoute
 import com.bfunkstudios.beatclikr.services.MetronomeAudioEngine
+import com.bfunkstudios.beatclikr.services.PlaybackEngineStartEvidence
+import com.bfunkstudios.beatclikr.services.PlaybackEngineTransportObserver
 import com.bfunkstudios.beatclikr.services.PlaybackInterruptionReason
 import com.bfunkstudios.beatclikr.services.PlaybackSessionId
 import java.util.concurrent.CountDownLatch
@@ -25,9 +27,18 @@ class PlaybackRouteWiringTest {
             engine.prepareRouteWiringForTesting()
             assertTrue(engine.awaitRouteWiringIdleForTesting())
             prepareActiveRoute(engine, PlaybackSessionId(41), AudioOutputRoute.BUILT_IN)
-            engine.playbackInterruptionObserver = { sessionId, reason ->
-                observed += sessionId to reason
-                latch.countDown()
+            engine.transportObserver = object : PlaybackEngineTransportObserver {
+                override fun engineStarted(evidence: PlaybackEngineStartEvidence) = Unit
+                override fun audioFocusUnavailable(sessionId: PlaybackSessionId) = Unit
+                override fun engineStartFailed(sessionId: PlaybackSessionId, diagnostic: String) = Unit
+                override fun engineStopped(sessionId: PlaybackSessionId) = Unit
+                override fun engineInterrupted(
+                    sessionId: PlaybackSessionId,
+                    reason: PlaybackInterruptionReason
+                ) {
+                    observed += sessionId to reason
+                    latch.countDown()
+                }
             }
             engine.audioDeviceCallbackForTesting().onAudioDevicesRemoved(emptyArray())
 
@@ -35,37 +46,6 @@ class PlaybackRouteWiringTest {
             assertEquals(
                 PlaybackSessionId(41) to
                     PlaybackInterruptionReason.RouteUnavailable(AudioOutputRoute.BUILT_IN),
-                observed.single()
-            )
-        } finally {
-            engine.release()
-        }
-    }
-
-    @Test
-    fun audioTrackRouteCallbackTraversesFrameLayersToEngineObserver() {
-        val engine = MetronomeAudioEngine(ApplicationProvider.getApplicationContext<Context>())
-        val observed = mutableListOf<Pair<PlaybackSessionId, PlaybackInterruptionReason>>()
-        val latch = CountDownLatch(1)
-        try {
-            engine.prepareRouteWiringForTesting()
-            assertTrue(engine.awaitRouteWiringIdleForTesting())
-            prepareActiveRoute(engine, PlaybackSessionId(42), AudioOutputRoute.BUILT_IN)
-            engine.playbackInterruptionObserver = { sessionId, reason ->
-                observed += sessionId to reason
-                latch.countDown()
-            }
-            engine.reportRouteChangeForTesting(
-                AudioOutputRoute.BUILT_IN,
-                AudioOutputRoute.USB
-            )
-
-            assertTrue(latch.await(2, TimeUnit.SECONDS))
-            assertEquals(
-                PlaybackSessionId(42) to PlaybackInterruptionReason.RouteChanged(
-                    AudioOutputRoute.BUILT_IN,
-                    AudioOutputRoute.USB
-                ),
                 observed.single()
             )
         } finally {

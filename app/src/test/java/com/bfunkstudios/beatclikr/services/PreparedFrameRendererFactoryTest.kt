@@ -60,7 +60,7 @@ class PreparedFrameRendererFactoryTest {
     }
 
     @Test
-    fun polyrhythmUpdateWaitsForSharedCycleBoundaryWithoutResettingIdentity() {
+    fun polyrhythmUpdateWaitsForSharedCycleBoundaryAndRestartsCycleAtZero() {
         val publication = PolyrhythmPreparedFrameRendererFactory(
             PolyrhythmConfiguration(ExactTempo.of(120), beats = 3, against = 2),
             SessionOrigin(SessionID(7), 0),
@@ -75,8 +75,8 @@ class PreparedFrameRendererFactoryTest {
             .single()
 
         assertEquals(48_000, event.intendedFrame)
-        assertEquals(4, event.sequence.index)
-        assertEquals(1, event.primary.position.cycleIndex)
+        assertEquals(0, event.sequence.index)
+        assertEquals(0, event.primary.position.cycleIndex)
         assertNotNull(event.secondary)
     }
 

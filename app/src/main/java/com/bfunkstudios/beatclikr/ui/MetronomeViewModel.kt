@@ -24,6 +24,7 @@ import com.bfunkstudios.beatclikr.services.CommittedEventDeliveryResult
 import com.bfunkstudios.beatclikr.services.EventPresentation
 import com.bfunkstudios.beatclikr.services.IAudioPlayerService
 import com.bfunkstudios.beatclikr.services.PlaybackCommittedEvent
+import com.bfunkstudios.beatclikr.services.PlaybackIntent
 import com.bfunkstudios.beatclikr.services.PlaybackMode
 import com.bfunkstudios.beatclikr.services.PlaybackObservation
 import com.bfunkstudios.beatclikr.services.PlaybackSessionId
@@ -159,14 +160,7 @@ class MetronomeViewModel @Inject constructor(
 
     fun loadSong(song: Song, type: ClickerType = ClickerType.INSTANT) {
         selectSong(song, type)
-        if (isPlaying) {
-            audio.updateTempo(
-                currentSong.beatsPerMinute,
-                getSubdivisionValue(),
-                computeAccentPattern(),
-                prefs.sixteenthAlternate
-            )
-        }
+        if (isPlaying) pushCurrentStandardConfiguration()
     }
 
     private fun selectSong(song: Song, type: ClickerType) {
@@ -182,14 +176,7 @@ class MetronomeViewModel @Inject constructor(
             beatsPerMinute = bpm.coerceIn(MetronomeConstants.MIN_BPM, MetronomeConstants.MAX_BPM)
         )
         if (clickerType == ClickerType.INSTANT) prefs.instantBpm = currentSong.beatsPerMinute
-        if (isPlaying) {
-            audio.updateTempo(
-                currentSong.beatsPerMinute,
-                getSubdivisionValue(),
-                computeAccentPattern(),
-                prefs.sixteenthAlternate
-            )
-        }
+        if (isPlaying) pushCurrentStandardConfiguration()
     }
 
     fun updateGroove(groove: Groove) {
@@ -198,27 +185,13 @@ class MetronomeViewModel @Inject constructor(
             beatPattern = if (groove.isOddMeter) selectedBeatPattern else currentSong.beatPattern
         )
         if (clickerType == ClickerType.INSTANT) prefs.instantGroove = currentSong.groove
-        if (isPlaying) {
-            audio.updateTempo(
-                currentSong.beatsPerMinute,
-                getSubdivisionValue(),
-                computeAccentPattern(),
-                prefs.sixteenthAlternate
-            )
-        }
+        if (isPlaying) pushCurrentStandardConfiguration()
     }
 
     fun updateBeatPattern(pattern: BeatPattern) {
         currentSong = currentSong.copy(beatPattern = pattern)
         if (clickerType == ClickerType.INSTANT) prefs.instantBeatPattern = pattern
-        if (isPlaying) {
-            audio.updateTempo(
-                currentSong.beatsPerMinute,
-                getSubdivisionValue(),
-                computeAccentPattern(),
-                prefs.sixteenthAlternate
-            )
-        }
+        if (isPlaying) pushCurrentStandardConfiguration()
     }
 
     fun updateRampEnabled(enabled: Boolean) {
@@ -259,20 +232,11 @@ class MetronomeViewModel @Inject constructor(
         setupMetronomeFromSelection()
     }
 
-    fun setupMetronome(beatResourceId: Int, rhythmResourceId: Int) {
-        audio.setupAudioPlayer(beatResourceId, rhythmResourceId)
-    }
+    fun setupMetronome() = setupMetronomeFromSelection()
 
     fun refreshPlaybackSettings() {
-        audio.soundBank = prefs.soundBank
-        if (isPlaying) {
-            audio.updateTempo(
-                currentSong.beatsPerMinute,
-                getSubdivisionValue(),
-                computeAccentPattern(),
-                prefs.sixteenthAlternate
-            )
-        }
+        audio.submit(PlaybackIntent.SelectSoundBank(prefs.soundBank))
+        if (isPlaying) pushCurrentStandardConfiguration()
     }
 
     fun applyMetronomeSoundSettings(beat: SoundFile, rhythm: SoundFile) {
@@ -303,8 +267,8 @@ class MetronomeViewModel @Inject constructor(
             )
             setupMetronomeFromSelection()
         }
-        audio.isMuted = prefs.muteMetronome
-        audio.soundBank = prefs.soundBank
+        audio.submit(PlaybackIntent.SetMuted(prefs.muteMetronome))
+        audio.submit(PlaybackIntent.SelectSoundBank(prefs.soundBank))
         activeBpm = currentSong.beatsPerMinute
         rampController.reset()
         val bpm = currentSong.beatsPerMinute
@@ -316,27 +280,31 @@ class MetronomeViewModel @Inject constructor(
             PracticeItemSnapshot.fromSong(currentSong)
         }
         if (replaceCurrentSession) {
-            audio.replaceMetronome(
-                bpm,
-                subdivisions,
-                accentPattern,
-                prefs.sixteenthAlternate,
-                practiceItem
+            audio.submit(
+                PlaybackIntent.ReplaceStandard(
+                    bpm,
+                    subdivisions,
+                    accentPattern,
+                    prefs.sixteenthAlternate,
+                    practiceItem
+                )
             )
         } else {
-            audio.startMetronome(
-                bpm,
-                subdivisions,
-                accentPattern,
-                prefs.sixteenthAlternate,
-                practiceItem
+            audio.submit(
+                PlaybackIntent.StartStandard(
+                    bpm,
+                    subdivisions,
+                    accentPattern,
+                    prefs.sixteenthAlternate,
+                    practiceItem
+                )
             )
         }
     }
 
     fun stop() {
         val shouldRestoreRampBpm = rampEnabled && clickerType == ClickerType.INSTANT
-        ownedSessionId?.let(audio::stopIfCurrent)
+        ownedSessionId?.let { audio.submit(PlaybackIntent.StopIfCurrent(it)) }
         rampController.reset()
         iconScale = MetronomeConstants.ICON_SCALE_MIN
         stopChoreographerLoop()
@@ -350,7 +318,7 @@ class MetronomeViewModel @Inject constructor(
     }
 
     fun stopPlaybackForTopLevelNavigation() {
-        audio.stopPlayback()
+        audio.submit(PlaybackIntent.Stop)
     }
 
     fun recordTap(elapsedRealtimeNanos: Long = SystemClock.elapsedRealtimeNanos()) {
@@ -397,7 +365,14 @@ class MetronomeViewModel @Inject constructor(
         if (clickerType != ClickerType.INSTANT) return
         val newBpm = rampController.onBeat(currentSong.beatsPerMinute) ?: return
         currentSong = currentSong.copy(beatsPerMinute = newBpm)
-        audio.updateTempo(newBpm, getSubdivisionValue(), computeAccentPattern(), prefs.sixteenthAlternate)
+        audio.submit(
+            PlaybackIntent.UpdateStandard(
+                newBpm,
+                getSubdivisionValue(),
+                computeAccentPattern(),
+                prefs.sixteenthAlternate
+            )
+        )
     }
 
     private fun startChoreographerLoop() {
@@ -447,10 +422,19 @@ class MetronomeViewModel @Inject constructor(
     private fun computeAccentPattern(): List<Boolean>? =
         if (currentSong.groove.isOddMeter) selectedBeatPattern.accentArray else null
 
+    private fun pushCurrentStandardConfiguration() {
+        audio.submit(
+            PlaybackIntent.UpdateStandard(
+                currentSong.beatsPerMinute,
+                getSubdivisionValue(),
+                computeAccentPattern(),
+                prefs.sixteenthAlternate
+            )
+        )
+    }
+
     private fun setupMetronomeFromSelection() {
-        val beatResId = selectedBeatSound.resourceId
-        val rhythmResId = selectedRhythmSound.resourceId
-        if (beatResId != null && rhythmResId != null) setupMetronome(beatResId, rhythmResId)
+        audio.submit(PlaybackIntent.SelectSounds(selectedBeatSound, selectedRhythmSound))
     }
 
     private fun applyTransportState(state: PlaybackTransportState) {
@@ -509,9 +493,3 @@ class MetronomeViewModel @Inject constructor(
         pendingBeatEvent.set(null)
     }
 }
-
-private fun PlaybackTransportState.sessionIdFor(mode: PlaybackMode): PlaybackSessionId? =
-    (this as? PlaybackTransportState.SessionState)
-        ?.context
-        ?.takeIf { it.mode == mode }
-        ?.sessionId
