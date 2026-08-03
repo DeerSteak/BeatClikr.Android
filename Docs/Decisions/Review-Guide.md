@@ -22,7 +22,7 @@ The review compared the contracts with the sibling iOS implementation and docume
 ### Decisions that mirror iOS
 
 - Quarter-note BPM, whole-BPM direct controls, groove subdivisions, odd-meter accent patterns, beat/rhythm sound selection, alternate-sixteenth feedback, and `M:N` polyrhythm meaning.
-- Beat-first starts, no hidden count-in, configuration-driven restart at the mode origin, tempo-ramp choices and counting, and restoration of the starting tempo when a ramped session stops.
+- Beat-first starts, no hidden count-in, phase-preserving standard updates, shared-origin polyrhythm restarts, tempo-ramp choices and counting, and restoration of the starting tempo when a ramped session stops.
 - One active playback mode, playback continuing under lock or background, explicit restart after interruption, top-level navigation stopping playback, and internal Library or Playlist navigation preserving playback.
 - Confirmed-playback accounting, cumulative 30-second daily qualification, playback-period counts, stable item identities, legacy qualification, and stored local-day identity.
 
@@ -40,7 +40,7 @@ The review compared the contracts with the sibling iOS implementation and docume
 
 ### Product-owner clarifications
 
-- Configuration changes restart at tick zero, matching the iOS rolling-timeline and full-start paths.
+- Standard configuration changes preserve the pending event and pattern phase; polyrhythm ratio or tempo changes restart both roles together, matching `release/4.1.0` behavior.
 - Android prioritizes long-duration audio-focus ownership over backing-track coexistence.
 - Top-level section changes stop all playback; internal Library and Playlist navigation continues playback; explicitly choosing another song replaces the active song.
 - Practice history uses iOS checkpoint attribution with a stable local-day key and original absolute timestamp, without exact boundary splitting.

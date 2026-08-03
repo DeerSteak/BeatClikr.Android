@@ -58,9 +58,9 @@ The Android-free 2.2 model suite verifies exact decimal tempo normalization, exa
 
 The Phase 2.3 pure-timeline suite verifies iOS-compatible absolute rounding, exact awkward periods, first-event searches, every standard subdivision, additive accents, alternate-sixteenth sound roles, mute continuity, adjacent and overlapping range boundaries, session resets, a twelve-hour maximum-density endpoint, all 225 polyrhythm ratios, coincident-frame merging, complete-cycle voice indices, and deterministic tempo-ramp transitions. The timeline tests require no emulator and do not exercise production playback.
 
-The Phase 2.4 command suite verifies stale-session rejection, strict same-boundary ordering, atomic final configuration, standard and polyrhythm phase restarts, stable logical playback identity, deferred mute, and two-stage sound preparation and publication. Production playback now consumes these Android-free commands through the coordinator and frame-publication boundary.
+The production command suite verifies stale-session rejection, strict ordering, complete configuration publication, phase-preserving standard updates, shared-origin polyrhythm restarts, stable transport identity, immediate phase-neutral mute, and two-stage sound preparation and publication through the coordinator and frame-publication boundary.
 
-`PlaybackInputBoundaryTest` verifies that invalid external configurations and command batches become typed failures before render handoff, valid values remain available to production consumers, and unexpected implementation exceptions are not mislabeled as recoverable input errors.
+`PlaybackInputBoundaryTest` verifies that invalid external configurations become typed failures before render handoff, valid values remain available to production consumers, and unexpected implementation exceptions are not mislabeled as recoverable input errors.
 
 The Phase 3.1 renderer suite verifies exact in-block offsets, adjacent-block waveform tails, reset and discontinuity handling, coincident and overlapping voices, final-stage saturating conversion, mute handling, silent failure blocks, and zero measured JVM allocation while rendering from a real Phase 2 timeline. Its architecture tripwire scans `FramePcmRenderer.kt` for common locking, sleeping, logging, file/database access, and thread-handoff tokens; it does not replace review of event-source implementations.
 
@@ -140,7 +140,7 @@ Renderer regressions also cover live mute changes and a delayed first event deri
 
 The standard-update regression changes tempo after rendering has begun and requires the replacement's first event to remain on the next old-tempo boundary. It also requires the pattern role and `EventSequence` index to continue across that boundary, proving that ramps do not restart the stream or reset musical phase.
 
-The polyrhythm-update regression changes tempo and ratio mid-cycle, then requires the replacement to begin at the next old shared-cycle boundary with both roles coincident and event/cycle identity preserved. A production-selection tripwire requires this retune branch to return before a new frame start.
+The polyrhythm-update regression changes tempo and ratio mid-cycle, then requires the replacement to begin at the next old shared-cycle boundary with both roles coincident at cycle zero. A production-selection tripwire requires this retune branch to return before a new frame start.
 
 These deterministic tests prove phase rules in each clock domain, not physical audio/visual coincidence. Phase 8 must measure retunes because audio selects a boundary from buffer-ahead `nextFrame`, while visual timing reaches its boundary on the monotonic wall clock; the resulting skew must be recorded rather than inferred from the configured buffer size.
 

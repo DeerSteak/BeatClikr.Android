@@ -1,5 +1,26 @@
 package com.bfunkstudios.beatclikr.music
 
+import com.bfunkstudios.beatclikr.data.SoundBank as AppSoundBank
+import com.bfunkstudios.beatclikr.data.SoundFile
+import com.bfunkstudios.beatclikr.services.ActiveSoundConfiguration
+import com.bfunkstudios.beatclikr.services.AudioBackendType
+import com.bfunkstudios.beatclikr.services.AudioOutputRoute
+import com.bfunkstudios.beatclikr.services.CommittedPlaybackConfiguration
+import com.bfunkstudios.beatclikr.services.FrameAudioMetricsSnapshot
+import com.bfunkstudios.beatclikr.services.FrameAudioRenderedEventBatch
+import com.bfunkstudios.beatclikr.services.MetronomeAudioEngineDelegate
+import com.bfunkstudios.beatclikr.services.PlaybackCoordinator
+import com.bfunkstudios.beatclikr.services.PlaybackEnginePort
+import com.bfunkstudios.beatclikr.services.PlaybackEngineStartEvidence
+import com.bfunkstudios.beatclikr.services.PlaybackEngineTransportObserver
+import com.bfunkstudios.beatclikr.services.PlaybackEngineUpdateResult
+import com.bfunkstudios.beatclikr.services.PlaybackIntent
+import com.bfunkstudios.beatclikr.services.PlaybackMode
+import com.bfunkstudios.beatclikr.services.PlaybackSessionId
+import com.bfunkstudios.beatclikr.services.PlaybackTransportState
+import com.bfunkstudios.beatclikr.services.PolyrhythmAudioEngineDelegate
+import com.bfunkstudios.beatclikr.services.SoundPreparationFailure
+import com.bfunkstudios.beatclikr.services.SoundPreparationPublication
 import kotlin.random.Random
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -128,143 +149,154 @@ class PureCoreQualificationTest {
     }
 
     @Test
-    fun tb009_mt011_mt013_mt019_mt020_mt028_everyStandardBoundaryRestartsAtOrigin() {
-        val timings = StandardSubdivision.entries.map { StandardTiming.Regular(it) } +
-            listOf(
-                StandardTiming.Additive(
-                    AdditiveStepUnit.QUARTER,
-                    AccentPattern.of(listOf(true, false, true, false, false))
-                ),
-                StandardTiming.Additive(
-                    AdditiveStepUnit.EIGHTH,
-                    AccentPattern.of(listOf(true, false, false, true, false, true, false))
+    fun tb009_mt019_mt020_mt028_productionStandardUpdatesPreserveSessionAndPublishCompleteState() {
+        val engine = QualificationEngine()
+        val coordinator = PlaybackCoordinator(engine)
+        try {
+            coordinator.submit(PlaybackIntent.StartStandard(120f, 4, null, false))
+            assertTrue(coordinator.awaitControlIdle())
+            val session = (coordinator.transportState.value as PlaybackTransportState.Playing)
+                .context.sessionId
+
+            coordinator.submit(
+                PlaybackIntent.UpdateStandard(
+                    137.5f,
+                    2,
+                    listOf(true, false, false, true, false),
+                    true
                 )
             )
+            assertTrue(coordinator.awaitControlIdle())
 
-        timings.forEachIndexed { index, timing ->
-            val current = standardSnapshot()
-            val command = when (timing) {
-                is StandardTiming.Regular -> SetGroove(metadata(index.toLong() + 1), timing.subdivision)
-                is StandardTiming.Additive -> SetPattern(metadata(index.toLong() + 1), timing.stepUnit, timing.accents)
-            }
-            val origin = SessionOrigin(SessionID(index.toLong() + 2), 100_000L + index)
-            val result = CommandBoundary.apply(current, listOf(command), origin) as BoundaryResult.Applied
-            val mode = result.snapshot.mode as ActivePlaybackMode.Standard
-            val first = StandardMetronomeTimeline(mode.configuration, 48_000, origin)
-                .eventsIn(FrameRange(origin.originFrame, origin.originFrame + 1))
-                .single()
-
-            assertEquals(origin.originFrame, first.intendedFrame)
-            assertEquals(0L, first.sequence.index)
-            assertTrue(result.restarted)
+            val playing = coordinator.transportState.value as PlaybackTransportState.Playing
+            val configuration = playing.context.configuration as CommittedPlaybackConfiguration.Standard
+            assertEquals(session, playing.context.sessionId)
+            assertEquals(137.5f, configuration.bpm)
+            assertEquals(2, configuration.subdivisions)
+            assertEquals(listOf(true, false, false, true, false), configuration.accentPattern)
+            assertTrue(configuration.alternateSixteenth)
+            assertEquals(configuration, engine.standardUpdates.single())
+        } finally {
+            coordinator.release()
         }
     }
 
     @Test
-    fun tb010_mt023_seededRandomCommandBatchesRemainAtomicAndSequenced() {
-        val random = Random(0xBEA7)
-        var snapshot = standardSnapshot()
-        var commandSequence = 1L
-        var phaseSession = 1L
-        val logicalPlaybackID = snapshot.logicalPlaybackID
+    fun tb010_mt023_productionReducerSerializesAndCoalescesCompleteConfigurations() {
+        val engine = QualificationEngine(asynchronousUpdates = true)
+        val coordinator = PlaybackCoordinator(engine)
+        try {
+            coordinator.submit(PlaybackIntent.StartStandard(120f, 4, null, false))
+            assertTrue(coordinator.awaitControlIdle())
+            coordinator.submit(PlaybackIntent.UpdateStandard(130f, 4, null, false))
+            coordinator.submit(PlaybackIntent.UpdateStandard(140f, 2, null, false))
+            coordinator.submit(PlaybackIntent.UpdateStandard(150f, 3, null, true))
+            assertTrue(coordinator.awaitControlIdle())
 
-        repeat(2_000) {
-            val batchSize = random.nextInt(1, 6)
-            val commands = buildList {
-                repeat(batchSize) {
-                    add(randomCommand(random, commandSequence++, phaseSession))
-                }
-            }
-            val nextOrigin = SessionOrigin(SessionID(phaseSession + 1), 10_000L + it)
-            val prepared = commands
-                .filter { command -> command is SetSound || command is SetSoundBank }
-                .map { command -> command.metadata.commandSequence }
-                .toSet()
-            val result = CommandBoundary.apply(snapshot, commands, nextOrigin, prepared) as BoundaryResult.Applied
+            engine.completeNextUpdate()
+            assertTrue(coordinator.awaitControlIdle())
+            engine.completeNextUpdate()
+            assertTrue(coordinator.awaitControlIdle())
 
-            assertEquals(commands.last().metadata.commandSequence, result.snapshot.lastCommandSequence)
-            assertEquals(logicalPlaybackID, result.snapshot.logicalPlaybackID)
-            if (result.restarted) {
-                phaseSession++
-                assertEquals(SessionID(phaseSession), result.snapshot.origin?.sessionID)
-                assertEquals(nextOrigin.originFrame, result.snapshot.origin?.originFrame)
-            } else {
-                assertEquals(snapshot.origin, result.snapshot.origin)
-            }
-            snapshot = result.snapshot
+            assertEquals(listOf(130f, 150f), engine.standardUpdates.map { it.bpm })
+            val configuration = (coordinator.transportState.value as PlaybackTransportState.Playing)
+                .context.configuration as CommittedPlaybackConfiguration.Standard
+            assertEquals(150f, configuration.bpm)
+            assertEquals(3, configuration.subdivisions)
+            assertTrue(configuration.alternateSixteenth)
+        } finally {
+            coordinator.release()
         }
     }
 
     @Test
-    fun tb010_mt021_mt023_seededRandomPolyrhythmBatchesRemainAtomicAndSequenced() {
-        val random = Random(0xC1C1E)
-        var snapshot = polyrhythmSnapshot()
-        var commandSequence = 1L
-        var phaseSession = 1L
+    fun mt014_mt021_productionStopAndModeRestartUseDistinctTransportSessions() {
+        val engine = QualificationEngine()
+        val coordinator = PlaybackCoordinator(engine)
+        try {
+            coordinator.submit(PlaybackIntent.StartStandard(120f, 4, null, false))
+            assertTrue(coordinator.awaitControlIdle())
+            val standard = (coordinator.transportState.value as PlaybackTransportState.Playing)
+                .context.sessionId
 
-        repeat(1_000) {
-            val commands = buildList {
-                repeat(random.nextInt(1, 6)) {
-                    val metadata = metadata(commandSequence++, phaseSession)
-                    add(
-                        when (random.nextInt(5)) {
-                            0 -> SetTempo(metadata, ExactTempo.of(random.nextInt(30, 241)))
-                            1 -> SetPolyrhythm(metadata, random.nextInt(1, 16), random.nextInt(1, 16))
-                            2 -> SetSound(metadata, SoundRole.entries.random(random), SoundID("sound-${random.nextInt(15)}"))
-                            3 -> SetSoundBank(metadata, SoundBank.entries.random(random))
-                            else -> SetMute(metadata, random.nextBoolean())
-                        }
+            coordinator.submit(PlaybackIntent.Stop)
+            coordinator.submit(PlaybackIntent.StartPolyrhythm(120f, 3, 2))
+            assertTrue(coordinator.awaitControlIdle())
+            val polyrhythm = (coordinator.transportState.value as PlaybackTransportState.Playing)
+                .context
+
+            assertNotEquals(standard, polyrhythm.sessionId)
+            assertEquals(PlaybackMode.POLYRHYTHM, polyrhythm.mode)
+        } finally {
+            coordinator.release()
+        }
+    }
+
+    @Test
+    fun tb010_mt023_seededProductionIntentSequencesRetainTheFinalCompleteConfiguration() {
+        val random = Random(0x41_00)
+        val engine = QualificationEngine()
+        val coordinator = PlaybackCoordinator(engine)
+        try {
+            coordinator.submit(PlaybackIntent.StartStandard(120f, 4, null, false))
+            var expectedBpm = 120f
+            var expectedSubdivisions = 4
+            var expectedAlternate = false
+            var expectedMuted = false
+            repeat(1_000) {
+                if (random.nextBoolean()) {
+                    expectedBpm = random.nextInt(30, 241).toFloat()
+                    expectedSubdivisions = random.nextInt(1, 5)
+                    expectedAlternate = random.nextBoolean()
+                    coordinator.submit(
+                        PlaybackIntent.UpdateStandard(
+                            expectedBpm,
+                            expectedSubdivisions,
+                            null,
+                            expectedAlternate
+                        )
                     )
+                } else {
+                    expectedMuted = random.nextBoolean()
+                    coordinator.submit(PlaybackIntent.SetMuted(expectedMuted))
                 }
             }
-            val nextOrigin = SessionOrigin(SessionID(phaseSession + 1), 50_000L + it)
-            val prepared = commands
-                .filter { command -> command is SetSound || command is SetSoundBank }
-                .map { command -> command.metadata.commandSequence }
-                .toSet()
-            val result = CommandBoundary.apply(snapshot, commands, nextOrigin, prepared) as BoundaryResult.Applied
-            val mode = result.snapshot.mode as ActivePlaybackMode.Polyrhythm
+            assertTrue(coordinator.awaitControlIdle())
 
-            assertTrue(mode.configuration.beats in PolyrhythmConfiguration.SUPPORTED_COUNT)
-            assertTrue(mode.configuration.against in PolyrhythmConfiguration.SUPPORTED_COUNT)
-            assertEquals(LogicalPlaybackID(42), result.snapshot.logicalPlaybackID)
-            if (result.restarted) phaseSession++
-            snapshot = result.snapshot
-        }
-    }
+            val standard = (coordinator.transportState.value as PlaybackTransportState.Playing)
+                .context.configuration as CommittedPlaybackConfiguration.Standard
+            assertEquals(expectedBpm, standard.bpm)
+            assertEquals(expectedSubdivisions, standard.subdivisions)
+            assertEquals(expectedAlternate, standard.alternateSixteenth)
+            assertEquals(expectedMuted, standard.muted)
 
-    @Test
-    fun mt014_stopEndsPhaseAndASeparateStartCreatesNewPlaybackIdentity() {
-        val current = standardSnapshot()
-        val stopped = CommandBoundary.apply(
-            current,
-            listOf(Stop(metadata(1))),
-            SessionOrigin(SessionID(2), 10)
-        ) as BoundaryResult.Applied
-
-        assertFalse(stopped.restarted)
-        assertEquals(null, stopped.snapshot.mode)
-        assertEquals(null, stopped.snapshot.origin)
-
-        val restarted = CommandBoundary.apply(
-            stopped.snapshot,
-            listOf(
-                StartStandard(
-                    metadata(0, sessionID = 3),
-                    LogicalPlaybackID(99),
-                    standardConfiguration(),
-                    null
+            coordinator.submit(PlaybackIntent.Stop)
+            coordinator.submit(PlaybackIntent.StartPolyrhythm(120f, 3, 2))
+            var expectedBeats = 3
+            var expectedAgainst = 2
+            repeat(1_000) {
+                expectedBpm = random.nextInt(30, 241).toFloat()
+                expectedBeats = random.nextInt(1, 16)
+                expectedAgainst = random.nextInt(1, 16)
+                coordinator.submit(
+                    PlaybackIntent.UpdatePolyrhythm(
+                        expectedBpm,
+                        expectedBeats,
+                        expectedAgainst
+                    )
                 )
-            ),
-            SessionOrigin(SessionID(3), 20)
-        ) as BoundaryResult.Applied
+            }
+            assertTrue(coordinator.awaitControlIdle())
 
-        assertNotEquals(current.logicalPlaybackID, restarted.snapshot.logicalPlaybackID)
-        assertEquals(0L, StandardMetronomeTimeline(
-            (restarted.snapshot.mode as ActivePlaybackMode.Standard).configuration,
-            48_000,
-            requireNotNull(restarted.snapshot.origin)
-        ).eventsIn(FrameRange(20, 21)).single().sequence.index)
+            val polyrhythm = (coordinator.transportState.value as PlaybackTransportState.Playing)
+                .context.configuration as CommittedPlaybackConfiguration.Polyrhythm
+            assertEquals(expectedBpm, polyrhythm.bpm)
+            assertEquals(expectedBeats, polyrhythm.beats)
+            assertEquals(expectedAgainst, polyrhythm.against)
+            assertEquals(polyrhythm, engine.polyrhythmUpdates.last())
+        } finally {
+            coordinator.release()
+        }
     }
 
     private fun assertTwelveHourStandardTimeline(
@@ -292,34 +324,6 @@ class PureCoreQualificationTest {
         assertTrue(count >= 21_600)
     }
 
-    private fun randomCommand(
-        random: Random,
-        sequence: Long,
-        sessionID: Long
-    ): PlaybackCommand {
-        val metadata = metadata(sequence, sessionID)
-        return when (random.nextInt(8)) {
-            0 -> SetTempo(metadata, ExactTempo.of(random.nextInt(30, 241)))
-            1 -> SetGroove(metadata, StandardSubdivision.entries.random(random))
-            2 -> SetPattern(
-                metadata,
-                AdditiveStepUnit.entries.random(random),
-                AccentPattern.of(listOf(true, false, random.nextBoolean(), false, true))
-            )
-            3 -> SetSound(metadata, SoundRole.entries.random(random), SoundID("sound-${random.nextInt(15)}"))
-            4 -> SetSoundBank(metadata, SoundBank.entries.random(random))
-            5 -> SetMute(metadata, random.nextBoolean())
-            6 -> SetRamp(
-                metadata,
-                TempoRampConfiguration(
-                    TempoRampConfiguration.supportedIncrements.random(random),
-                    TempoRampConfiguration.supportedIntervals.random(random)
-                )
-            )
-            else -> SetTempo(metadata, ExactTempo.parse("${random.nextInt(30, 240)}.5"))
-        }
-    }
-
     private fun standardTimeline(subdivision: StandardSubdivision) =
         StandardMetronomeTimeline(
             StandardMetronomeConfiguration(
@@ -330,37 +334,108 @@ class PureCoreQualificationTest {
             SessionOrigin(SessionID(1), 0)
         )
 
-    private fun standardSnapshot() = PlaybackSnapshot(
-        soundConfiguration = SoundConfiguration(
-            SoundID("CLICK_HI"),
-            SoundID("CLICK_LO"),
-            SoundBank.ACOUSTIC
-        ),
-        logicalPlaybackID = LogicalPlaybackID(42),
-        origin = SessionOrigin(SessionID(1), 0),
-        mode = ActivePlaybackMode.Standard(standardConfiguration(), null)
-    )
-
-    private fun polyrhythmSnapshot() = PlaybackSnapshot(
-        soundConfiguration = SoundConfiguration(
-            SoundID("CLICK_HI"),
-            SoundID("CLICK_LO"),
-            SoundBank.ACOUSTIC
-        ),
-        logicalPlaybackID = LogicalPlaybackID(42),
-        origin = SessionOrigin(SessionID(1), 0),
-        mode = ActivePlaybackMode.Polyrhythm(
-            PolyrhythmConfiguration(ExactTempo.of(120), 3, 2)
+    private class QualificationEngine(
+        private val asynchronousUpdates: Boolean = false
+    ) : PlaybackEnginePort {
+        override var soundPreparationObserver: ((SoundPreparationPublication) -> Unit)? = null
+        override var transportObserver: PlaybackEngineTransportObserver? = null
+        override var delegate: MetronomeAudioEngineDelegate? = null
+        override var polyrhythmDelegate: PolyrhythmAudioEngineDelegate? = null
+        override var isMuted = false
+        val standardUpdates = mutableListOf<CommittedPlaybackConfiguration.Standard>()
+        val polyrhythmUpdates = mutableListOf<CommittedPlaybackConfiguration.Polyrhythm>()
+        private val updateCompletions = ArrayDeque<
+            Pair<PlaybackSessionId, (PlaybackEngineUpdateResult) -> Unit>
+        >()
+        private val sounds = ActiveSoundConfiguration(
+            AppSoundBank.ACOUSTIC,
+            SoundFile.CLICK_HI,
+            SoundFile.CLICK_LO
         )
-    )
 
-    private fun standardConfiguration() = StandardMetronomeConfiguration(
-        ExactTempo.of(120),
-        StandardTiming.Regular(StandardSubdivision.QUARTER)
-    )
+        override fun activeSoundConfiguration() = sounds
+        override fun soundPreparationFailure(): SoundPreparationFailure? = null
+        override fun prewarmAudioTrack() = Unit
+        override fun getFrameAudioMetricsSnapshot(): FrameAudioMetricsSnapshot? = null
+        override fun release() = Unit
 
-    private fun metadata(sequence: Long, sessionID: Long = 1) =
-        CommandMetadata(SessionID(sessionID), CommandSequence(sequence), sequence)
+        override fun beginStandardSession(
+            sessionId: PlaybackSessionId,
+            bpm: Float,
+            subdivisions: Int,
+            accentPattern: List<Boolean>?,
+            alternateSixteenth: Boolean
+        ) = publishStarted(sessionId)
+
+        override fun beginPolyrhythmSession(
+            sessionId: PlaybackSessionId,
+            bpm: Float,
+            beats: Int,
+            against: Int
+        ) = publishStarted(sessionId)
+
+        override fun updateStandardSession(
+            sessionId: PlaybackSessionId,
+            configuration: CommittedPlaybackConfiguration.Standard,
+            completion: (PlaybackEngineUpdateResult) -> Unit
+        ) {
+            standardUpdates += configuration
+            completeOrQueue(sessionId, completion)
+        }
+
+        override fun updatePolyrhythmSession(
+            sessionId: PlaybackSessionId,
+            configuration: CommittedPlaybackConfiguration.Polyrhythm,
+            completion: (PlaybackEngineUpdateResult) -> Unit
+        ) {
+            polyrhythmUpdates += configuration
+            completeOrQueue(sessionId, completion)
+        }
+
+        override fun stopSession(sessionId: PlaybackSessionId, mode: PlaybackMode) {
+            transportObserver?.engineStopped(sessionId)
+        }
+
+        override fun drainRenderedEvents(afterCaptureSequence: Long): FrameAudioRenderedEventBatch? =
+            null
+
+        override fun selectSounds(
+            requestSequence: Long,
+            beatResourceId: Int,
+            rhythmResourceId: Int
+        ) = Unit
+
+        override fun selectSoundBank(requestSequence: Long, bank: AppSoundBank) = Unit
+        override fun prepareSounds(requestSequence: Long, sounds: Collection<SoundFile>) = Unit
+
+        fun completeNextUpdate() {
+            val (sessionId, completion) = updateCompletions.removeFirst()
+            completion(PlaybackEngineUpdateResult.Accepted(sessionId))
+        }
+
+        private fun completeOrQueue(
+            sessionId: PlaybackSessionId,
+            completion: (PlaybackEngineUpdateResult) -> Unit
+        ) {
+            if (asynchronousUpdates) {
+                updateCompletions.addLast(sessionId to completion)
+            } else {
+                completion(PlaybackEngineUpdateResult.Accepted(sessionId))
+            }
+        }
+
+        private fun publishStarted(sessionId: PlaybackSessionId) {
+            transportObserver?.engineStarted(
+                PlaybackEngineStartEvidence(
+                    sessionId,
+                    sounds,
+                    AudioOutputRoute.BUILT_IN,
+                    AudioBackendType.AUDIO_TRACK,
+                    0
+                )
+            )
+        }
+    }
 
     private companion object {
         val backendSampleRates = listOf(44_100, 48_000)
