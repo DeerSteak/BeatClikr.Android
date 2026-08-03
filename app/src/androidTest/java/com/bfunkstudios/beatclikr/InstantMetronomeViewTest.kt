@@ -11,6 +11,7 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.assert
@@ -283,7 +284,7 @@ class InstantMetronomeViewTest {
         fake.publishPlaying(PlaybackMode.STANDARD, AudioOutputRoute.BUILT_IN)
         composeRule.onNodeWithTag("bluetooth_latency_warning").assertDoesNotExist()
 
-        composeRule.onNodeWithTag("metronome_mode_polyrhythm").performClick()
+        selectMetronomeMode(polyrhythm = true)
         fake.publishPlaying(PlaybackMode.POLYRHYTHM, AudioOutputRoute.BLUETOOTH)
         composeRule.onNodeWithTag("bluetooth_latency_warning").assertIsDisplayed()
 
@@ -325,7 +326,7 @@ class InstantMetronomeViewTest {
         fake.publishPlaying(PlaybackMode.STANDARD)
         composeRule.onNodeWithTag("playback_diagnostic").assertDoesNotExist()
 
-        composeRule.onNodeWithTag("metronome_mode_polyrhythm").performClick()
+        selectMetronomeMode(polyrhythm = true)
         fake.publishFailed(PlaybackMode.POLYRHYTHM, PlaybackFailureReason.RouteUnavailable)
         composeRule.onNodeWithText(
             activity.getString(R.string.playback_route_unavailable)
@@ -555,10 +556,17 @@ class InstantMetronomeViewTest {
         val secondTheme = captureScreenshot()
         assertScreenshotsDiffer(firstTheme, secondTheme)
 
-        activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
-        composeRule.waitForIdle()
-        val landscape = captureScreenshot()
-        assertTrue(landscape.width != secondTheme.width || landscape.height != secondTheme.height)
+        val initialOrientation = activity.resources.configuration.orientation
+        activity.requestedOrientation = if (initialOrientation == Configuration.ORIENTATION_LANDSCAPE) {
+            ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+        } else {
+            ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+        }
+        composeRule.waitUntil(10_000) {
+            activity.resources.configuration.orientation != initialOrientation
+        }
+        val rotated = captureScreenshot()
+        assertTrue(rotated.width != secondTheme.width || rotated.height != secondTheme.height)
 
         val originalAnimatorScale = shell("settings get global animator_duration_scale").trim().ifBlank { "1.0" }
         try {
@@ -572,18 +580,27 @@ class InstantMetronomeViewTest {
     }
 
     @Test
-    fun polyrhythmIsInsideMetronomeContainerNotBottomNav() {
-        composeRule.onNodeWithTag("metronome_mode_metronome").assertIsDisplayed()
-        composeRule.onNodeWithTag("metronome_mode_polyrhythm").assertIsDisplayed()
-        composeRule
-            .onNodeWithContentDescription(activity.getString(R.string.polyrhythm))
-            .assertDoesNotExist()
+    fun polyrhythmNavigationMatchesWindowSize() {
+        if (activity.resources.configuration.screenWidthDp < 600) {
+            composeRule.onNodeWithTag("metronome_mode_metronome").assertIsDisplayed()
+            composeRule.onNodeWithTag("metronome_mode_polyrhythm").assertIsDisplayed()
+            composeRule
+                .onNodeWithContentDescription(activity.getString(R.string.polyrhythm))
+                .assertDoesNotExist()
+        } else {
+            composeRule.onNodeWithTag("metronome_mode_metronome").assertDoesNotExist()
+            composeRule.onNodeWithTag("metronome_mode_polyrhythm").assertDoesNotExist()
+            composeRule.onNodeWithContentDescription(
+                activity.getString(R.string.polyrhythm),
+                useUnmergedTree = true
+            ).assertIsDisplayed()
+        }
     }
 
     @Test
     fun switchingToPolyrhythmStopsMetronome() {
         composeRule.onNodeWithText(activity.getString(R.string.play)).performClick()
-        composeRule.onNodeWithTag("metronome_mode_polyrhythm").performClick()
+        selectMetronomeMode(polyrhythm = true)
 
         val fake = audio as FakeAudioPlayerService
         assertEquals(1, fake.startCount)
@@ -592,9 +609,9 @@ class InstantMetronomeViewTest {
 
     @Test
     fun switchingToMetronomeStopsPolyrhythm() {
-        composeRule.onNodeWithTag("metronome_mode_polyrhythm").performClick()
+        selectMetronomeMode(polyrhythm = true)
         composeRule.onNodeWithText(activity.getString(R.string.play)).performClick()
-        composeRule.onNodeWithTag("metronome_mode_metronome").performClick()
+        selectMetronomeMode(polyrhythm = false)
 
         val fake = audio as FakeAudioPlayerService
         assertEquals(1, fake.polyrhythmStartCount)
@@ -647,12 +664,12 @@ class InstantMetronomeViewTest {
     }
 
     @Test
-    fun compactModeReplacementStopsHiddenModeOnceAndStartsAtFreshSession() {
+    fun modeReplacementStopsHiddenModeOnceAndStartsAtFreshSession() {
         val fake = audio as FakeAudioPlayerService
         composeRule.onNodeWithText(activity.getString(R.string.play)).performClick()
         val standardSession = fake.currentSessionId()
 
-        composeRule.onNodeWithTag("metronome_mode_polyrhythm").performClick()
+        selectMetronomeMode(polyrhythm = true)
         composeRule.onNodeWithText(activity.getString(R.string.play)).performClick()
 
         assertEquals(1, fake.stopCount)
@@ -809,6 +826,16 @@ class InstantMetronomeViewTest {
             useUnmergedTree = true
         ).performClick()
         composeRule.waitForIdle()
+    }
+
+    private fun selectMetronomeMode(polyrhythm: Boolean) {
+        val tag = if (polyrhythm) "metronome_mode_polyrhythm" else "metronome_mode_metronome"
+        if (composeRule.onAllNodesWithTag(tag).fetchSemanticsNodes().isNotEmpty()) {
+            composeRule.onNodeWithTag(tag).performClick()
+            composeRule.waitForIdle()
+        } else {
+            navigateTo(if (polyrhythm) R.string.polyrhythm else R.string.tab_instant)
+        }
     }
 
     private fun FakeAudioPlayerService.currentSessionId() =
