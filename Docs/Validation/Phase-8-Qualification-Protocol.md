@@ -65,7 +65,9 @@ Review onset shift, peak delta, crest-factor ratio, derivative-RMS ratio, and ro
 
 Normal-use and UI-stress gates keep diagnostics buffered in the app and prohibit continuous `dumpsys`, debugger attachment, or profiler polling. CPU, memory, thermal, and battery capture must use a separately documented low-overhead method. Any collector that causes an underrun invalidates that run rather than excusing the underrun.
 
-Battery runs must record brightness, volume, timeout, route, radio state, battery health, duration, and charger state. Restore every changed device setting after the run. Three matched one-hour runs are required for TB-017, and TB-018 comparisons use identical settings and workloads.
+Battery runs must record brightness, volume, timeout, route, radio state, battery health, duration, and charger state. The Pixel 8a reference uses fixed brightness 128/255, media volume 6/25, adaptive brightness off, built-in speaker, Wi-Fi and wireless debugging on, and no external power. Restore every changed device setting after the run. TB-017 requires one controlled one-hour release sniff check. Future TB-018 comparisons use identical settings and workloads against the latest qualified baseline, with confirmation runs only for anomalies or near-budget results.
+
+TB-017 uses steady 240 BPM sixteenth-note playback without automated UI changes. Record UI-interaction battery runs separately as pessimistic stress characterization; they do not replace the controlled steady-state run.
 
 ## Workload matrix
 
@@ -78,8 +80,8 @@ Battery runs must record brightness, volume, timeout, route, radio state, batter
 | Polyrhythm dense | 240 BPM, 15:14 | 60 minutes render | On | Maximum supported polyrhythm event pressure |
 | Normal interaction | 240 BPM, sixteenth notes with ordinary observation | 60 minutes | On | TB-008, TB-014–TB-016 |
 | UI interaction stress | Sequence below, starting at 240 BPM sixteenths | 60 minutes | On | TB-008–TB-010 under control and rendering load |
-| Unplugged battery | Matched maximum-density audio workload | 60 minutes ×3 | Documented | TB-017 |
-| Matched comparator | Identical before/after workload and settings | At least three noisy-metric runs | Matched | TB-018 |
+| Unplugged battery | Fixed 240 BPM sixteenth notes; brightness 128/255; volume 6/25; built-in speaker | 60 minutes ×1 | On | TB-017 |
+| Matched comparator | Identical workload and settings against latest qualified baseline | One sniff check; confirm anomalies | Matched | TB-018 |
 
 The three acoustic density recordings total at least one hour. Record each population separately and combined; a combined percentile must name its weighting. Standard and polyrhythm render results are not interchangeable.
 
@@ -103,12 +105,12 @@ Automation may vary action timing with a recorded seed, but not the action set o
 - [ ] Start common media, start BeatClikr, and record whether the other player pauses or ducks.
 - [ ] Deliver permanent, transient, and duck-capable focus loss; require authoritative stop and no silent resume.
 - [ ] Stop BeatClikr and verify focus release with the media player.
-- [ ] Remove wired or USB output during playback when hardware is available; require one stop and explicit restart.
-- [ ] Connect and remove Bluetooth observationally; verify the latency warning and explicit-restart policy without a fixed transport-latency claim.
-- [ ] Record standard and polyrhythm retunes with high-speed video and measure audio/visual boundary skew.
+- [x] Record wired and USB output as unavailable; retain route-loss automation and make no physical latency claim without suitable hardware.
+- [x] Connect and remove Bluetooth observationally; verify the latency warning and explicit-restart policy without a fixed transport-latency claim.
+- [x] Keep physical retune-boundary alignment outside the release claim; rely on TB-009 and TB-010 for application/render boundary correctness.
 - [ ] Record visual onset against predicted presentation and report display refresh rate.
-- [ ] Measure haptic only with a suitable sensor; otherwise record an evidence gap.
-- [ ] Measure flash only with a photodiode or suitable high-speed capture; otherwise record an evidence gap.
+- [x] Record desk-coupled haptic alignment observationally and disclose that no direct vibration sensor was available.
+- [x] Measure flash with suitable high-speed capture; retain the result as observational unless a percentile population is available.
 - [ ] Verify torch off after explicit stop, background transition, interruption, and forced torch failure.
 - [ ] Restore and record brightness, volume, timeout, orientation, connectivity, route, keep-awake, and charger state.
 

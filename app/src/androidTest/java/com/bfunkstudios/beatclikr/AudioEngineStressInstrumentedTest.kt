@@ -31,8 +31,18 @@ class AudioEngineStressInstrumentedTest {
             ?.toIntOrNull()
             ?.coerceIn(1, MAX_DURATION_MINUTES)
             ?: DEFAULT_DURATION_MINUTES
+        val bpm = InstrumentationRegistry.getArguments()
+            .getString(BPM_ARGUMENT)
+            ?.toFloatOrNull()
+            ?.coerceIn(MIN_BPM, MAX_BPM)
+            ?: DEFAULT_BPM
+        val subdivisions = InstrumentationRegistry.getArguments()
+            .getString(SUBDIVISIONS_ARGUMENT)
+            ?.toIntOrNull()
+            ?.coerceIn(MIN_SUBDIVISIONS, MAX_SUBDIVISIONS)
+            ?: DEFAULT_SUBDIVISIONS
         val expectedIntervalNanos =
-            (60_000_000_000.0 / (TEST_BPM * TEST_SUBDIVISIONS)).toLong()
+            (60_000_000_000.0 / (bpm * subdivisions)).toLong()
         val expectedEvents =
             (durationMinutes * 60_000_000_000L / expectedIntervalNanos).toInt()
         val scheduledTimes = Collections.synchronizedList(ArrayList<Long>(expectedEvents))
@@ -45,7 +55,7 @@ class AudioEngineStressInstrumentedTest {
                 requireNotNull(SoundFile.CLICK_LO.resourceId)
             )
             val session = RenderedEventTestSession.standard(
-                engine, TEST_BPM, TEST_SUBDIVISIONS, null, false
+                engine, bpm, subdivisions, null, false
             ) { records, sampleRate ->
                 records.forEach { event ->
                     if (latch.count > 0L) {
@@ -72,7 +82,7 @@ class AudioEngineStressInstrumentedTest {
 
             Log.i(
                 TAG,
-                "minutes=$durationMinutes events=$expectedEvents " +
+                "minutes=$durationMinutes bpm=$bpm subdivisions=$subdivisions events=$expectedEvents " +
                     "scheduledDriftMs=${toMillis(scheduledDrift)} " +
                     "callbackP50Ms=${toMillis(percentile(arrivalErrors, 0.50))} " +
                     "callbackP95Ms=${toMillis(percentile(arrivalErrors, 0.95))} " +
@@ -147,10 +157,16 @@ class AudioEngineStressInstrumentedTest {
     private companion object {
         const val TAG = "BeatClikrAudioStress"
         const val DURATION_ARGUMENT = "stressDurationMinutes"
+        const val BPM_ARGUMENT = "stressBpm"
+        const val SUBDIVISIONS_ARGUMENT = "stressSubdivisions"
         const val DEFAULT_DURATION_MINUTES = 30
         const val MAX_DURATION_MINUTES = 60
         const val STOP_GRACE_SECONDS = 30L
-        const val TEST_BPM = 240f
-        const val TEST_SUBDIVISIONS = 4
+        const val DEFAULT_BPM = 240f
+        const val MIN_BPM = 30f
+        const val MAX_BPM = 240f
+        const val DEFAULT_SUBDIVISIONS = 4
+        const val MIN_SUBDIVISIONS = 1
+        const val MAX_SUBDIVISIONS = 4
     }
 }

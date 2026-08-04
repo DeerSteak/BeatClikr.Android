@@ -209,7 +209,7 @@ Never commit signing keys, credentials, private audio, or private manifests.
 
 ## Benchmark records
 
-The repeatable Phase 8 device and acoustic workflow is defined in [`Validation/Phase-8-Qualification-Protocol.md`](Validation/Phase-8-Qualification-Protocol.md).
+The repeatable Phase 8 device and acoustic workflow is defined in [`Validation/Phase-8-Qualification-Protocol.md`](Validation/Phase-8-Qualification-Protocol.md). Remaining product-owner decisions and physical observations are listed in [`Validation/Phase-8-Physical-Handoff.md`](Validation/Phase-8-Physical-Handoff.md).
 
 Each record should state:
 

@@ -15,6 +15,7 @@ Expected behavior comes from approved Android contracts and `origin/release/4.1.
 | `RenderedEventTestSession` | Polls immutable records from the production render-event ring | Poll time is not render time or acoustic presentation | Use intended frames and attached correlation, never poll arrival, for timing claims |
 | `tools/analyze_acoustic_onsets.py` | Reproducible microphone-recording onset count, fitted drift, and like-timbre interval errors | Detector output alone cannot identify whether an anomaly came from the app, transport, room, recorder clock, or threshold choice | Require threshold sweep, manual anomaly review, and recorded setup |
 | `tools/profile_android_process.sh` | Host-sampled CPU, PSS, RSS, battery temperature, and thermal state | Repeated `dumpsys` can induce underruns and cannot qualify normal use | Use only for explicitly intrusive characterization; use low-overhead aggregate collection for acceptance |
+| `PlaybackUiStressInstrumentedTest` | Accessibility-driven controls, same-session commits, Activity recreation, frame accounting, deadline/drop counters, and recovery accounting in the minified benchmark build | Compose test runtime and a separate Hilt test component require target keep rules that distort the optimized APK | Keep it in `benchmarkAndroidTest`; use the normal app runner, external UI automation, and a primitive benchmark-only diagnostics facade |
 
 ## Required follow-ups
 

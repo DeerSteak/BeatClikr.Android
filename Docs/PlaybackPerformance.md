@@ -73,7 +73,7 @@ Battery is a separate physically unplugged run over wireless debugging. Record s
 
 ## Physical-device validation
 
-The Pixel 8a running Android 17 is the initial reference device. Record the OS build, app commit, build variant, audio route, volume, battery mode, and method with every result. Test the built-in speaker first; Bluetooth is a separate latency profile.
+The Pixel 8a running Android 17 is the initial reference device. Record the OS build, app commit, build variant, audio route, volume, battery mode, and method with every result. The built-in speaker is the qualified physical route; Bluetooth, USB, and analog presentation latency is route-dependent and remains unclaimed until the exact route is measured.
 
 At minimum, validate:
 

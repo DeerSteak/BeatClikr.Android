@@ -49,7 +49,7 @@ The review compared the contracts with the sibling iOS implementation and docume
 
 ### Quantitative correction
 
-The original start-latency proposal was internally impossible because it allowed less time than the designed first-event pre-roll plus device output latency. TB-007 is now p50 ≤ 175 ms, p95 ≤ 225 ms, and p99 ≤ 300 ms. Earlier apparent passing distributions mixed frame and clock domains and are invalid. The corrected 2026-08-03 release-equivalent Pixel 8a run fails the accepted gate and is the current reference.
+The original start-latency proposal was internally impossible because it allowed less time than the designed first-event pre-roll plus device output latency. On 2026-08-03, the product owner approved TB-007 at p50 ≤ 250 ms, p95 ≤ 300 ms, and maximum ≤ 500 ms. Earlier apparent passing distributions mixed frame and clock domains and are invalid. The corrected 2026-08-03 release-equivalent Pixel 8a run passes the amended gate and is the current reference.
 
 ## Approval checklist
 

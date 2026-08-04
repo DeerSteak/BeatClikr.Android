@@ -28,23 +28,47 @@ metadata_file="$artifact_dir/metadata.txt"
 gradle_log="$artifact_dir/gradle.log"
 screen_mode="${PHASE8_SCREEN_MODE:-on}"
 original_stay_awake="$("$adb_path" -s "$serial" shell settings get global stay_on_while_plugged_in | tr -d '\r')"
+original_brightness_mode="$("$adb_path" -s "$serial" shell settings get system screen_brightness_mode | tr -d '\r')"
+original_brightness="$("$adb_path" -s "$serial" shell settings get system screen_brightness | tr -d '\r')"
+original_screen_timeout="$("$adb_path" -s "$serial" shell settings get system screen_off_timeout | tr -d '\r')"
+original_media_volume="$("$adb_path" -s "$serial" shell cmd media_session volume --stream 3 --get | awk '/volume is/{print $4}')"
 
-restore_screen_setting() {
+restore_device_settings() {
     if [[ "$original_stay_awake" == "null" ]]; then
         "$adb_path" -s "$serial" shell settings delete global stay_on_while_plugged_in >/dev/null
     else
         "$adb_path" -s "$serial" shell settings put global stay_on_while_plugged_in "$original_stay_awake"
     fi
+    "$adb_path" -s "$serial" shell settings put system screen_brightness_mode "$original_brightness_mode"
+    "$adb_path" -s "$serial" shell settings put system screen_brightness "$original_brightness"
+    "$adb_path" -s "$serial" shell settings put system screen_off_timeout "$original_screen_timeout"
+    "$adb_path" -s "$serial" shell cmd media_session volume --stream 3 --set "$original_media_volume" >/dev/null
 }
 
 if [[ "$screen_mode" == "on" ]]; then
     "$adb_path" -s "$serial" shell svc power stayon true
     "$adb_path" -s "$serial" shell input keyevent KEYCODE_WAKEUP
     "$adb_path" -s "$serial" shell wm dismiss-keyguard
-    trap restore_screen_setting EXIT
+    trap restore_device_settings EXIT
 elif [[ "$screen_mode" != "unchanged" ]]; then
     echo "PHASE8_SCREEN_MODE must be 'on' or 'unchanged'." >&2
     exit 2
+fi
+
+if [[ -n "${PHASE8_BRIGHTNESS:-}" ]]; then
+    "$adb_path" -s "$serial" shell settings put system screen_brightness_mode 0
+    "$adb_path" -s "$serial" shell settings put system screen_brightness "$PHASE8_BRIGHTNESS"
+fi
+if [[ -n "${PHASE8_SCREEN_TIMEOUT_MS:-}" ]]; then
+    "$adb_path" -s "$serial" shell settings put system screen_off_timeout "$PHASE8_SCREEN_TIMEOUT_MS"
+fi
+if [[ -n "${PHASE8_MEDIA_VOLUME:-}" ]]; then
+    "$adb_path" -s "$serial" shell cmd media_session volume --stream 3 --set "$PHASE8_MEDIA_VOLUME" >/dev/null
+    applied_media_volume="$("$adb_path" -s "$serial" shell cmd media_session volume --stream 3 --get | awk '/volume is/{print $4}')"
+    if [[ "$applied_media_volume" != "$PHASE8_MEDIA_VOLUME" ]]; then
+        echo "Unable to set media volume to $PHASE8_MEDIA_VOLUME; device remained at $applied_media_volume." >&2
+        exit 1
+    fi
 fi
 
 printf 'ANDROID_SERIAL=%q ./gradlew' "$serial" > "$command_file"
@@ -69,6 +93,11 @@ capture_metadata() {
         printf 'brightness=%s\n' "$("$adb_path" -s "$serial" shell settings get system screen_brightness | tr -d '\r')"
         printf 'screen_timeout_ms=%s\n' "$("$adb_path" -s "$serial" shell settings get system screen_off_timeout | tr -d '\r')"
         printf 'screen_mode=%s\n' "$screen_mode"
+        printf 'original_brightness_mode=%s\n' "$original_brightness_mode"
+        printf 'original_brightness=%s\n' "$original_brightness"
+        printf 'original_screen_timeout_ms=%s\n' "$original_screen_timeout"
+        printf 'media_volume=%s\n' "$("$adb_path" -s "$serial" shell cmd media_session volume --stream 3 --get | awk '/volume is/{print $4}')"
+        printf 'original_media_volume=%s\n' "$original_media_volume"
         printf 'interactive=%s\n' "$("$adb_path" -s "$serial" shell dumpsys power | awk -F= '/mWakefulness=|mInteractive=/{print $2; exit}' | tr -d '\r')"
         printf 'wifi_enabled=%s\n' "$("$adb_path" -s "$serial" shell cmd wifi status | head -1 | tr -d '\r')"
         printf 'battery_begin\n'
@@ -94,6 +123,6 @@ fi
 capture_metadata after
 printf 'exit_status=%d\n' "$status" >> "$metadata_file"
 printf 'Artifacts: %s\n' "$artifact_dir"
-restore_screen_setting
+restore_device_settings
 trap - EXIT
 exit "$status"

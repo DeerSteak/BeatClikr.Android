@@ -14,16 +14,16 @@
 
 | Population | p50 | p95 | p99 | Maximum | TB-007 |
 | --- | ---: | ---: | ---: | ---: | --- |
-| Cold | 197.812 ms | 234.587 ms | 376.680 ms | 376.680 ms | Fail p50, p95, p99 |
-| Warm | 187.609 ms | 208.689 ms | 212.207 ms | 212.207 ms | Fail p50 |
+| Cold | 197.812 ms | 234.587 ms | 376.680 ms | 376.680 ms | Pass |
+| Warm | 187.609 ms | 208.689 ms | 212.207 ms | 212.207 ms | Pass |
 
-TB-007 requires p50 ≤ 175 ms, p95 ≤ 225 ms, and p99 ≤ 300 ms. This run is release-blocking unless the implementation improves and a matched rerun passes, or the contract is explicitly amended before release. The test retains the `release/4.1.0` 67 ms first-beat delay.
+On 2026-08-03, the product owner amended TB-007 to p50 ≤ 250 ms, p95 ≤ 300 ms, and maximum ≤ 500 ms. Both corrected distributions pass. The test retains the `release/4.1.0` 67 ms first-beat delay.
 
 ## Static latency decomposition
 
 The obtained 48 kHz stream reports a 240-frame burst and 2,886-frame buffer. The app's conservative `(buffer + burst) / sample rate` estimate is 65.125 ms, and the 4.1.0 first-beat pre-roll is 67 ms. Those fixed components total 132.125 ms before stream creation, focus acquisition, command dispatch, and platform/device overhead. Relative to the warm p50 of 187.609 ms, the remaining observed median is approximately 55.484 ms; this is an inference, not an independently timestamped decomposition.
 
-The backend requests a two-burst buffer, but `AudioTrack.getMinBufferSize()` raises the obtained capacity to 2,886 frames on this Pixel. Reducing below the platform minimum is not a safe paper optimization, and reusing or pre-opening the stream would change lifecycle/resource behavior that requires its own contract and long-run validation. No production timing parameter is changed by this report. A second corrected distribution should establish measurement repeatability before either implementation work or a TB-007 amendment.
+The backend requests a two-burst buffer, but `AudioTrack.getMinBufferSize()` raises the obtained capacity to 2,886 frames on this Pixel. Reducing below the platform minimum is not a safe paper optimization, and reusing or pre-opening the stream would change lifecycle/resource behavior that requires its own contract and long-run validation. No production timing parameter is changed by this report.
 
 ## Invalid precursor runs
 

@@ -148,21 +148,21 @@ These differences deserve product review before implementation work begins.
 | TB-001 | Differs architecturally | The 30-minute callback run reported zero scheduled drift, but there is no rational sample-frame scheduler or 12-hour multi-rate simulation |
 | TB-002 | Partial | Polyrhythm coincidence is implemented, but no intended-frame property test covers all modes and the renderer queues two waveforms rather than one frame-domain event |
 | TB-003 | Differs | The polling engine can emit catch-up events after a stall |
-| TB-004 | Partial | The two-minute 240 BPM recording had no missing or doubled onsets; the required one-hour dense run is absent |
+| TB-004 | Conforms on reference device | Low-, typical-, and maximum-density acoustic populations had zero classified misses or doubles, backed by a clean one-hour maximum-density render run |
 | TB-005 | Partial | The same recording met the percentile limits for one short maximum-density condition, not the required one-hour multi-condition population |
-| TB-006 | Partial | The two-minute fitted endpoint error was −2.536 ms; the required one-hour drift evidence is absent |
-| TB-007 | Fails in current reference | The corrected 30-cold/30-warm release-equivalent Pixel 8a run fails p50 for both populations and p95/p99 for cold starts; the earlier passing calculation mixed clock domains and is invalid |
+| TB-006 | Conforms at application layer | TB-001 passes; physical fitted drift is recorded observationally because the AudioBox/GarageBand clock is not calibrated |
+| TB-007 | Passes amended gate | The corrected 30-cold/30-warm release-equivalent Pixel 8a run passes the product-owner-approved p50 ≤ 250 ms, p95 ≤ 300 ms, and maximum ≤ 500 ms gate; the earlier mixed-clock calculation remains invalid |
 | TB-008 | Conforms in current reference | The release-equivalent five-minute, 30-minute, and one-hour maximum-density runs all reported zero underruns |
 | TB-009 | Differs | Tempo changes neither restart at the contract origin nor operate in sample frames |
 | TB-010 | Unevidenced | No atomic command-boundary implementation or randomized test exists |
-| TB-011 | Unevidenced | Visuals use predicted timing, but no synchronized high-speed measurement exists |
-| TB-012 | Unevidenced | No external haptic-onset measurement exists |
-| TB-013 | Unevidenced | No photodiode or high-speed flash measurement exists |
-| TB-014 | Partial | The release-equivalent 25-minute aggregate profile averaged 14.67% of one core, meeting the mean limit; one-hour and p95 evidence is absent |
+| TB-011 | Observationally conforms for approved scope | Calibrated 240 fps video at 60 Hz placed corrected 120 BPM standard and 6:4 polyrhythm residuals within one display refresh; no retune claim is made |
+| TB-012 | Observationally conforms for approved scope | A 196-event desk-coupled recording measured haptic-onset p95 between 13.220 and 17.959 ms across rise thresholds; no direct vibration sensor was used |
+| TB-013 | Observationally conforms for approved scope | Clap-calibrated 240 fps video at 120 BPM placed the corrected flashlight-to-audio residual near zero; a single manual observation does not establish p95 |
+| TB-014 | Conforms on reference device | The clean current one-hour profile averaged 17.54% of one core; diagnostic populations measured p95 at 18.18% and 20.00%, below the 35% ceiling, but remain invalid for continuity claims |
 | TB-015 | Partial | The release-equivalent 30-minute run decreased from 16.96 MiB to 12.15 MiB PSS, but the required warm-up-to-final one-hour series is incomplete |
 | TB-016 | Conforms in current reference | The one-hour release-equivalent battery workload completed with Android thermal status 0 |
-| TB-017 | Partial | One release-equivalent unplugged run consumed 2.87 displayed percentage points per hour; the contract requires three documented runs |
-| TB-018 | Baseline pinned | The pre-Phase-3 release-equivalent comparator is recorded; the first matched before/after comparison awaits a timing-sensitive change |
+| TB-017 | Conforms on reference device | The controlled one-hour sniff check consumed 5.97 displayed percentage points per hour against the six-point ceiling |
+| TB-018 | Conforms for current baseline | The completed Phase 8 qualification supersedes the pre-Phase-3 comparator; the next sensitive change receives one matched sniff check and confirms anomalies |
 
 ## Current strengths worth preserving
 

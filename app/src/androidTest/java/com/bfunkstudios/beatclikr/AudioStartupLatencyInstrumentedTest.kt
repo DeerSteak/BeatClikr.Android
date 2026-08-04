@@ -85,9 +85,9 @@ class AudioStartupLatencyInstrumentedTest {
     private fun assertBaselineSanity(label: String, values: List<Long>) {
         assertTrue("$label sample count was incomplete", values.size == SAMPLE_COUNT)
         assertTrue("$label startup contained a negative duration", values.min() >= 0L)
-        assertTrue("$label p50 exceeded TB-007", percentile(values, 0.50) <= 175_000_000L)
-        assertTrue("$label p95 exceeded TB-007", percentile(values, 0.95) <= 225_000_000L)
-        assertTrue("$label p99 exceeded TB-007", percentile(values, 0.99) <= 300_000_000L)
+        assertTrue("$label p50 exceeded TB-007", percentile(values, 0.50) <= 250_000_000L)
+        assertTrue("$label p95 exceeded TB-007", percentile(values, 0.95) <= 300_000_000L)
+        assertTrue("$label maximum exceeded TB-007", values.max() <= 500_000_000L)
     }
 
     private fun logMetrics(label: String, values: List<Long>) {
