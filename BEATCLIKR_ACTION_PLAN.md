@@ -712,11 +712,11 @@ These items are committed parity work, but they do not block the core metronome 
 
 ### 9.2 Add reliable system controls
 
-- [ ] Add a persistent playback notification and media session.
-- [ ] Expose stop or pause-shaped controls that end the phase and never silently resume it.
-- [ ] Disable meaningless seek, skip, and playback-rate commands.
-- [ ] Keep notification and lock-screen state synchronized with the coordinator.
-- [ ] Handle notification permission states and current Android foreground-service restrictions.
+- [x] Add a persistent playback notification and media session.
+- [x] Expose stop or pause-shaped controls that end the phase and never silently resume it.
+- [x] Disable meaningless seek, skip, and playback-rate commands.
+- [x] Keep notification and lock-screen state synchronized with the coordinator.
+- [x] Handle notification permission states and current Android foreground-service restrictions.
 - [ ] Test repeated start-lock-stop cycles for stale controls and leaked services.
 
 ### 9.3 Evaluate optional backing-track coexistence

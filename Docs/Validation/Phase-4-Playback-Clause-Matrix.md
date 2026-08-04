@@ -14,8 +14,8 @@ The clause text in `Docs/Decisions/0002-Playback-Lifecycle-and-Outputs.md` remai
 | PL-008 | Tagged focus, route, and backend interruptions | Coordinator async interruption tests; route wiring integration | Focus record; route matrix owner-accepted | — | Pass |
 | PL-009 | Interrupted/failed sessions require explicit restart | `interruptionStopsOnceAndNeverAutomaticallyResumes`, process-death tests | Screen/lock observation | — | Pass |
 | PL-010 | Explicit restart creates a fresh origin/session | `explicitRestartCommitsEvidenceFromNewRoute`, process-death explicit-play test | Screen/lock observation | — | Pass |
-| PL-011 | Media-playback foreground service shares the application coordinator | Service-controller tests and manifest/build checks | Background/lock observation pending | Phase 9 | Partial; media session pending |
-| PL-012 | Persistent stop action never starts playback; media session remains pending | Command-handler tests | Notification observation pending | Phase 9 | Partial |
+| PL-011 | Media-playback foreground service and media session share the application coordinator | Service-controller, state-projection, and manifest/build checks | Background/lock observation pending | Phase 9 | Implemented; physical check pending |
+| PL-012 | Notification and lock-screen pause/stop end playback; start/resume/seek/skip/speed are absent | Command-handler and system-state tests | Notification observation pending | Phase 9 | Implemented; physical check pending |
 | PL-013 | Visible-and-playing keep-awake projection | `InstantMetronomeViewTest` keep-screen tests | Screen/lock observation | — | Pass |
 | PL-014 | `AUDIOFOCUS_GAIN` acquired before start | Audio engine tests | Focus record | — | Pass |
 | PL-015 | Exclusive focus; coexistence not guaranteed | Focus policy tests | YouTube Music paused | — | Pass |

@@ -34,7 +34,7 @@ These differences deserve product review before implementation work begins.
 | MT-030 through MT-032 | Late polling callbacks advance one event per callback and can emit a rapid catch-up sequence; nanosecond interval truncation can accumulate error | Drop expired events, preserve the absolute origin, and carry fractional sample-frame remainder | Differs; this is the core scheduler replacement |
 | PL-002 through PL-005 | ViewModels set `isPlaying` and record practice immediately after an asynchronous start request; focus denial is silent and commands have no session identity | Audio-confirmed authoritative state with typed failures and stale-session rejection | Differs; current UI and history can claim playback that never started |
 | PL-007 | Foreground-service lifetime now follows authoritative session state | Continue active audio in background and under lock | Implemented; physical qualification pending |
-| PL-011, PL-012 | Foreground service and persistent stop action exist; media session and synchronized lock-screen transport remain | Provide Android background media infrastructure with stop-capable controls | Partial Phase 9 implementation |
+| PL-011, PL-012 | Foreground service, persistent notification, and coordinator-projected media session expose terminal controls only | Provide Android background media infrastructure with stop-capable controls | Implemented; physical qualification pending |
 | PL-014 through PL-016 | The engine requests indefinite `AUDIOFOCUS_GAIN`, matching the approved ownership policy, but abandons focus only on engine release | Own long-duration audio focus while playing and abandon it whenever playback ends | Partial; focus acquisition already matches, focus lifetime does not |
 | PL-018, PL-021 | No route-change listener or Bluetooth warning exists | Stop on route changes and identify Bluetooth latency variability | Missing |
 | PL-028 | Leaving an on-screen metronome usually stops it through Composable disposal, but song playback can continue across some top-level navigation because the navigation helper stops only the opposite metronome mode | Every top-level section change stops all playback | Partial and path-dependent |
@@ -93,8 +93,8 @@ These differences deserve product review before implementation work begins.
 | PL-008 | Partial | Focus loss stops both modes, but route loss and media-server recovery are not modeled |
 | PL-009 | Conforms | No automatic-resume path exists |
 | PL-010 | Conforms | Explicit start resets counters and establishes a new first-event origin |
-| PL-011 | Partial | Media-playback foreground service and notification exist; media session remains pending |
-| PL-012 | Partial | Persistent stop action exists and never starts playback; lock-screen media-session control remains pending |
+| PL-011 | Conforms in implementation | Media-playback foreground service, notification, and media session share authoritative coordinator state; physical qualification pending |
+| PL-012 | Conforms in implementation | Pause/stop end playback; play, resume, seek, skip, and speed commands are unavailable; physical qualification pending |
 | PL-013 | Partial | The preference controls `FLAG_KEEP_SCREEN_ON` only while the Activity is visible, but it remains set while stopped |
 | PL-014 | Conforms | The engine requests long-duration `AUDIOFOCUS_GAIN` before playback |
 | PL-015 | Conforms | Current ownership allows Android to pause or duck other media and does not guarantee backing-track coexistence |

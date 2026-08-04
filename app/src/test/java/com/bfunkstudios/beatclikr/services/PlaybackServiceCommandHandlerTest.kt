@@ -16,6 +16,14 @@ class PlaybackServiceCommandHandlerTest {
     }
 
     @Test
+    fun mediaPauseAndStopShareTheSameTerminalCommand() {
+        handler.stop()
+        handler.stop()
+
+        verify(exactly = 2) { playback.submit(PlaybackIntent.Stop) }
+    }
+
+    @Test
     fun missingOrUnknownActionNeverStartsOrStopsPlayback() {
         handler.handle(null)
         handler.handle("unexpected")
