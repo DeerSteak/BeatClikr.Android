@@ -37,3 +37,4 @@ google-services.json
 /.claude
 /app/release
 /.kotlin
+/benchmarks/raw

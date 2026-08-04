@@ -2,7 +2,10 @@
 -keep class kotlin.** { *; }
 -keep,allowoptimization class com.bfunkstudios.beatclikr.data.SoundFile { public *; }
 -keep,allowoptimization class com.bfunkstudios.beatclikr.services.FrameAudioMetricsSnapshot { public *; }
+-keep,allowoptimization class com.bfunkstudios.beatclikr.services.AudioFrameCorrelation { public *; }
 -keep,allowoptimization class com.bfunkstudios.beatclikr.services.MetronomeAudioEngine { public *; }
+-keep,allowoptimization interface com.bfunkstudios.beatclikr.services.BenchmarkDiagnosticsEntryPoint { public *; }
+-keep,allowoptimization class com.bfunkstudios.beatclikr.services.BenchmarkPlaybackDiagnostics { public *; }
 -keep,allowoptimization class com.bfunkstudios.beatclikr.services.FramePlaybackPublicationBoundary { *; }
 -keep,allowoptimization class com.bfunkstudios.beatclikr.services.ValidatedStandardConfiguration { *; }
 -keep,allowoptimization class com.bfunkstudios.beatclikr.services.ValidatedPolyrhythmConfiguration { *; }

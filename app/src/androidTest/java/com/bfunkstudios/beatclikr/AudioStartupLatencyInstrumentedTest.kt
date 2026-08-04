@@ -1,6 +1,5 @@
 package com.bfunkstudios.beatclikr
 
-import android.os.SystemClock
 import android.util.Log
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.LargeTest
@@ -11,6 +10,7 @@ import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.math.ceil
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -57,20 +57,26 @@ class AudioStartupLatencyInstrumentedTest {
     private fun measureStart(engine: MetronomeAudioEngine): Long {
         val firstCallback = AtomicBoolean(true)
         val latch = CountDownLatch(1)
-        var predictedPresentationNanos = 0L
-        val requestNanos = SystemClock.elapsedRealtimeNanos()
+        var firstEventFrame = 0L
+        var obtainedSampleRate = 0
+        val requestNanos = System.nanoTime()
         val session = RenderedEventTestSession.standard(
             engine, TEST_BPM, TEST_SUBDIVISIONS, null, false
         ) { records, sampleRate ->
             records.forEach { event ->
                 if (firstCallback.compareAndSet(true, false)) {
-                    predictedPresentationNanos =
-                        event.intendedFrame * 1_000_000_000L / sampleRate
+                    firstEventFrame = event.intendedFrame
+                    obtainedSampleRate = sampleRate
                     latch.countDown()
                 }
             }
         }
         assertTrue("First beat timed out", latch.await(START_TIMEOUT_SECONDS, TimeUnit.SECONDS))
+        val metrics = awaitFrameAudioMetrics(engine) { it.frameCorrelation != null }
+        val correlation = requireNotNull(metrics.frameCorrelation)
+        assertEquals(obtainedSampleRate, metrics.sampleRate)
+        val predictedPresentationNanos = correlation.presentationNanoTime +
+            (firstEventFrame - correlation.presentedFrame) * 1_000_000_000L / obtainedSampleRate
         session.close()
         Thread.sleep(STOP_SETTLE_MILLIS)
         return predictedPresentationNanos - requestNanos
@@ -78,7 +84,10 @@ class AudioStartupLatencyInstrumentedTest {
 
     private fun assertBaselineSanity(label: String, values: List<Long>) {
         assertTrue("$label sample count was incomplete", values.size == SAMPLE_COUNT)
-        assertTrue("$label startup exceeded baseline sanity limit", values.max() <= 500_000_000L)
+        assertTrue("$label startup contained a negative duration", values.min() >= 0L)
+        assertTrue("$label p50 exceeded TB-007", percentile(values, 0.50) <= 175_000_000L)
+        assertTrue("$label p95 exceeded TB-007", percentile(values, 0.95) <= 225_000_000L)
+        assertTrue("$label p99 exceeded TB-007", percentile(values, 0.99) <= 300_000_000L)
     }
 
     private fun logMetrics(label: String, values: List<Long>) {

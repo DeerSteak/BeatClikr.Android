@@ -47,6 +47,25 @@ internal data class PolyrhythmContractFixture(
     }
 }
 
+internal fun PolyrhythmContractFixture.eventsBefore(
+    bpm: Int,
+    durationMinutes: Int
+): List<PolyrhythmContractEvent> {
+    require(bpm > 0 && durationMinutes > 0)
+    val limit = durationMinutes.toLong() * 60 * bpm * gridSize
+    val slotDurationNumerator = against.toLong() * 60
+    val result = ArrayList<PolyrhythmContractEvent>()
+    var cycle = 0L
+    while (true) {
+        for (event in events) {
+            val globalSlot = cycle * gridSize + event.stepIndex
+            if (globalSlot * slotDurationNumerator >= limit) return result
+            result += event
+        }
+        cycle++
+    }
+}
+
 internal object PolyrhythmContractFixtures {
     val allRatios = (1..15).flatMap { beats ->
         (1..15).map { against -> PolyrhythmContractFixture(beats, against) }

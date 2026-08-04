@@ -18,7 +18,13 @@ android {
         versionCode = 2026051602
         versionName = "4.1.0"
 
-        testInstrumentationRunner = "com.bfunkstudios.beatclikr.HiltTestRunner"
+        testInstrumentationRunner = if (
+            providers.gradleProperty("beatclikr.testBuildType").orNull == "benchmark"
+        ) {
+            "androidx.test.runner.AndroidJUnitRunner"
+        } else {
+            "com.bfunkstudios.beatclikr.HiltTestRunner"
+        }
         vectorDrawables {
             useSupportLibrary = true
         }
@@ -136,6 +142,7 @@ dependencies {
     androidTestImplementation("com.google.dagger:hilt-android-testing:2.59.2")
     kspAndroidTest("com.google.dagger:hilt-compiler:2.59.2")
     androidTestImplementation("androidx.test.espresso:espresso-core:3.7.0")
+    androidTestImplementation("androidx.test.uiautomator:uiautomator:2.3.0")
     androidTestImplementation(platform("androidx.compose:compose-bom:2026.05.00"))
     androidTestImplementation("androidx.compose.ui:ui-test-junit4")
     debugImplementation("androidx.compose.ui:ui-tooling")

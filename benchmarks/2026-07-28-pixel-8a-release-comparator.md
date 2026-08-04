@@ -1,5 +1,7 @@
 # Pixel 8a Release Comparator
 
+> **Startup correction (2026-08-03):** the startup calculation below mixed a relative intended frame with an absolute clock and is invalid. Do not use its startup distribution as TB-007 evidence. The corrected same-clock `AudioTimestamp` result is recorded in `benchmarks/2026-08-03-phase-8-startup-latency.md`. Other comparator measurements are unaffected by this correction.
+
 **Date:** 2026-07-28  
 **Source:** `df07bdd65a0801e0f102289620ea3efd16f31b9d` plus comparator-harness-only changes  
 **Device:** Pixel 8a, Android 17, build `CP2A.260705.006`  

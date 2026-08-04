@@ -151,7 +151,7 @@ These differences deserve product review before implementation work begins.
 | TB-004 | Partial | The two-minute 240 BPM recording had no missing or doubled onsets; the required one-hour dense run is absent |
 | TB-005 | Partial | The same recording met the percentile limits for one short maximum-density condition, not the required one-hour multi-condition population |
 | TB-006 | Partial | The two-minute fitted endpoint error was −2.536 ms; the required one-hour drift evidence is absent |
-| TB-007 | Partial | Thirty cold and thirty warm release-equivalent starts fit the accepted limits on the built-in-speaker route; other routes remain unevidenced |
+| TB-007 | Fails in current reference | The corrected 30-cold/30-warm release-equivalent Pixel 8a run fails p50 for both populations and p95/p99 for cold starts; the earlier passing calculation mixed clock domains and is invalid |
 | TB-008 | Conforms in current reference | The release-equivalent five-minute, 30-minute, and one-hour maximum-density runs all reported zero underruns |
 | TB-009 | Differs | Tempo changes neither restart at the contract origin nor operate in sample frames |
 | TB-010 | Unevidenced | No atomic command-boundary implementation or randomized test exists |

@@ -28,19 +28,20 @@ class AudioEngineInstrumentedTest {
 
     @Test
     fun allProductionSoundsDecodeInBothBanks() {
-        val cache = PcmFileCache(context, SAMPLE_RATE)
-
-        SoundBank.entries.forEach { bank ->
-            val result = cache.prepare(SoundFile.entries, bank)
-            assertTrue(
-                "${bank.name} preparation failed: $result",
-                result is SoundPreparationResult.Success
-            )
-            val prepared = requireNotNull(cache.preparedBank(bank))
-            assertEquals(SoundFile.entries.size, prepared.size)
-            SoundFile.entries.forEach { sound ->
-                val waveform = requireNotNull(prepared.waveform(sound))
-                assertTrue("${sound.name}/${bank.name} decoded empty", waveform.size > 0)
+        SAMPLE_RATES.forEach { sampleRate ->
+            val cache = PcmFileCache(context, sampleRate)
+            SoundBank.entries.forEach { bank ->
+                val result = cache.prepare(SoundFile.entries, bank)
+                assertTrue(
+                    "$sampleRate/${bank.name} preparation failed: $result",
+                    result is SoundPreparationResult.Success
+                )
+                val prepared = requireNotNull(cache.preparedBank(bank))
+                assertEquals(SoundFile.entries.size, prepared.size)
+                SoundFile.entries.forEach { sound ->
+                    val waveform = requireNotNull(prepared.waveform(sound))
+                    assertTrue("$sampleRate/${sound.name}/${bank.name} decoded empty", waveform.size > 0)
+                }
             }
         }
     }
@@ -166,7 +167,7 @@ class AudioEngineInstrumentedTest {
 
     private companion object {
         const val TAG = "BeatClikrAudioBaseline"
-        const val SAMPLE_RATE = 44_100
+        val SAMPLE_RATES = listOf(44_100, 48_000)
         const val MAX_TEST_BPM = 240f
         const val TEST_SUBDIVISIONS = 4
         const val METRONOME_EVENT_COUNT = 48

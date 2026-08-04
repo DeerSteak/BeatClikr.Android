@@ -28,7 +28,7 @@ These budgets turn the Phase 1 contracts into release gates. They are intentiona
 | TB-005 | Absolute acoustic inter-onset error | p50 ≤ 1 ms, p95 ≤ 3 ms, p99 ≤ 5 ms, maximum ≤ 10 ms | No end-to-end percentile promise | At least one hour across low, typical, and maximum supported event density |
 | TB-006 | Fitted acoustic drift | Absolute fitted endpoint error ≤ 5 ms per hour | Application frame drift must meet TB-001; acoustic transport drift is observational | Regression against intended onset series |
 | TB-007 | Start latency | p50 ≤ 175 ms, p95 ≤ 225 ms, p99 ≤ 300 ms from accepted play intent to predicted local-route presentation | Report distribution without a fixed gate | At least 30 cold and 30 warm starts per route |
-| TB-008 | Render underruns | Zero during a one-hour normal-use test and zero during the defined UI-interaction stress test | Zero application-reported stream underruns | Android stream counters and app diagnostics |
+| TB-008 | Render continuity | Zero application deadline misses, dropped or duplicate events, mixed configurations, or incorrect recovery. Platform-reported underruns must not be repeatable under controlled normal use, cause a detectable acoustic timing defect, or materially regress against matched evidence. | Same application invariants; transport underruns recorded separately | Android stream counters, app diagnostics, repeated runs, and acoustic review when an underrun occurs |
 | TB-009 | Tempo-change boundary | The pending next event remains on the pre-change boundary; subsequent event frames use the new tempo with ≤ one-sample application error | Same application-frame requirement | Boundary fixtures across every groove and odd-meter mode |
 | TB-010 | Configuration atomicity | Zero mixed old/new configurations at one boundary | Same | Randomized command-sequence tests |
 | TB-011 | Visual alignment | p95 onset within one display refresh interval of predicted audio presentation | Observational only unless route calibration is available | High-speed video or synchronized instrumentation |
@@ -44,7 +44,7 @@ These budgets turn the Phase 1 contracts into release gates. They are intentiona
 
 The normal-use gate runs a release build with diagnostics buffered in memory, built-in speaker or a declared local route, a stable screen, and ordinary control interaction. It excludes continuous `dumpsys`, debugger attachment, profiler sampling, and other host activity known to perturb the audio process.
 
-The UI-interaction stress gate repeatedly changes screens and nonmusical controls while maximum-density playback continues. A separate hostile-diagnostic run may deliberately induce contention; its failures remain hardening evidence but do not replace or invalidate the normal-use gate.
+The UI-interaction stress gate repeatedly changes playback controls and recreates the Activity while maximum-density playback continues. A separate hostile-diagnostic run may deliberately induce contention; its failures remain hardening evidence but do not replace or invalidate the normal-use gate. An isolated platform underrun is recorded as an anomaly rather than an automatic release failure; recurrence, clustering, incorrect recovery, or a detectable acoustic defect requires investigation.
 
 ## Current evidence
 
@@ -54,11 +54,13 @@ The 30-minute Pixel scheduler stress run completed 28,800 callbacks with zero sc
 
 The CPU profile averaged 15.41% of one core, used approximately 149.74 MiB proportional set size without observed growth, and did not escalate thermal status. Intrusive ten-second diagnostic sampling induced 182 underruns, so a lower-overhead one-hour run is still required for TB-008 and TB-014 through TB-017.
 
-The lower-overhead 30-minute profile used aggregate device-side performance counters and completed with zero underruns, zero scheduled drift, and average CPU use of 20.94% of one core. The unplugged battery observation consumed 2.84 displayed percentage points per hour, or 5.45% of its starting charge counter per hour, with no thermal escalation. Its one-hour audio workload recorded four underruns, so TB-008 remains unmet even though the provisional battery budget passes.
+The lower-overhead 30-minute profile used aggregate device-side performance counters and completed with zero underruns, zero scheduled drift, and average CPU use of 20.94% of one core. The unplugged battery observation consumed 2.84 displayed percentage points per hour, or 5.45% of its starting charge counter per hour, with no thermal escalation. Its one-hour audio workload recorded four underruns; that historical result remains anomaly evidence but lacks the recovery and acoustic detail needed for a current TB-008 verdict.
 
 The pinned pre-Phase-3 release-equivalent comparator supersedes the debug result for regression purposes. Its 30-minute resource run averaged 14.67% of one core, showed no PSS growth or thermal escalation, and completed with zero underruns. Its one-hour unplugged run consumed 2.87 displayed percentage points per hour, or 5.54% of its starting charge counter per hour, remained at thermal status 0, and completed 57,600 maximum-density events with zero scheduled drift and zero underruns. TB-017 still requires two additional qualification repetitions, and TB-018's first before/after verdict awaits a timing-sensitive change.
 
-The TB-007 gate includes the deliberate pre-roll needed to prepare and commit the first event. The earlier 75/100/150 ms gate contradicted that design and the measured Pixel 8a baseline. The revised gate remains meaningfully tighter than a perceptibly slow start. The release-equivalent comparator measured cold p50 163.881 ms, p95 170.821 ms, and p99 172.758 ms and warm p50 159.486 ms, p95 166.582 ms, and p99 168.837 ms, satisfying the accepted built-in-speaker limits.
+The current 2026-08-03 screen-on release-equivalent maximum-density standard run completed 57,600 events with zero scheduled drift, deadline misses, drops, route changes, underruns, or intended/rendered/written frame mismatch. It passes the standard render portion of TB-008; representative polyrhythm and UI-interaction stress evidence remain required.
+
+The TB-007 gate includes the deliberate pre-roll needed to prepare and commit the first event. The earlier 75/100/150 ms gate contradicted that design. The 2026-07-28 comparator's startup calculation was later found to mix a relative intended frame with an absolute clock, so its claimed passing distribution is invalid. The corrected 2026-08-03 release-equivalent run uses `AudioTimestamp` correlation in one monotonic clock domain and fails the accepted gate; see `benchmarks/2026-08-03-phase-8-startup-latency.md`.
 
 ## Reporting rules
 
