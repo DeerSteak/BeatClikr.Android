@@ -32,6 +32,7 @@
     <string name="playback_notification_title">BeatClikr</string>
     <string name="playback_notification_active">Metronome playing</string>
     <string name="playback_notification_stop">Stop</string>
+    <string name="background_playback_unavailable">Playback stopped because Android could not start the background playback service.</string>
     <string name="practice_reminder_notification_title">Time to Practice!</string>
     <string name="practice_reminder_notification_body">It\'s time to practice! Play each day to build up a practice streak.</string>
     <string name="practice_reminder_notification_body_practiced_today">You\'ve practiced some today, but this is your reminder to play.</string>

@@ -9,6 +9,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class PlaybackForegroundServiceControllerTest {
@@ -18,9 +19,13 @@ class PlaybackForegroundServiceControllerTest {
         every { committedEvents } returns MutableSharedFlow()
     }
     private val gateway = RecordingGateway()
+    private val control = mockk<IAudioPlayerService>(relaxed = true)
+    private val failures = OperationalFailureReporter()
     private val controller = PlaybackForegroundServiceController(
         playback,
+        control,
         gateway,
+        failures,
         CoroutineScope(SupervisorJob() + Dispatchers.Unconfined)
     )
 
@@ -56,6 +61,23 @@ class PlaybackForegroundServiceControllerTest {
         assertEquals(1, gateway.starts)
     }
 
+    @Test
+    fun rejectedServiceStartStopsPlaybackAndKeepsObserving() {
+        gateway.failNextStart = true
+        controller.start()
+
+        transport.value = PlaybackTransportState.Preparing(context())
+
+        io.mockk.verify { control.submit(PlaybackIntent.Stop) }
+        assertEquals(FailureDomain.FOREGROUND_SERVICE, failures.failure.value?.domain)
+
+        transport.value = PlaybackTransportState.Idle
+        transport.value = PlaybackTransportState.Preparing(context())
+
+        assertEquals(2, gateway.starts)
+        assertTrue(gateway.running)
+    }
+
     private fun context() = PlaybackSessionContext(
         PlaybackSessionId(9),
         PlaybackMode.STANDARD,
@@ -67,13 +89,21 @@ class PlaybackForegroundServiceControllerTest {
     private class RecordingGateway : PlaybackForegroundServiceGateway {
         var starts = 0
         var stops = 0
+        var failNextStart = false
+        var running = false
 
         override fun start() {
             starts += 1
+            if (failNextStart) {
+                failNextStart = false
+                throw IllegalStateException("start restricted")
+            }
+            running = true
         }
 
         override fun stop() {
             stops += 1
+            running = false
         }
     }
 }

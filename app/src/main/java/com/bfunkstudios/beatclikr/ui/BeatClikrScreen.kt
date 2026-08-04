@@ -75,19 +75,26 @@ fun BeatClikrApp(
     val failureSnackbar = remember { SnackbarHostState() }
     val dataFailureMessage = stringResource(R.string.data_operation_failed)
     val reminderFailureMessage = stringResource(R.string.reminder_operation_failed)
+    val playbackServiceFailureMessage = stringResource(R.string.background_playback_unavailable)
     val dismissLabel = stringResource(R.string.dismiss)
     val openSettingsLabel = stringResource(R.string.open_settings)
     LaunchedEffect(
         operationalFailure,
         dataFailureMessage,
         reminderFailureMessage,
+        playbackServiceFailureMessage,
         dismissLabel,
         openSettingsLabel
     ) {
         val failure = operationalFailure ?: return@LaunchedEffect
         val isReminder = failure.domain == FailureDomain.REMINDER
+        val message = when (failure.domain) {
+            FailureDomain.REMINDER -> reminderFailureMessage
+            FailureDomain.FOREGROUND_SERVICE -> playbackServiceFailureMessage
+            else -> dataFailureMessage
+        }
         val result = failureSnackbar.showSnackbar(
-            message = if (isReminder) reminderFailureMessage else dataFailureMessage,
+            message = message,
             actionLabel = if (isReminder) openSettingsLabel else dismissLabel,
             withDismissAction = true
         )

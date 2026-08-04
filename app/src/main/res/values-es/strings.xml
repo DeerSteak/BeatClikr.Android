@@ -32,6 +32,7 @@
     <string name="playback_notification_title">BeatClikr</string>
     <string name="playback_notification_active">Metrónomo en reproducción</string>
     <string name="playback_notification_stop">Detener</string>
+    <string name="background_playback_unavailable">La reproducción se detuvo porque Android no pudo iniciar el servicio de reproducción en segundo plano.</string>
     <string name="practice_reminder_notification_title">¡Es hora de practicar!</string>
     <string name="practice_reminder_notification_body">¡Es hora de practicar! Toca cada día para acumular una racha de práctica.</string>
     <string name="practice_reminder_notification_body_practiced_today">Has practicado un poco hoy, pero este es tu recordatorio para tocar.</string>

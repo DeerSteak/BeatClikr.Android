@@ -37,7 +37,9 @@ class AndroidPlaybackForegroundServiceGateway @Inject constructor(
 @Singleton
 class PlaybackForegroundServiceController @Inject constructor(
     private val playback: PlaybackObservation,
+    private val control: IAudioPlayerService,
     private val gateway: PlaybackForegroundServiceGateway,
+    private val failures: OperationalFailureReporter,
     @param:ApplicationScope private val scope: CoroutineScope
 ) {
     private var collectionJob: Job? = null
@@ -50,8 +52,32 @@ class PlaybackForegroundServiceController @Inject constructor(
                 .map { it is PlaybackTransportState.SessionState }
                 .distinctUntilChanged()
                 .collect { active ->
-                    if (active) gateway.start() else gateway.stop()
+                    if (active) startServiceOrStopPlayback() else stopService()
                 }
         }
     }
+
+    private fun startServiceOrStopPlayback() {
+        try {
+            gateway.start()
+        } catch (failure: RuntimeException) {
+            failures.report(foregroundServiceFailure())
+            control.submit(PlaybackIntent.Stop)
+        }
+    }
+
+    private fun stopService() {
+        try {
+            gateway.stop()
+        } catch (failure: RuntimeException) {
+            failures.report(foregroundServiceFailure())
+        }
+    }
+
+    private fun foregroundServiceFailure() = OperationalFailure(
+        FailureDomain.FOREGROUND_SERVICE,
+        "foreground_service_unavailable",
+        FailureDisposition.USER_ACTIONABLE,
+        FailureRecoveryAction.NONE
+    )
 }

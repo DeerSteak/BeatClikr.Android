@@ -17,7 +17,8 @@ enum class FailureDomain {
     REMINDER,
     HAPTIC,
     TORCH,
-    SCHEDULER
+    SCHEDULER,
+    FOREGROUND_SERVICE
 }
 
 enum class FailureDisposition {
