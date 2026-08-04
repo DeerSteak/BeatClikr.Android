@@ -49,7 +49,7 @@ class PlaybackForegroundServiceController @Inject constructor(
         if (collectionJob != null) return
         collectionJob = scope.launch {
             playback.transportState
-                .map { it is PlaybackTransportState.SessionState }
+                .map { it.requiresForegroundService }
                 .distinctUntilChanged()
                 .collect { active ->
                     if (active) startServiceOrStopPlayback() else stopService()
@@ -81,3 +81,14 @@ class PlaybackForegroundServiceController @Inject constructor(
         FailureRecoveryAction.NONE
     )
 }
+
+internal val PlaybackTransportState.requiresForegroundService: Boolean
+    get() = when (this) {
+        is PlaybackTransportState.Preparing,
+        is PlaybackTransportState.Starting,
+        is PlaybackTransportState.Playing,
+        is PlaybackTransportState.Stopping -> true
+        PlaybackTransportState.Idle,
+        is PlaybackTransportState.Interrupted,
+        is PlaybackTransportState.Failed -> false
+    }

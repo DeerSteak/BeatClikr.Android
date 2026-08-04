@@ -52,6 +52,36 @@ class PlaybackForegroundServiceControllerTest {
     }
 
     @Test
+    fun interruptionEndsServiceLifetime() {
+        controller.start()
+        transport.value = PlaybackTransportState.Playing(audibleContext())
+
+        transport.value = PlaybackTransportState.Interrupted(
+            audibleContext(),
+            PlaybackInterruptionReason.AudioFocusLost
+        )
+
+        assertEquals(1, gateway.starts)
+        assertEquals(2, gateway.stops)
+        assertTrue(!gateway.running)
+    }
+
+    @Test
+    fun failureEndsServiceLifetime() {
+        controller.start()
+        transport.value = PlaybackTransportState.Preparing(context())
+
+        transport.value = PlaybackTransportState.Failed(
+            context(),
+            PlaybackFailureReason.Engine("test failure")
+        )
+
+        assertEquals(1, gateway.starts)
+        assertEquals(2, gateway.stops)
+        assertTrue(!gateway.running)
+    }
+
+    @Test
     fun repeatedStartDoesNotInstallAnotherCollector() {
         controller.start()
         controller.start()
@@ -84,6 +114,16 @@ class PlaybackForegroundServiceControllerTest {
         CommittedPlaybackConfiguration.Standard(120f, 1, null, false, false),
         startOrigin = PlaybackStartOrigin.USER,
         practiceItem = PracticeItemSnapshot.metronome()
+    )
+
+    private fun audibleContext() = context().copy(
+        audibleSounds = ActiveSoundConfiguration(
+            com.bfunkstudios.beatclikr.data.SoundBank.ACOUSTIC,
+            com.bfunkstudios.beatclikr.data.SoundFile.CLICK_HI,
+            com.bfunkstudios.beatclikr.data.SoundFile.CLICK_LO
+        ),
+        route = AudioOutputRoute.BUILT_IN,
+        backend = AudioBackendType.AUDIO_TRACK
     )
 
     private class RecordingGateway : PlaybackForegroundServiceGateway {

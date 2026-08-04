@@ -23,7 +23,7 @@ class BeatClikrApplication : Application() {
     @Inject lateinit var audioPlayerService: IAudioPlayerService
     @Inject lateinit var prefs: IAppPreferences
     @Inject lateinit var practiceAccounting: PracticeAccountingCoordinator
-    @Inject lateinit var playbackService: PlaybackForegroundServiceController
+    @Inject lateinit var playbackServiceController: PlaybackForegroundServiceController
 
     override fun onCreate() {
         super.onCreate()
@@ -33,7 +33,7 @@ class BeatClikrApplication : Application() {
         }
         audioPlayerService.submit(PlaybackIntent.Prewarm)
         practiceAccounting.start()
-        playbackService.start()
+        playbackServiceController.start()
         secondaryOutputs.start()
         ProcessLifecycleOwner.get().lifecycle.addObserver(
             SecondaryOutputProcessLifecycleObserver(secondaryOutputs)

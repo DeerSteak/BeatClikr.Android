@@ -10,7 +10,6 @@ import android.content.pm.ServiceInfo
 import android.graphics.drawable.Icon
 import android.media.MediaMetadata
 import android.media.session.MediaSession
-import android.media.session.PlaybackState
 import android.os.IBinder
 import java.io.FileDescriptor
 import java.io.PrintWriter
@@ -26,7 +25,6 @@ import kotlinx.coroutines.launch
 
 @AndroidEntryPoint
 class PlaybackForegroundService : Service() {
-    @Inject lateinit var commands: PlaybackServiceCommandHandler
     @Inject lateinit var playback: PlaybackObservation
     @Inject lateinit var audio: IAudioPlayerService
     @Inject @ApplicationScope lateinit var scope: CoroutineScope
@@ -51,7 +49,7 @@ class PlaybackForegroundService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        commands.handle(intent?.action)
+        playbackIntentForServiceAction(intent?.action)?.let(audio::submit)
         return START_NOT_STICKY
     }
 
@@ -93,8 +91,8 @@ class PlaybackForegroundService : Service() {
 
     private fun createMediaSession() = MediaSession(this, "BeatClikrPlayback").apply {
         setCallback(object : MediaSession.Callback() {
-            override fun onPause() = commands.stop()
-            override fun onStop() = commands.stop()
+            override fun onPause() = stopPlayback()
+            override fun onStop() = stopPlayback()
         })
         setMetadata(
             MediaMetadata.Builder()
@@ -132,88 +130,13 @@ class PlaybackForegroundService : Service() {
         getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
     }
 
+    private fun stopPlayback() {
+        audio.submit(PlaybackIntent.Stop)
+    }
+
     companion object {
         const val ACTION_STOP = "com.bfunkstudios.beatclikr.action.STOP_PLAYBACK"
         private const val CHANNEL_ID = "active_playback"
         private const val NOTIFICATION_ID = 2001
-    }
-}
-
-class PlaybackServiceCommandHandler @Inject constructor(
-    private val playback: IAudioPlayerService
-) {
-    fun handle(action: String?) {
-        if (action == PlaybackForegroundService.ACTION_STOP) {
-            stop()
-        }
-    }
-
-    fun stop() {
-        playback.submit(PlaybackIntent.Stop)
-    }
-}
-
-internal fun PlaybackTransportState.toSystemPlaybackState(): PlaybackState {
-    val projection = toSystemPlaybackProjection()
-    val state = when (projection.status) {
-        SystemPlaybackStatus.STOPPED -> PlaybackState.STATE_STOPPED
-        SystemPlaybackStatus.CONNECTING -> PlaybackState.STATE_CONNECTING
-        SystemPlaybackStatus.PLAYING -> PlaybackState.STATE_PLAYING
-        SystemPlaybackStatus.STOPPING -> PlaybackState.STATE_STOPPED
-    }
-    return PlaybackState.Builder()
-        .setActions(PlaybackState.ACTION_PAUSE or PlaybackState.ACTION_STOP)
-        .setState(state, PlaybackState.PLAYBACK_POSITION_UNKNOWN, 1f)
-        .build()
-}
-
-internal enum class SystemPlaybackStatus { STOPPED, CONNECTING, PLAYING, STOPPING }
-
-internal data class SystemPlaybackProjection(
-    val status: SystemPlaybackStatus,
-    val canPause: Boolean = true,
-    val canStop: Boolean = true,
-    val canPlay: Boolean = false,
-    val canSeek: Boolean = false,
-    val canSkip: Boolean = false,
-    val canChangeSpeed: Boolean = false
-)
-
-internal fun PlaybackTransportState.toSystemPlaybackProjection() = SystemPlaybackProjection(
-    when (this) {
-        PlaybackTransportState.Idle -> SystemPlaybackStatus.STOPPED
-        is PlaybackTransportState.Preparing,
-        is PlaybackTransportState.Starting -> SystemPlaybackStatus.CONNECTING
-        is PlaybackTransportState.Playing -> SystemPlaybackStatus.PLAYING
-        is PlaybackTransportState.Stopping -> SystemPlaybackStatus.STOPPING
-        is PlaybackTransportState.Interrupted,
-        is PlaybackTransportState.Failed -> SystemPlaybackStatus.STOPPED
-    }
-)
-
-internal object PlaybackServiceDiagnostics {
-    fun format(state: PlaybackTransportState, metrics: FrameAudioMetricsSnapshot?): String {
-        val session = (state as? PlaybackTransportState.SessionState)?.context?.sessionId?.value
-        return buildString {
-            append("transport=").append(state.diagnosticName)
-            append(" session=").append(session ?: "none")
-            if (metrics == null) {
-                append(" metrics=unavailable")
-                return@buildString
-            }
-            append(" backend=").append(metrics.backend)
-            append(" route=").append(metrics.route)
-            append(" sampleRate=").append(metrics.sampleRate)
-            append(" queuedClicks=").append(metrics.queuedClicks)
-            append(" intendedFrames=").append(metrics.intendedFrames)
-            append(" renderedFrames=").append(metrics.renderedFrames)
-            append(" writtenFrames=").append(metrics.writtenFrames)
-            append(" deadlineMisses=").append(metrics.deadlineMisses)
-            append(" droppedEvents=").append(metrics.droppedEvents)
-            append(" underruns=").append(metrics.underrunCount)
-            append(" underrunSkippedFrames=").append(metrics.underrunSkippedFrames)
-            append(" routeChanges=").append(metrics.routeChangeCount)
-            append(" backendFailure=").append(metrics.latestBackendFailure ?: "none")
-        }
     }
 }
