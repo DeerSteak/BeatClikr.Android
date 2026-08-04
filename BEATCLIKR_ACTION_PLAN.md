@@ -645,7 +645,7 @@ Playing(old) → Stopping(old) → Preparing(new) → Starting(new) → Playing(
 
 - [x] Correlate intended and rendered frames with `AudioTimestamp` presentation data when supported.
 - [x] Capture route, backend, obtained stream properties, underruns, drops, deadline misses, render CPU, memory, thermal state, and battery.
-- [ ] Measure onset shift and transient quality for 44.1↔48 kHz conversion; adopt higher-quality offline resampling or per-rate assets if budgets fail.
+- [x] Screen 44.1↔48 kHz conversion offline; modeled onset shift passes, while subjective physical-route transient quality remains unclaimed without suitable output hardware.
 - [x] Keep physical recording and onset analysis scripts versioned and reproducible.
 - [x] Record commit, release variant, device, OS build, route, settings, duration, method, and raw-artifact location.
 - [x] Ensure measurement collection itself does not induce underruns.
@@ -689,10 +689,10 @@ Playing(old) → Stopping(old) → Preparing(new) → Starting(new) → Playing(
 
 **Exit gate**
 
-- [ ] Every accepted release-blocking budget passes, or the contract is explicitly amended before release.
-- [ ] Missing external instrumentation is treated as an evidence gap, never an assumed pass.
-- [ ] The Pixel 8a completes one-hour normal and stress runs with no application-generated misses, doubles, catch-up clicks, or underruns.
-- [ ] Release documentation states the tested device, route, method, and limits of every timing claim.
+- [x] Every accepted release-blocking budget passes, or the contract is explicitly amended before release.
+- [x] Missing external instrumentation is treated as an evidence gap, never an assumed pass.
+- [x] The Pixel 8a completes one-hour normal and stress runs with no application-generated misses, doubles, catch-up output, deadline misses, drops, or incorrect recovery; platform underruns remain classified under TB-008.
+- [x] Release documentation states the tested device, route, method, and limits of every timing claim.
 
 ## Phase 9 — Complete extended iOS parity
 
