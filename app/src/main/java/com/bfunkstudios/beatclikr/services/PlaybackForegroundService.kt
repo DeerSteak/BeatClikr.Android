@@ -12,6 +12,8 @@ import android.media.MediaMetadata
 import android.media.session.MediaSession
 import android.media.session.PlaybackState
 import android.os.IBinder
+import java.io.FileDescriptor
+import java.io.PrintWriter
 import androidx.core.app.ServiceCompat
 import com.bfunkstudios.beatclikr.MainActivity
 import com.bfunkstudios.beatclikr.R
@@ -26,6 +28,7 @@ import kotlinx.coroutines.launch
 class PlaybackForegroundService : Service() {
     @Inject lateinit var commands: PlaybackServiceCommandHandler
     @Inject lateinit var playback: PlaybackObservation
+    @Inject lateinit var audio: IAudioPlayerService
     @Inject @ApplicationScope lateinit var scope: CoroutineScope
     private lateinit var mediaSession: MediaSession
     private var stateJob: Job? = null
@@ -53,6 +56,13 @@ class PlaybackForegroundService : Service() {
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
+
+    override fun dump(fd: FileDescriptor, writer: PrintWriter, args: Array<out String>) {
+        writer.println(PlaybackServiceDiagnostics.format(
+            playback.transportState.value,
+            audio.getFrameAudioMetricsSnapshot()
+        ))
+    }
 
     override fun onDestroy() {
         stateJob?.cancel()
@@ -180,3 +190,30 @@ internal fun PlaybackTransportState.toSystemPlaybackProjection() = SystemPlaybac
         is PlaybackTransportState.Failed -> SystemPlaybackStatus.STOPPED
     }
 )
+
+internal object PlaybackServiceDiagnostics {
+    fun format(state: PlaybackTransportState, metrics: FrameAudioMetricsSnapshot?): String {
+        val session = (state as? PlaybackTransportState.SessionState)?.context?.sessionId?.value
+        return buildString {
+            append("transport=").append(state.diagnosticName)
+            append(" session=").append(session ?: "none")
+            if (metrics == null) {
+                append(" metrics=unavailable")
+                return@buildString
+            }
+            append(" backend=").append(metrics.backend)
+            append(" route=").append(metrics.route)
+            append(" sampleRate=").append(metrics.sampleRate)
+            append(" queuedClicks=").append(metrics.queuedClicks)
+            append(" intendedFrames=").append(metrics.intendedFrames)
+            append(" renderedFrames=").append(metrics.renderedFrames)
+            append(" writtenFrames=").append(metrics.writtenFrames)
+            append(" deadlineMisses=").append(metrics.deadlineMisses)
+            append(" droppedEvents=").append(metrics.droppedEvents)
+            append(" underruns=").append(metrics.underrunCount)
+            append(" underrunSkippedFrames=").append(metrics.underrunSkippedFrames)
+            append(" routeChanges=").append(metrics.routeChangeCount)
+            append(" backendFailure=").append(metrics.latestBackendFailure ?: "none")
+        }
+    }
+}

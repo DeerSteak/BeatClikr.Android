@@ -41,3 +41,5 @@ Song, playlist, and practice repositories adapt Room DAOs into flows and suspend
 ## Lifecycle policy
 
 `PlaybackForegroundServiceController` maps authoritative session versus idle state to one media-playback foreground service. The service shares the application-scoped coordinator, publishes a persistent stop-only notification and media session, and never starts or resumes playback. Pause and stop both end the phase; play, seek, skip, and speed commands are absent. Process visibility gates only haptic and flashlight effects, and an individual Activity owns its keep-awake flag. If notification permission is denied, Android may omit the drawer notification while retaining the required foreground-service disclosure in system task management.
+
+The service's read-only `dumpsys activity service` output exposes authoritative transport identity and buffered frame, deadline, drop, underrun, route, and backend-failure counters. This supports locked-run qualification without attaching an intrusive profiler or creating a second state channel.
