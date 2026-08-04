@@ -77,8 +77,8 @@ The clauses define the intended completed behavior, not equal delivery priority.
 
 ## Consequences
 
-The shipping Android app currently stops when it leaves the foreground and therefore does not satisfy the iOS-parity background contract. Phase 4 established one authoritative coordinator, audio-confirmed state, session-tagged commands and callbacks, focus ownership, and foreground route policy. Phase 9 remains responsible for background playback and system controls.
-
-The successful screen-off engine instrumentation run is useful feasibility evidence, but Android background playback is not complete until the foreground service, media session, notification controls, focus behavior, navigation behavior, and lifecycle tests satisfy this decision.
+Phase 4 established one authoritative coordinator, audio-confirmed state, session-tagged commands and callbacks, focus ownership, and route policy. Phase 9 adds foreground-service lifetime and stop-only system controls around that same coordinator. Physical background, lock-screen, notification, route-loss, and long-run qualification remains required before closing the phase.
 
 The foreground service and long-duration focus policy are Android platform adaptations. Unlike iOS, Android prioritizes metronome focus ownership over guaranteed mixing with backing tracks. The single-active-mode rule, navigation stops, internal-navigation continuity, song replacement, keep-awake scope, and explicit-restart behavior mirror the iOS application contract.
+
+Phase 9 retains `AUDIOFOCUS_GAIN` as the only approved policy. No separate backing-track coexistence mode has validated demand, so no reduced-focus UI or behavior is implemented. Any future coexistence option requires an explicit amendment to this decision and representative media-player qualification without weakening the default.

@@ -721,11 +721,11 @@ These items are committed parity work, but they do not block the core metronome 
 
 ### 9.3 Evaluate optional backing-track coexistence
 
-- [ ] Keep long-duration `AUDIOFOCUS_GAIN` as the default and primary behavior.
-- [ ] Validate user demand before adding a separate coexistence option.
-- [ ] If implemented, define the option in an ADR amendment before coding it.
-- [ ] Make its reduced interruption guarantees explicit in UI and documentation.
-- [ ] Verify it with representative media players without weakening default focus ownership.
+- [x] Keep long-duration `AUDIOFOCUS_GAIN` as the default and primary behavior.
+- [x] Require validated user demand before adding a separate coexistence option; none is currently approved.
+- [x] Do not implement coexistence without an ADR amendment defining its behavior.
+- [x] Defer coexistence UI and reduced-interruption messaging until such an option is approved.
+- [x] Preserve the physically verified default focus ownership; no coexistence mode requires separate media-player testing.
 
 ### 9.4 Verify extended parity physically
 

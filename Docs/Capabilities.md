@@ -31,6 +31,8 @@ The camera flash is optional, so devices without one remain installable.
 
 An already active metronome session continues under ordinary backgrounding and device lock through a media-playback foreground service. Backgrounding never starts playback. Haptic and flashlight effects remain foreground-only, and the keep-awake preference remains limited to a visible Activity. The persistent notification and lock-screen media session expose terminal pause/stop controls only; they cannot start, resume, seek, skip, or change playback speed. Reminder alarms and receivers operate independently.
 
+Playback remains the primary audio experience and requests long-duration audio focus. There is no backing-track coexistence mode; one would require separately approved behavior and testing.
+
 ## Storage and backup
 
 Room and SharedPreferences store user-authored data locally. Backup uses an allowlist for the database and preferences; generated PCM, transient diagnostics, caches, and files are excluded. The concise offline and no-tracking policy is published in [Privacy.md](Privacy.md). Proprietary WAV files and signing material are never committed.
