@@ -56,7 +56,7 @@ The stream begins writing at the session origin, while the timeline's event orig
 
 `BeatClikrApplication` creates process-scoped dependencies. Activities and ViewModels own user-facing state; audio engines own active playback state and release native resources when playback stops.
 
-Playback is intentionally foreground-only. The app stops active playback when it enters the background instead of maintaining a foreground media service. Background metronome playback is therefore not supported.
+An application-scoped foreground-service controller follows authoritative session state and keeps an already active session alive when the UI backgrounds or the device locks. The service does not own playback state or create another engine; it exists only for Android process priority and notification lifetime. Secondary outputs remain process-visible-only, and the Activity alone owns its keep-awake flag.
 
 ## State and persistence
 

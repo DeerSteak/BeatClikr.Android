@@ -10,12 +10,12 @@ The clause text in `Docs/Decisions/0002-Playback-Lifecycle-and-Outputs.md` remai
 | PL-004 | Typed failed/interrupted transport states | Coordinator and `InstantMetronomeViewTest` diagnostics tests | Built-in smoke | — | Pass |
 | PL-005 | Session-tagged production engine boundary | Coordinator race tests, `PlaybackCoordinatorArchitectureTest` | — | — | Pass |
 | PL-006 | Serialized mode replacement | `modeReplacementStopsOldModeBeforeStartingNewMode` | — | — | Pass |
-| PL-007 | Current foreground teardown intentionally stops audio | Process-lifecycle JVM/integration tests | Route/interruption record | Phase 9 | Deferred |
+| PL-007 | Foreground-service lifetime follows authoritative active sessions; backgrounding never starts playback | Service-controller and process-lifecycle tests | Background/lock observation pending | Phase 9 | Implemented; physical check pending |
 | PL-008 | Tagged focus, route, and backend interruptions | Coordinator async interruption tests; route wiring integration | Focus record; route matrix owner-accepted | — | Pass |
 | PL-009 | Interrupted/failed sessions require explicit restart | `interruptionStopsOnceAndNeverAutomaticallyResumes`, process-death tests | Screen/lock observation | — | Pass |
 | PL-010 | Explicit restart creates a fresh origin/session | `explicitRestartCommitsEvidenceFromNewRoute`, process-death explicit-play test | Screen/lock observation | — | Pass |
-| PL-011 | No foreground playback service yet | Architecture tripwires | — | Phase 9 | Deferred |
-| PL-012 | No media session or system controls yet | Architecture tripwires | — | Phase 9 | Deferred |
+| PL-011 | Media-playback foreground service shares the application coordinator | Service-controller tests and manifest/build checks | Background/lock observation pending | Phase 9 | Partial; media session pending |
+| PL-012 | Persistent stop action never starts playback; media session remains pending | Command-handler tests | Notification observation pending | Phase 9 | Partial |
 | PL-013 | Visible-and-playing keep-awake projection | `InstantMetronomeViewTest` keep-screen tests | Screen/lock observation | — | Pass |
 | PL-014 | `AUDIOFOCUS_GAIN` acquired before start | Audio engine tests | Focus record | — | Pass |
 | PL-015 | Exclusive focus; coexistence not guaranteed | Focus policy tests | YouTube Music paused | — | Pass |
@@ -28,7 +28,7 @@ The clause text in `Docs/Decisions/0002-Playback-Lifecycle-and-Outputs.md` remai
 | PL-022 | Renderer commit is musical authority | Renderer and coordinator committed-event tests | Built-in smoke | — | Pass |
 | PL-023 | Secondary outputs consume committed frame events | `SecondaryOutputCoordinatorTest.committedBeatSchedulesHapticAndBoundedTorchPulse` | — | — | Pass |
 | PL-024 | Correlated or explicitly unavailable presentation time | frame-session timestamp and committed-event tests | — | Calibration is Phase 7/8 | Pass for Phase 4 |
-| PL-025 | Process visibility gates effects separately from audio | Process lifecycle and secondary-output tests | Screen-off observation | Background-audio portion Phase 9 | Partial/deferred |
+| PL-025 | Process visibility gates effects separately from foreground-service audio | Process lifecycle and secondary-output tests | Screen-off observation pending | Phase 9 | Implemented; physical check pending |
 | PL-026 | Secondary disable/failure cannot alter audio | `SecondaryOutputCoordinatorTest` failure tests | — | — | Pass |
 | PL-027 | Retained typed secondary failure | `secondaryFailureIsPublishedWithoutChangingPlayback` | — | — | Pass |
 | PL-028 | Global stop on every top-level destination | Compact/expanded navigation instrumentation | — | — | Pass |

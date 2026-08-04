@@ -18,6 +18,8 @@ import com.bfunkstudios.beatclikr.services.IAudioPlayerService
 import com.bfunkstudios.beatclikr.services.PlaybackCoordinator
 import com.bfunkstudios.beatclikr.services.PlaybackObservation
 import com.bfunkstudios.beatclikr.services.PlaybackLifecycleObservation
+import com.bfunkstudios.beatclikr.services.AndroidPlaybackForegroundServiceGateway
+import com.bfunkstudios.beatclikr.services.PlaybackForegroundServiceGateway
 import com.bfunkstudios.beatclikr.services.PlaybackEnginePort
 import com.bfunkstudios.beatclikr.services.IFlashlightService
 import com.bfunkstudios.beatclikr.services.IHapticFeedbackService
@@ -52,6 +54,11 @@ abstract class AppModule {
 
     @Binds @Singleton
     abstract fun bindPracticeReminderScheduler(impl: PracticeReminderScheduler): IPracticeReminderScheduler
+
+    @Binds @Singleton
+    abstract fun bindPlaybackForegroundServiceGateway(
+        impl: AndroidPlaybackForegroundServiceGateway
+    ): PlaybackForegroundServiceGateway
 
     companion object {
 

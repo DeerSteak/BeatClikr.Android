@@ -27,6 +27,11 @@
     <string name="not_now">Not Now</string>
     <string name="enable">Enable</string>
     <string name="practice_reminder_notification_channel_name">Practice Reminders</string>
+    <string name="playback_notification_channel_name">Metronome playback</string>
+    <string name="playback_notification_channel_description">Controls active metronome playback</string>
+    <string name="playback_notification_title">BeatClikr</string>
+    <string name="playback_notification_active">Metronome playing</string>
+    <string name="playback_notification_stop">Stop</string>
     <string name="practice_reminder_notification_title">Time to Practice!</string>
     <string name="practice_reminder_notification_body">It\'s time to practice! Play each day to build up a practice streak.</string>
     <string name="practice_reminder_notification_body_practiced_today">You\'ve practiced some today, but this is your reminder to play.</string>

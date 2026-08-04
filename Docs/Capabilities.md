@@ -29,7 +29,7 @@ The camera flash is optional, so devices without one remain installable.
 
 ## Background behavior
 
-Metronome playback is foreground-only. Audio and flashlight resources stop when the app leaves the foreground; there is no foreground service, media session, lock-screen control, or background audio promise. Reminder alarms and receivers operate independently of playback.
+An already active metronome session continues under ordinary backgrounding and device lock through a media-playback foreground service. Backgrounding never starts playback. Haptic and flashlight effects remain foreground-only, and the keep-awake preference remains limited to a visible Activity. The current persistent notification can stop playback; media-session and lock-screen integration remain Phase 9 work. Reminder alarms and receivers operate independently.
 
 ## Storage and backup
 

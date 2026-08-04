@@ -40,4 +40,4 @@ Song, playlist, and practice repositories adapt Room DAOs into flows and suspend
 
 ## Lifecycle policy
 
-Playback is foreground-only. A `ProcessLifecycleOwner` stop tears down playback and secondary effects after the process leaves the foreground; an individual Activity stop only clears that window's keep-awake flag. Configuration recreation therefore preserves an active session, while backgrounding or screen-off stops it. No playback foreground service, media session, or media notification exists.
+`PlaybackForegroundServiceController` maps authoritative session versus idle state to one media-playback foreground service. The service shares the application-scoped coordinator, publishes a persistent stop-only notification, and never starts or resumes playback. Process visibility gates only haptic and flashlight effects; an individual Activity owns its keep-awake flag. A media session and synchronized lock-screen metadata remain Phase 9 work.

@@ -13,7 +13,7 @@ class SecondaryOutputProcessLifecycleObserverTest {
 
     @Test
     fun startedProcessEnablesSecondaryOutputs() {
-        val observer = SecondaryOutputProcessLifecycleObserver(outputs) {}
+        val observer = SecondaryOutputProcessLifecycleObserver(outputs)
 
         observer.onStart(owner)
 
@@ -22,23 +22,19 @@ class SecondaryOutputProcessLifecycleObserverTest {
 
     @Test
     fun stoppedProcessDisablesOutputsAndReleasesResources() {
-        var inactiveCalls = 0
-        val observer = SecondaryOutputProcessLifecycleObserver(outputs) { inactiveCalls += 1 }
+        val observer = SecondaryOutputProcessLifecycleObserver(outputs)
 
         observer.onStop(owner)
 
         verify { outputs.setVisible(false) }
-        assertEquals(1, inactiveCalls)
     }
 
     @Test
     fun startedProcessIgnoresActivityOnlyLifecycleChanges() {
-        var inactiveCalls = 0
-        val observer = SecondaryOutputProcessLifecycleObserver(outputs) { inactiveCalls += 1 }
+        val observer = SecondaryOutputProcessLifecycleObserver(outputs)
         observer.onStart(owner)
 
         // Configuration changes, overlays, and multi-window do not emit process ON_STOP.
         verify(exactly = 0) { outputs.setVisible(false) }
-        assertEquals(0, inactiveCalls)
     }
 }

@@ -33,8 +33,8 @@ These differences deserve product review before implementation work begins.
 | MT-022 | Sound replacement is asynchronous and does not restart playback; sound-bank changes clear the cache while the timeline continues | Prepare sounds off the render thread and restart at the mode origin | Differs; the contract favors a deterministic boundary over uninterrupted phase |
 | MT-030 through MT-032 | Late polling callbacks advance one event per callback and can emit a rapid catch-up sequence; nanosecond interval truncation can accumulate error | Drop expired events, preserve the absolute origin, and carry fractional sample-frame remainder | Differs; this is the core scheduler replacement |
 | PL-002 through PL-005 | ViewModels set `isPlaying` and record practice immediately after an asynchronous start request; focus denial is silent and commands have no session identity | Audio-confirmed authoritative state with typed failures and stale-session rejection | Differs; current UI and history can claim playback that never started |
-| PL-007 | `MainActivity` and both playback ViewModels stop when the app pauses | Continue active audio in background and under lock | Differs; this is a deliberate product and Android-service change |
-| PL-011, PL-012 | No playback foreground service, media session, media notification, or lock-screen transport exists | Provide Android background media infrastructure with stop-capable controls | Missing |
+| PL-007 | Foreground-service lifetime now follows authoritative session state | Continue active audio in background and under lock | Implemented; physical qualification pending |
+| PL-011, PL-012 | Foreground service and persistent stop action exist; media session and synchronized lock-screen transport remain | Provide Android background media infrastructure with stop-capable controls | Partial Phase 9 implementation |
 | PL-014 through PL-016 | The engine requests indefinite `AUDIOFOCUS_GAIN`, matching the approved ownership policy, but abandons focus only on engine release | Own long-duration audio focus while playing and abandon it whenever playback ends | Partial; focus acquisition already matches, focus lifetime does not |
 | PL-018, PL-021 | No route-change listener or Bluetooth warning exists | Stop on route changes and identify Bluetooth latency variability | Missing |
 | PL-028 | Leaving an on-screen metronome usually stops it through Composable disposal, but song playback can continue across some top-level navigation because the navigation helper stops only the opposite metronome mode | Every top-level section change stops all playback | Partial and path-dependent |
@@ -89,12 +89,12 @@ These differences deserve product review before implementation work begins.
 | PL-004 | Differs | Focus denial returns silently from the engine while the ViewModel remains playing |
 | PL-005 | Differs | Commands and callbacks carry no session identity |
 | PL-006 | Conforms | `AudioPlayerService` stops the other mode before starting standard or polyrhythm playback |
-| PL-007 | Differs | `MainActivity.onPause` and process lifecycle observers stop playback |
+| PL-007 | Conforms in implementation | Active sessions own foreground-service lifetime; backgrounding does not start playback; physical qualification pending |
 | PL-008 | Partial | Focus loss stops both modes, but route loss and media-server recovery are not modeled |
 | PL-009 | Conforms | No automatic-resume path exists |
 | PL-010 | Conforms | Explicit start resets counters and establishes a new first-event origin |
-| PL-011 | Differs | No playback foreground service is declared or implemented |
-| PL-012 | Differs | No media session, playback notification, or lock-screen controls exist |
+| PL-011 | Partial | Media-playback foreground service and notification exist; media session remains pending |
+| PL-012 | Partial | Persistent stop action exists and never starts playback; lock-screen media-session control remains pending |
 | PL-013 | Partial | The preference controls `FLAG_KEEP_SCREEN_ON` only while the Activity is visible, but it remains set while stopped |
 | PL-014 | Conforms | The engine requests long-duration `AUDIOFOCUS_GAIN` before playback |
 | PL-015 | Conforms | Current ownership allows Android to pause or duck other media and does not guarantee backing-track coexistence |
@@ -107,7 +107,7 @@ These differences deserve product review before implementation work begins.
 | PL-022 | Partial | Audio callbacks are the source of secondary events, but waveform enqueueing is not proof of presentation |
 | PL-023 | Partial | Audio and secondary effects share one callback and predicted time, but they do not derive from an authoritative committed sample-frame event |
 | PL-024 | Partial | Visual timing uses a buffer-derived output-latency estimate; per-output measured confidence and route calibration are absent |
-| PL-025 | Partial | Effects stop when the app pauses, but only because all playback stops; foreground-only effects alongside continuing background audio are not implemented |
+| PL-025 | Conforms in implementation | Process visibility stops haptic and flash independently while foreground-service audio continues; physical qualification pending |
 | PL-026 | Conforms | Disabling vibration or flashlight does not modify the audio schedule |
 | PL-027 | Partial | Output services avoid crashing playback, but failures are not surfaced to the user |
 | PL-028 | Partial | Top-level behavior depends on which screen owns playback; not every transition performs an explicit global stop |

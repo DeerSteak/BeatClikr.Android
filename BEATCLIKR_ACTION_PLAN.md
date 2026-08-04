@@ -702,13 +702,13 @@ These items are committed parity work, but they do not block the core metronome 
 
 ### 9.1 Implement background and locked playback
 
-- [ ] Add the media-playback foreground-service permission and service declaration.
-- [ ] Move active playback lifetime into the foreground service without creating a second coordinator or playback state.
-- [ ] Continue an already active session when the Activity backgrounds or the device locks.
-- [ ] Remove Activity and process-lifecycle stops only after the service owns the session safely.
-- [ ] Keep haptic and flashlight effects foreground-only while audio continues.
-- [ ] Keep the screen-awake preference limited to visible active playback.
-- [ ] Preserve practice checkpoints while the UI is absent.
+- [x] Add the media-playback foreground-service permission and service declaration.
+- [x] Move active playback lifetime into the foreground service without creating a second coordinator or playback state.
+- [x] Continue an already active session when the Activity backgrounds or the device locks.
+- [x] Remove Activity and process-lifecycle stops only after the service owns the session safely.
+- [x] Keep haptic and flashlight effects foreground-only while audio continues.
+- [x] Keep the screen-awake preference limited to visible active playback.
+- [x] Preserve practice checkpoints while the UI is absent.
 
 ### 9.2 Add reliable system controls
 

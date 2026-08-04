@@ -10,6 +10,7 @@ import com.bfunkstudios.beatclikr.data.IAppPreferences
 import com.bfunkstudios.beatclikr.data.SoundBank
 import com.bfunkstudios.beatclikr.services.IAudioPlayerService
 import com.bfunkstudios.beatclikr.services.PlaybackIntent
+import com.bfunkstudios.beatclikr.services.PlaybackForegroundServiceController
 import com.bfunkstudios.beatclikr.services.PracticeAccountingCoordinator
 import com.bfunkstudios.beatclikr.services.SecondaryOutputCoordinator
 import dagger.hilt.android.HiltAndroidApp
@@ -22,6 +23,7 @@ class BeatClikrApplication : Application() {
     @Inject lateinit var audioPlayerService: IAudioPlayerService
     @Inject lateinit var prefs: IAppPreferences
     @Inject lateinit var practiceAccounting: PracticeAccountingCoordinator
+    @Inject lateinit var playbackService: PlaybackForegroundServiceController
 
     override fun onCreate() {
         super.onCreate()
@@ -31,24 +33,24 @@ class BeatClikrApplication : Application() {
         }
         audioPlayerService.submit(PlaybackIntent.Prewarm)
         practiceAccounting.start()
+        playbackService.start()
         secondaryOutputs.start()
         ProcessLifecycleOwner.get().lifecycle.addObserver(
-            SecondaryOutputProcessLifecycleObserver(secondaryOutputs, ::stopResources)
+            SecondaryOutputProcessLifecycleObserver(secondaryOutputs)
         )
 
         @Suppress("DEPRECATION")
         registerComponentCallbacks(object : ComponentCallbacks2 {
             override fun onTrimMemory(level: Int) {
-                if (level >= ComponentCallbacks2.TRIM_MEMORY_MODERATE) stopResources()
+                if (level >= ComponentCallbacks2.TRIM_MEMORY_MODERATE) stopSecondaryOutputs()
             }
             override fun onConfigurationChanged(newConfig: Configuration) {}
             @Suppress("OVERRIDE_DEPRECATION")
-            override fun onLowMemory() = stopResources()
+            override fun onLowMemory() = stopSecondaryOutputs()
         })
     }
 
-    private fun stopResources() {
-        audioPlayerService.submit(PlaybackIntent.Stop)
+    private fun stopSecondaryOutputs() {
         secondaryOutputs.stopEffects()
     }
 
@@ -63,8 +65,7 @@ class BeatClikrApplication : Application() {
 }
 
 internal class SecondaryOutputProcessLifecycleObserver(
-    private val secondaryOutputs: SecondaryOutputCoordinator,
-    private val onInactive: () -> Unit
+    private val secondaryOutputs: SecondaryOutputCoordinator
 ) : DefaultLifecycleObserver {
     override fun onStart(owner: LifecycleOwner) {
         secondaryOutputs.setVisible(true)
@@ -72,6 +73,5 @@ internal class SecondaryOutputProcessLifecycleObserver(
 
     override fun onStop(owner: LifecycleOwner) {
         secondaryOutputs.setVisible(false)
-        onInactive()
     }
 }
