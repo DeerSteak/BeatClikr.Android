@@ -1,1 +1,0 @@
-07-28 17:22:51.173 22715 22727 I BeatClikrAudioStress: minutes=5 events=4800 scheduledDriftMs=0.0 callbackP50Ms=0.431763 callbackP95Ms=1.469849 callbackP99Ms=5.068807 callbackMaxMs=21.411011 underruns=0 chunks=119969 writtenFrames=14396280

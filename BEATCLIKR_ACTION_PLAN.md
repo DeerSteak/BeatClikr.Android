@@ -681,11 +681,11 @@ Playing(old) → Stopping(old) → Preparing(new) → Starting(new) → Playing(
 
 ### 8.5 Publish only supported claims
 
-- [ ] Compare every result with TB-001 through TB-018.
+- [x] Compare every result with TB-001 through TB-018.
 - [x] Record passes, failures, test limitations, and route-specific exclusions.
 - [x] Do not generalize Pixel 8a speaker results to all Android devices, Bluetooth, USB, or analog output.
-- [ ] Update README and release notes only with measured release-build claims.
-- [ ] Turn repeatable non-acoustic regressions into automated gates.
+- [x] Update README and release notes only with measured release-build claims.
+- [x] Turn repeatable non-acoustic regressions into automated gates.
 
 **Exit gate**
 

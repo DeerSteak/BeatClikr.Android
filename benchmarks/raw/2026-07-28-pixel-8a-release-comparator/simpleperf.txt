@@ -1,9 +1,0 @@
-CPU_EQUIVALENT_CORES=0.146675
-CPU_EQUIVALENT_SINGLE_CORE_PERCENT=14.6675
-CONTEXT_SWITCHES=1303520
-PAGE_FAULTS=8064
-PROFILE_DURATION_SECONDS=1500.120400
-
-Command:
-
-/Users/bfunk1978/Library/Android/sdk/platform-tools/adb -s 46131JEKB08004 shell simpleperf stat --app com.bfunkstudios.beatclikr.benchmark --duration 1500

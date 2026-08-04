@@ -21,7 +21,7 @@ fi
 
 serial="$transports"
 timestamp="$(date -u +%Y%m%dT%H%M%SZ)"
-artifact_dir="benchmarks/raw/phase8/${timestamp}-${label}"
+artifact_dir="build/benchmark-artifacts/phase8/${timestamp}-${label}"
 mkdir -p "$artifact_dir"
 command_file="$artifact_dir/command.txt"
 metadata_file="$artifact_dir/metadata.txt"

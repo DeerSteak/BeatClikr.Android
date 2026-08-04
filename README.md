@@ -14,6 +14,8 @@ Current features include:
 
 Timing claims must be based on physical-device measurements, not inferred from timer implementation alone.
 
+Phase 8 qualified the benchmark build on a Pixel 8a running Android 17 with the built-in speaker. The measured scope includes scheduler and render correctness, local acoustic timing, startup, visual/haptic/flash observations, sustained resources, thermal behavior, and a one-hour battery sniff check. These results do not generalize to every Android device or to Bluetooth, USB, or analog presentation latency.
+
 ## Requirements
 
 - Android Studio or Android SDK command-line tools
@@ -129,13 +131,12 @@ The project currently uses:
 - transactional repositories and duration-based practice accounting;
 - ViewModels that own draft UI state and project coordinator state.
 
-This describes the present implementation. Final presentation-time correlation and release-equivalent physical qualification remain Phase 8 work.
+This describes the present implementation. Phase 8 release-equivalent physical qualification is complete for its documented Pixel 8a and built-in-speaker scope.
 
 ## Documentation
 
 | File | Contents |
 | --- | --- |
-| [ADVERSARIAL_PROJECT_REVIEW.md](ADVERSARIAL_PROJECT_REVIEW.md) | Historical review findings and current remediation-status appendix |
 | [BEATCLIKR_ACTION_PLAN.md](BEATCLIKR_ACTION_PLAN.md) | Live phased remediation checklist and next actions |
 | [Docs/Architecture.md](Docs/Architecture.md) | Current layers, ownership, persistence, flows, and limits |
 | [Docs/Models.md](Docs/Models.md) | Room entities, relations, musical models, and schema policy |
@@ -153,13 +154,7 @@ This describes the present implementation. Final presentation-time correlation a
 | [Docs/Decisions/Review-Guide.md](Docs/Decisions/Review-Guide.md) | Phase 1 internal findings and product-owner approval checklist |
 | [Docs/Decisions/Current-Implementation-Audit.md](Docs/Decisions/Current-Implementation-Audit.md) | Historical pre-remediation clause-by-clause gap audit |
 | [Docs/Validation.md](Docs/Validation.md) | Local, CI, instrumentation, and production release checks |
-| [benchmarks/2026-07-28-android-17-emulator.md](benchmarks/2026-07-28-android-17-emulator.md) | Current emulator correctness baseline |
-| [benchmarks/2026-07-28-pixel-8a-android-17.md](benchmarks/2026-07-28-pixel-8a-android-17.md) | Initial Pixel 8a real-device engine baseline |
-| [benchmarks/2026-07-28-pixel-8a-acoustic-240bpm.md](benchmarks/2026-07-28-pixel-8a-acoustic-240bpm.md) | Initial Pixel 8a built-in-speaker acoustic baseline |
-| [benchmarks/2026-07-28-pixel-8a-cpu-profile.md](benchmarks/2026-07-28-pixel-8a-cpu-profile.md) | Pixel 8a CPU, memory, thermal, and profiled-load result |
-| [benchmarks/2026-07-28-pixel-8a-startup-latency.md](benchmarks/2026-07-28-pixel-8a-startup-latency.md) | Pixel 8a cold and warm predicted-presentation startup baseline |
-| [benchmarks/2026-07-28-pixel-8a-low-overhead-profile.md](benchmarks/2026-07-28-pixel-8a-low-overhead-profile.md) | Pixel 8a aggregate CPU and zero-underrun sustained profile |
-| [benchmarks/2026-07-28-pixel-8a-battery.md](benchmarks/2026-07-28-pixel-8a-battery.md) | Pixel 8a unplugged battery, thermal, memory, and one-hour audio result |
+| [benchmarks/README.md](benchmarks/README.md) | Consolidated historical and release-qualification benchmark summaries |
 
 ## Database version policy
 

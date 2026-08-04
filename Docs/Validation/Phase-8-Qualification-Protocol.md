@@ -45,7 +45,7 @@ For the existing 240 BPM sixteenth-note recording:
 
 ```bash
 tools/analyze_acoustic_onsets.py \
-  benchmarks/2026-07-28-pixel-8a-acoustic-240bpm.wav \
+  /path/to/proprietary-recording.wav \
   --interval-ms 62.5 --grouping 4 --threshold 0.003 \
   --minimum-distance-ms 45
 ```
@@ -114,4 +114,4 @@ Automation may vary action timing with a recorded seed, but not the action set o
 - [ ] Verify torch off after explicit stop, background transition, interruption, and forced torch failure.
 - [ ] Restore and record brightness, volume, timeout, orientation, connectivity, route, keep-awake, and charger state.
 
-Use [`Phase-8-Evidence-Register.md`](Phase-8-Evidence-Register.md) for TB status and `benchmarks/PHASE_8_REPORT_TEMPLATE.md` for each accepted or failed run.
+Use [`Phase-8-Evidence-Register.md`](Phase-8-Evidence-Register.md) for TB status and [`benchmarks/README.md`](../../benchmarks/README.md) for the retained summary policy.

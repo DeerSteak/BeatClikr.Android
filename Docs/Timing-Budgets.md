@@ -64,7 +64,7 @@ The pinned pre-Phase-3 release-equivalent comparator remains historical context.
 
 The current 2026-08-03 screen-on release-equivalent maximum-density standard run completed 57,600 events with zero scheduled drift, deadline misses, drops, route changes, underruns, or intended/rendered/written frame mismatch. It passes the standard render portion of TB-008; representative polyrhythm and UI-interaction stress evidence remain required.
 
-The TB-007 gate includes the deliberate pre-roll needed to prepare and commit the first event. Earlier tighter percentile gates contradicted that design. The 2026-07-28 comparator's startup calculation was later found to mix a relative intended frame with an absolute clock, so its distribution remains invalid. On 2026-08-03, the product owner amended TB-007 to p50 ≤ 250 ms, p95 ≤ 300 ms, and maximum ≤ 500 ms. The corrected same-clock release-equivalent run passes the amended gate; see `benchmarks/2026-08-03-phase-8-startup-latency.md`.
+The TB-007 gate includes the deliberate pre-roll needed to prepare and commit the first event. Earlier tighter percentile gates contradicted that design. The 2026-07-28 comparator's startup calculation was later found to mix a relative intended frame with an absolute clock, so its distribution remains invalid. On 2026-08-03, the product owner amended TB-007 to p50 ≤ 250 ms, p95 ≤ 300 ms, and maximum ≤ 500 ms. The corrected same-clock release-equivalent run passes the amended gate; see `benchmarks/2026-08-04-phase-8-qualification-summary.md`.
 
 ## Reporting rules
 

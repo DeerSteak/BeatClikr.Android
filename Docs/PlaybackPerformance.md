@@ -55,13 +55,7 @@ The polyrhythm contract suite exhaustively covers all 225 supported `M:N` ratios
 
 The tempo-ramp contract suite covers the iOS-compatible increment and interval choices, initial-beat counter semantics, subdivision exclusion, odd-meter accent counting, reset behavior, the 240 BPM cap, instant-only application, and restoration of the captured starting tempo.
 
-The recorded result is in [`benchmarks/2026-07-28-android-17-emulator.md`](../benchmarks/2026-07-28-android-17-emulator.md). It is a regression reference, not a physical-device audio benchmark.
-
-The first Pixel 8a engine result is in [`benchmarks/2026-07-28-pixel-8a-android-17.md`](../benchmarks/2026-07-28-pixel-8a-android-17.md). It exercises real hardware but still measures software callbacks rather than acoustic onset.
-
-The first microphone-recorded speaker result is in [`benchmarks/2026-07-28-pixel-8a-acoustic-240bpm.md`](../benchmarks/2026-07-28-pixel-8a-acoustic-240bpm.md). It measures audible onset intervals but not absolute input-to-sound latency.
-
-The pre-Phase-3 release comparator is in [`benchmarks/2026-07-28-pixel-8a-release-comparator.md`](../benchmarks/2026-07-28-pixel-8a-release-comparator.md). Its raw directory pins the commit, release-equivalent build, device fingerprint, route, settings, workloads, and exact commands required by TB-018.
+The emulator, initial Pixel 8a, acoustic, resource, battery, startup, and pre-Phase-3 comparator findings are consolidated in [`benchmarks/2026-07-28-initial-baselines-summary.md`](../benchmarks/2026-07-28-initial-baselines-summary.md). Phase 8 supersedes those exploratory baselines for release qualification.
 
 ## Low-overhead resource protocol
 

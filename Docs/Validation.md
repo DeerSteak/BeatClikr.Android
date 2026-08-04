@@ -88,7 +88,7 @@ The frame-session tripwire requires one reusable timestamp holder, captures writ
 
 Phase 3.5 diagnostics time mixing separately from the required blocking `AudioTrack.write`. Fixed-memory histograms use 5 µs buckets through 500 µs and progressively wider buckets above that range; reported p50, p95, and p99 values are bucket upper bounds, while maxima are exact. Snapshots also distinguish intended, rendered, written, and nullable estimated-presented frames and report route changes without allocating on the per-block record path.
 
-The release-equivalent five-minute Pixel 8a decision run is recorded in `benchmarks/2026-07-30-phase-3.5-pixel-8a.md`. It is the current evidence for retaining `AudioTrack`; AAudio or Oboe comparison is conditional on a reproducible approved-gate failure that remains after `AudioTrack` tuning or on unmet required device coverage.
+The release-equivalent five-minute Pixel 8a decision run is summarized in `benchmarks/2026-07-30-phase-3-and-4-summary.md`. It is the current evidence for retaining `AudioTrack`; AAudio or Oboe comparison is conditional on a reproducible approved-gate failure that remains after `AudioTrack` tuning or on unmet required device coverage.
 
 The Phase 4.1 coordinator suite verifies that production DI exposes one application-scoped playback owner, concurrent intents execute on one control thread, and cross-mode replacement stops the old mode before starting the new one. Mode-dependent start-versus-update decisions occur on that control thread, while mismatched explicit updates are rejected. Separate tests prove valid standard retunes, polyrhythm retunes, and mute changes remain in place without teardown.
 
