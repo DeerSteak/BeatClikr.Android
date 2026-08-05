@@ -71,17 +71,13 @@ class PracticeAccountingCoordinator internal constructor(
     private suspend fun recoverCheckpoint() {
         val persisted = repository.getAccountingCheckpoint()
         val currentSequence = lifecycle.lifecycleCheckpoint.value.latestTransitionSequence
+        val journalRestarted = persisted != null &&
+            persisted.acknowledgedLifecycleSequence > currentSequence
         acknowledgedSequence = persisted?.acknowledgedLifecycleSequence
-            ?.takeIf { it <= currentSequence }
+            ?.takeUnless { journalRestarted }
             ?: 0L
-        if (persisted != null && persisted.activePlaybackSessionId != null) {
-            repository.applyAccountingUpdate(
-                null,
-                null,
-                0,
-                0,
-                idleCheckpoint(acknowledgedSequence)
-            )
+        if (persisted?.activePlaybackSessionId != null || journalRestarted) {
+            repository.resetAccountingCheckpoint(idleCheckpoint(acknowledgedSequence))
         }
     }
 

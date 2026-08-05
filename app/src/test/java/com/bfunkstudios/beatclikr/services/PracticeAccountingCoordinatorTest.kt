@@ -156,10 +156,37 @@ class PracticeAccountingCoordinatorTest {
         PracticeAccountingCoordinator(lifecycle, repository, backgroundScope).start()
         runCurrent()
 
-        assertEquals(1, repository.updates.size)
-        assertEquals(0L, repository.updates.single().durationNanos)
+        assertTrue(repository.updates.isEmpty())
+        assertEquals(1, repository.resets)
         assertNull(repository.checkpoint?.activePlaybackSessionId)
         assertEquals(0L, repository.checkpoint?.acknowledgedLifecycleSequence)
+    }
+
+    @Test
+    fun restartedJournalCanAccountBeforeOldSequenceIsReached() = runTest {
+        val lifecycle = FakeLifecycle()
+        val repository = FakeRepository().apply {
+            checkpoint = PracticeAccountingCheckpoint(acknowledgedLifecycleSequence = 9)
+        }
+        var elapsedNow = 31_000_000_000L
+        PracticeAccountingCoordinator(
+            lifecycle,
+            repository,
+            backgroundScope,
+            { elapsedNow },
+            { PracticeDayIdentity.capture() },
+            1_000
+        ).start()
+        runCurrent()
+
+        lifecycle.publish(transition(1, PlaybackTransportState.Idle, playing(1, PracticeItemSnapshot.metronome()), 1_000))
+        runCurrent()
+        advanceTimeBy(1_000)
+        runCurrent()
+
+        assertEquals(1, repository.resets)
+        assertEquals(30_999_999_000L, repository.updates.last().durationNanos)
+        assertEquals(1L, repository.checkpoint?.acknowledgedLifecycleSequence)
     }
 
     @Test
@@ -275,8 +302,13 @@ class PracticeAccountingCoordinatorTest {
     private class FakeRepository : PracticeHistoryRepository {
         val updates = mutableListOf<Update>()
         var checkpoint: PracticeAccountingCheckpoint? = null
+        var resets = 0
         override fun getAllSessions(): Flow<List<PracticeSessionWithSongs>> = emptyFlow()
         override suspend fun getAccountingCheckpoint() = checkpoint
+        override suspend fun resetAccountingCheckpoint(checkpoint: PracticeAccountingCheckpoint) {
+            resets += 1
+            this.checkpoint = checkpoint
+        }
         override suspend fun applyAccountingUpdate(
             day: PracticeDayIdentity?,
             item: PracticeItemSnapshot?,
@@ -284,6 +316,8 @@ class PracticeAccountingCoordinatorTest {
             periodIncrement: Int,
             checkpoint: PracticeAccountingCheckpoint
         ) {
+            val existingSequence = this.checkpoint?.acknowledgedLifecycleSequence ?: -1L
+            if (checkpoint.acknowledgedLifecycleSequence < existingSequence) return
             updates += Update(day, durationNanos, periodIncrement)
             this.checkpoint = checkpoint
         }

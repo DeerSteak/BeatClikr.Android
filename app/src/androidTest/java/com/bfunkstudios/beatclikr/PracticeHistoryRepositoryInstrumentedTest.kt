@@ -70,6 +70,30 @@ class PracticeHistoryRepositoryInstrumentedTest {
         assertEquals(1, practiced.timesPracticed)
     }
 
+    @Test
+    fun recoveryResetAllowsNewProcessSequence() = runTest {
+        repository.applyAccountingUpdate(
+            null,
+            null,
+            0,
+            0,
+            PracticeAccountingCheckpoint(acknowledgedLifecycleSequence = 9)
+        )
+
+        repository.resetAccountingCheckpoint(
+            PracticeAccountingCheckpoint(acknowledgedLifecycleSequence = 0)
+        )
+        repository.applyAccountingUpdate(
+            null,
+            null,
+            0,
+            0,
+            PracticeAccountingCheckpoint(acknowledgedLifecycleSequence = 1)
+        )
+
+        assertEquals(1L, repository.getAccountingCheckpoint()?.acknowledgedLifecycleSequence)
+    }
+
     private fun activeCheckpoint(sequence: Long, elapsedNanos: Long) =
         PracticeAccountingCheckpoint(
             acknowledgedLifecycleSequence = sequence,

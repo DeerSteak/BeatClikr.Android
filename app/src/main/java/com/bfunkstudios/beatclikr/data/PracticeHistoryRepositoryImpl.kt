@@ -20,6 +20,10 @@ class PracticeHistoryRepositoryImpl @Inject constructor(
     override suspend fun getAccountingCheckpoint(): PracticeAccountingCheckpoint? =
         dao.getAccountingCheckpoint()
 
+    override suspend fun resetAccountingCheckpoint(checkpoint: PracticeAccountingCheckpoint) {
+        dao.upsertAccountingCheckpoint(checkpoint)
+    }
+
     override suspend fun applyAccountingUpdate(
         day: PracticeDayIdentity?,
         item: PracticeItemSnapshot?,
