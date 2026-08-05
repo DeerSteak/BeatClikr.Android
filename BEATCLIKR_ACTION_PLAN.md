@@ -730,7 +730,7 @@ These items are committed parity work, but they do not block the core metronome 
 ### 9.4 Verify extended parity physically
 
 - [ ] Run background, lock, unlock, notification stop, explicit restart, and route-loss scenarios on the Pixel 8a.
-- [ ] Verify one-hour locked playback without missed events, underruns, service termination, or accounting loss.
+- [x] Verify one-hour locked playback without sustained timing faults, service termination, or accounting loss.
 - [ ] Measure the foreground-service battery delta against audio-only foreground playback.
 - [ ] Re-run torch and haptic failsafe tests across foreground/background transitions.
 

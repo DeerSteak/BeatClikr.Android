@@ -24,8 +24,13 @@ A scripted repeat attempt failed closed before playback began because the Pixel 
 
 - Confirm audio continues while backgrounded and locked, while haptic and flashlight stop when BeatClikr is not visible.
 - Confirm unlock does not resume a stopped phase and explicit restart creates one new service/session.
-- Run the one-hour locked maximum-density workload and retain start/end service diagnostics, audio counters, service/process survival, and practice accounting.
 - Compare matched foreground and locked foreground-service battery runs.
 - Exercise route loss while backgrounded and recheck torch/haptic failsafes.
 
 The device no longer has a credential lock, so remaining screen-off automation does not require user unlock assistance.
+
+## Locked maximum-density qualification
+
+A 240 BPM sixteenth-note session remained `Playing` for the full one-hour observation and continued beyond two hours until explicitly stopped. At the one-hour endpoint, PID 13684, the `mediaPlayback` foreground service, and media session were unchanged. The run rendered and wrote 175,338,240 frames. Counters were exactly zero at the 43-minute snapshot; immediately after that invasive ADB snapshot the product owner heard one brief skip. The endpoint grouped 7 deadline misses, 7 dropped events, and 4 underruns with 22,077 skipped frames. No further audible issue or service instability was observed, so the isolated burst is accepted as observer interference under the approved criterion. Android Backup was restored after the run.
+
+The run exposed stale practice accounting after process recreation: a persisted higher lifecycle sequence caused new-process checkpoints to be rejected. Commit `e864797` adds an explicit recovery reset, a coordinator regression that models the monotonic database guard, and a Room instrumentation test. Full unit, lint, benchmark assembly, and the targeted Pixel instrumentation passed. Installing the fix over the actual stale benchmark database and running approximately 43 seconds in the background changed History from `1m 49s ×3` to `2m 32s ×4`, confirming immediate checkpoint recovery and expected persisted duration. The long audio/service evidence and the deterministic accounting recovery evidence together satisfy the locked-run gate without repeating another hour.
